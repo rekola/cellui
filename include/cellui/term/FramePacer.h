@@ -110,7 +110,7 @@ struct PacerStats {
   double fps = 0;             // frames sent over the last second
   size_t bytes_in_flight = 0, frames_in_flight = 0;
   FrameBytes last_frame, totals;
-  // What the last frame's size comes to at the floor between frames: the rate an estimate cannot
+  // What the largest frame of the last second comes to at the floor between frames: the rate an estimate cannot
   // tell from the application's own when it is near it.
   double floor_rate = 0;
   size_t frames = 0, acks = 0, backoffs = 0, stalls = 0;
@@ -243,6 +243,7 @@ class FramePacer {
   bool answered_ = false;
 
   std::deque<TimePoint> recent_starts_;
+  std::deque<size_t> recent_sizes_;  // parallel to recent_starts_
   FrameBytes last_frame_, totals_;
   size_t frames_ = 0, acks_ = 0, backoffs_ = 0, stalls_ = 0;
 };
