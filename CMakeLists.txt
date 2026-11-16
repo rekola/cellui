@@ -195,8 +195,8 @@ endif()
 target_compile_definitions(cellui PRIVATE CELLUI_PIXEL_SCOPES)
 # canvas' headers are reached as SYSTEM includes.
 target_include_directories(cellui SYSTEM PUBLIC ${canvas_SOURCE_DIR}/include)
-# fast_float, vendored in the repository's third_party/ (NumberParse.cpp).
-target_include_directories(cellui SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party)
+# fast_float, vendored in third_party/ (NumberParse.cpp).
+target_include_directories(cellui SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 target_link_libraries(cellui PUBLIC canvas)
 target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(cellui PRIVATE ${UNISTRING_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src)

@@ -5,12 +5,12 @@ the display allows, pictures over them. The same widgets run in a terminal, in a
 GTK window and (first slice, compiled but not yet run) in a Win32 window; a
 `TestBackend` with no tty or window runs them in tests.
 
-It was written for [synth](../../README.md) and lives in this repository, but it
-is its own CMake project and includes nothing from the application (`src/`).
+It was written for [synth](https://github.com/rekola/synth), which fetches it
+at a pinned commit, but it builds on its own and knows nothing of the application.
 
-    cmake -S lib/cellui -B build-cellui
-    cmake --build build-cellui -j
-    ctest --test-dir build-cellui --output-on-failure
+    cmake -B build
+    cmake --build build -j
+    ctest --test-dir build --output-on-failure
 
 Only libunistring is needed to build it (the canvas drawing library is fetched
 at configure time, GTK is optional). Headers are `cellui/X.h` in
@@ -429,5 +429,5 @@ TEST(capture_precedes_bubble) {
 ## Tests
 
 `cellui_tests` holds the unit tests (a copy of the tiny test framework lives in
-`lib/cellui/tests/`); `cellui_includes_nothing_from_src` fails if any header or
-source reaches into the application.
+`tests/`); `cellui_includes_nothing_from_src` fails if any header or
+source reaches outside the repository.

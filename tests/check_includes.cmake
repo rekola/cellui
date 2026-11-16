@@ -1,4 +1,4 @@
-# Fails if a file under lib/cellui includes a header by a path that leaves the
+# Fails if a file in this repository includes a header by a path that leaves the
 # library (a "../" that climbs out of it, or anything under src/).
 file(GLOB_RECURSE files ${DIR}/include/*.h ${DIR}/src/*.cpp ${DIR}/src/*.h ${DIR}/tests/*.cpp ${DIR}/tests/*.h)
 set(bad "")
@@ -10,5 +10,5 @@ foreach(f ${files})
 endforeach()
 if(bad)
   string(REPLACE ";" "\n" bad "${bad}")
-  message(FATAL_ERROR "cellui must not include anything outside lib/cellui:\n${bad}")
+  message(FATAL_ERROR "cellui must not include anything outside the repository:\n${bad}")
 endif()

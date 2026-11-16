@@ -1,13 +1,15 @@
 # cellui — the UI toolkit
 
-`lib/cellui/` is its own CMake project (`cmake -S lib/cellui -B build-cellui`
-builds and tests it alone, which CI does). It includes nothing from `src/`: a
-ctest (`cellui_includes_nothing_from_src`) fails on any include that leaves
-it. Headers are `cellui/X.h`, in `namespace cellui`. Tests in
-`lib/cellui/tests/` use a copy of the tiny test framework (no dependency on
-`tests/`). cellui owns the libunistring and canvas dependencies.
+cellui is the UI toolkit of [synth](https://github.com/rekola/synth), which
+fetches it at a pinned commit (bump that pin when cellui changes). It builds
+and tests alone (`cmake -B build && ctest --test-dir build`). It knows nothing
+of the application: a ctest (`cellui_includes_nothing_from_src`) fails on any
+include that leaves the repository. Headers are `cellui/X.h`, in `namespace
+cellui`. Tests in `tests/` use a copy of the tiny test framework. cellui owns
+the libunistring and canvas dependencies; fast_float is vendored in
+`third_party/` (never reformat it).
 
-What the app adds on top is in `src/ui/CLAUDE.md`; the app's `UIElement`
+What the app adds on top is in synth's `src/ui/CLAUDE.md`; the app's `UIElement`
 extends `Widget` with the event handler and the controller, and `Plane`
 carries the app's object as an opaque `getAppContext()`.
 
@@ -200,7 +202,7 @@ carries the app's object as an opaque `getAppContext()`.
   `scaleImageNearest()` (`ImageScale.h`: each cell a block of one colour, no canvas; the terminal's stretched
   pictures use `scaleImage()`, bilinear, from the same header).
   canvas (`rekola/canvas`: Cairo, Quartz 2D on macOS, GDI+ on Windows) is
-  fetched at a pinned commit by `lib/cellui/CMakeLists.txt` with none of our
+  fetched at a pinned commit by `CMakeLists.txt` with none of our
   warning flags and SYSTEM includes; `cellui::nativeContext()`
   (`src/NativeContext.h`) is the one place that names a canvas backend.
   `nativeLinearContext()` is what a painter draws on: a context of exact pixels whose colours
@@ -384,5 +386,5 @@ and the focus name, `cursor()`, `images()`, `setHdr()`, `sdrFrame()`,
 `emulateBackdrops(true)` to show backdrops as a terminal does). It is named
 for the test, not the terminal, so any backend's tests can use it. The
 gallery (`Gallery.h`, `cellui_gallery`; `--live` through the display,
-`--gtk` in the window) is a golden text file in `lib/cellui/tests/golden/`,
+`--gtk` in the window) is a golden text file in `tests/golden/`,
 rewritten with `CELLUI_UPDATE_GOLDEN=1`.
