@@ -111,7 +111,11 @@ void FramePacer::onFrameSent(FrameBytes size, TimePoint t_sent, size_t lead_byte
   last_frame_ = size;
   totals_ += size;
   recent_starts_.push_back(t_sent);
-  while (!recent_starts_.empty() && t_sent - recent_starts_.front() > std::chrono::seconds(1)) recent_starts_.pop_front();
+  recent_sizes_.push_back(size.total());
+  while (!recent_starts_.empty() && t_sent - recent_starts_.front() > std::chrono::seconds(1)) {
+    recent_starts_.pop_front();
+    recent_sizes_.pop_front();
+  }
   last_sent_ = t_sent;
   last_start_ = pending_start_;
   last_sent_bytes_ = size.total();
@@ -316,7 +320,11 @@ PacerStats FramePacer::stats(TimePoint now) const {
   s.bytes_in_flight = inFlightBytes();
   for (const Fence & f : in_flight_) s.frames_in_flight += f.lead ? 0 : 1;
   s.last_frame = last_frame_;
-  s.floor_rate = static_cast<double>(last_frame_.total()) / duration<double>(config_.min_frame_interval).count();
+  // The largest frame of the last second, not the last: a small frame among larger ones must not
+  // make the application's own rate look like the link's.
+  size_t biggest = 0;
+  for (size_t n : recent_sizes_) biggest = std::max(biggest, n);
+  s.floor_rate = static_cast<double>(biggest) / duration<double>(config_.min_frame_interval).count();
   s.totals = totals_;
   s.frames = frames_;
   s.acks = acks_;
