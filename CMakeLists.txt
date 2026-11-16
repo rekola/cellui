@@ -15,6 +15,10 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(CELLUI_STANDALONE ON)
 endif()
 
+# Tests, the gallery and the tools: on when built on its own, off when an
+# application pulls cellui in (cellui's own CI runs them).
+option(CELLUI_BUILD_TESTS "Build cellui's tests, gallery and tools" ${CELLUI_STANDALONE})
+
 # libunistring backs cellui/Utf8.h's grapheme-cluster-aware width and
 # truncation. No pkg-config file ships with libunistring-dev on Ubuntu.
 find_library(UNISTRING_LIBRARY unistring)
@@ -118,15 +122,17 @@ if(CELLUI_ENABLE_GTK)
   target_compile_definitions(cellui PUBLIC CELLUI_HAS_GTK)
   # Needs a display: run under Xvfb (xvfb-run) when there is none, skipped
   # when neither exists.
-  add_executable(cellui_gtk_tests tests/test_main.cpp tests/GtkWindowTests.cpp)
-  target_link_libraries(cellui_gtk_tests PRIVATE cellui)
-  find_program(CELLUI_XVFB_RUN xvfb-run)
-  if(CELLUI_XVFB_RUN)
-    add_test(NAME cellui_gtk_tests COMMAND ${CELLUI_XVFB_RUN} -a $<TARGET_FILE:cellui_gtk_tests>)
-  else()
-    add_test(NAME cellui_gtk_tests COMMAND cellui_gtk_tests)
+  if(CELLUI_BUILD_TESTS)
+    add_executable(cellui_gtk_tests tests/test_main.cpp tests/GtkWindowTests.cpp)
+    target_link_libraries(cellui_gtk_tests PRIVATE cellui)
+    find_program(CELLUI_XVFB_RUN xvfb-run)
+    if(CELLUI_XVFB_RUN)
+      add_test(NAME cellui_gtk_tests COMMAND ${CELLUI_XVFB_RUN} -a $<TARGET_FILE:cellui_gtk_tests>)
+    else()
+      add_test(NAME cellui_gtk_tests COMMAND cellui_gtk_tests)
+    endif()
+    set_tests_properties(cellui_gtk_tests PROPERTIES SKIP_REGULAR_EXPRESSION "SKIP: no display")
   endif()
-  set_tests_properties(cellui_gtk_tests PROPERTIES SKIP_REGULAR_EXPRESSION "SKIP: no display")
 endif()
 # The Vulkan layer (cellui/vulkan/): CELLUI_ENABLE_VULKAN, set by the
 # including project or, by default, on when the Vulkan headers and glslang are
@@ -160,13 +166,15 @@ if(CELLUI_ENABLE_VULKAN)
   target_include_directories(cellui_vulkan PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CELLUI_SHADER_DIR})
   target_link_libraries(cellui_vulkan PRIVATE Vulkan::Vulkan)
   target_compile_definitions(cellui_vulkan PUBLIC CELLUI_HAS_VULKAN)
-  # What the machine's Vulkan offers, for a person to run on real hardware.
-  add_executable(cellui_vulkan_probe tools/vulkan_probe.cpp)
-  target_link_libraries(cellui_vulkan_probe PRIVATE cellui_vulkan)
-  add_executable(cellui_vulkan_tests tests/test_main.cpp tests/VulkanTests.cpp)
-  target_link_libraries(cellui_vulkan_tests PRIVATE cellui_vulkan)
-  add_test(NAME cellui_vulkan_tests COMMAND cellui_vulkan_tests)
-  set_tests_properties(cellui_vulkan_tests PROPERTIES SKIP_REGULAR_EXPRESSION "SKIP: no Vulkan")
+  if(CELLUI_BUILD_TESTS)
+    # What the machine's Vulkan offers, for a person to run on real hardware.
+    add_executable(cellui_vulkan_probe tools/vulkan_probe.cpp)
+    target_link_libraries(cellui_vulkan_probe PRIVATE cellui_vulkan)
+    add_executable(cellui_vulkan_tests tests/test_main.cpp tests/VulkanTests.cpp)
+    target_link_libraries(cellui_vulkan_tests PRIVATE cellui_vulkan)
+    add_test(NAME cellui_vulkan_tests COMMAND cellui_vulkan_tests)
+    set_tests_properties(cellui_vulkan_tests PROPERTIES SKIP_REGULAR_EXPRESSION "SKIP: no Vulkan")
+  endif()
 endif()
 # The Windows window backend (cellui/win32/): a Win32 window drawn with
 # Direct2D and DirectWrite, on a loop that waits on the message queue. All of
@@ -202,6 +210,7 @@ target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(cellui PRIVATE ${UNISTRING_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(cellui PUBLIC ${UNISTRING_LIBRARY})
 
+if(CELLUI_BUILD_TESTS)
 # Prints the gallery page (every style and widget the library has).
 add_executable(cellui_gallery gallery/main.cpp)
 target_link_libraries(cellui_gallery PRIVATE cellui)
@@ -287,3 +296,4 @@ add_test(NAME cellui_tests COMMAND cellui_tests)
 # Nothing in the library may reach into the application.
 add_test(NAME cellui_includes_nothing_from_src
   COMMAND ${CMAKE_COMMAND} -DDIR=${CMAKE_CURRENT_SOURCE_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_includes.cmake)
+endif()
