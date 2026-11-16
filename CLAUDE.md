@@ -274,8 +274,7 @@ timing (and missed-vsync counts) at exit.
   the terminal is restored (`close()`, the signal handlers, `atexit`) `TerminalSession` first deletes each
   tracked id (`a=d,d=I`, placements and data), never a delete-all, then wipes the alternate screen where
   Sixel/iTerm2 pictures were drawn. Nothing is freed during the run beyond what the encoder already does.
-- Frames are paced to the link (`FramePacer`; `plans/frame-pacing-terminal.md`
-  has the design): the app calls `Backend::requestFrame()` and renders in the
+- Frames are paced to the link (`FramePacer`): the app calls `Backend::requestFrame()` and renders in the
   handler it gave `setFrameHandler()`, called when the pacer lets a frame
   start. Writes go through a non-blocking `OutputQueue` and nothing is encoded
   while it holds bytes. Each frame is led and ended by a fence, `ESC[?6n`, whose
@@ -306,7 +305,7 @@ timing (and missed-vsync counts) at exit.
   (`linkClassForFrameRate()`: a 30 Hz monitor at 30 fps is FULL); FULL needs no
   up margin, and with too little drawn there is no reading and the class holds
   (`LinkClassifier::hold()`). Its description is `60 Hz vsync, 58 fps`.
-  `InfoLine` shows `Link: ...` (`n/a` until available). `plans/link-degradation.md`
+  `InfoLine` shows `Link: ...` (`n/a` until available). synth's `plans/link-degradation.md`
   plans what an app does at each class. `tools/pacing/run_assertions.py`
   (ctest `cellui_pacing_harness`) runs `cellui_pacing_probe` on a shaped pty.
 - The terminal cannot blur: `term::BackdropEmulation` averages cells over
