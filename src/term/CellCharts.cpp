@@ -9,6 +9,7 @@
 #include <cellui/term/SubcellGlyphs.h>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -174,6 +175,53 @@ void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vec
   }
 }
 
+void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, const std::vector<float> & values, const TraceLook & look, int clip_top,
+                   int clip_bottom) {
+  if (rows <= 0 || cols <= 0) return;
+  // A dot column for each half cell, a level for each quarter of a row; level 0 is the bottom one.
+  const int dot_cols = 2 * cols, levels = 4 * rows;
+  std::vector<float> points = trace_image::resample(values, static_cast<size_t>(dot_cols));
+  // Each column's dots run from its point toward the middle of the way to
+  // each neighbour, so a steep stretch is a connected line, not scattered dots.
+  std::vector<int> low(static_cast<size_t>(dot_cols), 1), high(static_cast<size_t>(dot_cols), 0);  // empty: low > high
+  if (!points.empty()) {
+    std::vector<int> y(points.size());
+    for (size_t i = 0; i < points.size(); i++) y[i] = std::clamp(static_cast<int>(std::lround(points[i] * static_cast<float>(levels - 1))), 0, levels - 1);
+    for (size_t i = 0; i < y.size(); i++) {
+      low[i] = high[i] = y[i];
+      if (i > 0) {
+        int mid = (y[i] + y[i - 1]) / 2;
+        low[i] = std::min(low[i], mid);
+        high[i] = std::max(high[i], mid);
+      }
+      if (i + 1 < y.size()) {
+        int mid = (y[i] + y[i + 1]) / 2;
+        low[i] = std::min(low[i], mid);
+        high[i] = std::max(high[i], mid);
+      }
+    }
+  }
+  plane.setBgColor(look.background);
+  plane.setFgColor(look.line);
+  for (int i = 0; i < rows; i++) {
+    int y = row + i;
+    if (y < clip_top || y >= clip_bottom) continue;
+    std::string line;
+    for (int c = 0; c < cols; c++) {
+      int mask = 0;
+      for (int sub = 0; sub < 4; sub++) {
+        int level = (rows - 1 - i) * 4 + (3 - sub);  // sub 0 is the cell's top dot row
+        for (int dx = 0; dx < 2; dx++) {
+          size_t x = static_cast<size_t>(2 * c + dx);
+          if (level >= low[x] && level <= high[x]) mask |= 1 << (sub * 2 + dx);
+        }
+      }
+      line += utf8::encodeCodepoint(brailleCodepoint(mask));
+    }
+    plane.putstr(y, col, line);
+  }
+}
+
 void CellLineChart::drawSamples(const std::vector<float> & samples) {
   auto [rows, cols] = getDim();
   auto & styles = getPlane().getStyles();
@@ -284,6 +332,10 @@ class CellCharts : public Charts {
   void drawSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look,
                      int clip_top, int clip_bottom, uint64_t) const override {
     drawCellSparkline(plane, row, col, rows, readings, look, clip_top, clip_bottom);
+  }
+  void drawTrace(Plane & plane, int row, int col, int rows, int cols, const std::vector<float> & values, const TraceLook & look, int clip_top,
+                 int clip_bottom, uint64_t) const override {
+    drawCellTrace(plane, row, col, rows, cols, values, look, clip_top, clip_bottom);
   }
   void drawWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look) const override {
     drawCellWaveformRow(plane, row, col, width, slices, look, sextants_);

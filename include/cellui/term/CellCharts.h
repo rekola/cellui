@@ -24,6 +24,10 @@ class CellLineChart : public LineChart {
 void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look, int clip_top,
                      int clip_bottom);
 
+// A trace in braille dots, two points to a cell across and four levels to a cell down.
+void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, const std::vector<float> & values, const TraceLook & look, int clip_top,
+                   int clip_bottom);
+
 void drawCellWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look,
                          bool sextants);
 
