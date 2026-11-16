@@ -305,8 +305,8 @@ timing (and missed-vsync counts) at exit.
   (`linkClassForFrameRate()`: a 30 Hz monitor at 30 fps is FULL); FULL needs no
   up margin, and with too little drawn there is no reading and the class holds
   (`LinkClassifier::hold()`). Its description is `60 Hz vsync, 58 fps`.
-  `InfoLine` shows `Link: ...` (`n/a` until available). synth's `plans/link-degradation.md`
-  plans what an app does at each class. `tools/pacing/run_assertions.py`
+  `InfoLine` shows `Link: ...` (`n/a` until available). The app chooses what to draw by
+  link class (synth's `PerformanceProfile.h`). `tools/pacing/run_assertions.py`
   (ctest `cellui_pacing_harness`) runs `cellui_pacing_probe` on a shaped pty.
 - The terminal cannot blur: `term::BackdropEmulation` averages cells over
   their neighbours with glyphs faded out, or with pictures draws, blurs and
