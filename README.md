@@ -1,5 +1,10 @@
 # cellui
 
+[![Linux x86-64](https://github.com/rekola/cellui/actions/workflows/ci-linux-x86_64.yml/badge.svg)](https://github.com/rekola/cellui/actions/workflows/ci-linux-x86_64.yml)
+[![Linux ARM64](https://github.com/rekola/cellui/actions/workflows/ci-linux-arm64.yml/badge.svg)](https://github.com/rekola/cellui/actions/workflows/ci-linux-arm64.yml)
+[![Windows x86-64](https://github.com/rekola/cellui/actions/workflows/ci-windows-x86_64.yml/badge.svg)](https://github.com/rekola/cellui/actions/workflows/ci-windows-x86_64.yml)
+[![macOS ARM64](https://github.com/rekola/cellui/actions/workflows/ci-macos-arm64.yml/badge.svg)](https://github.com/rekola/cellui/actions/workflows/ci-macos-arm64.yml)
+
 A UI toolkit for applications that draw on a grid of character cells and, where
 the display allows, pictures over them. The same widgets run in a terminal, in a
 GTK window and (first slice, compiled but not yet run) in a Win32 window; a
