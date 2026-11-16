@@ -82,6 +82,8 @@ add_library(cellui STATIC
   src/LineEditor.cpp
   src/Markdown.cpp
   src/MenuBar.cpp
+  src/Table.cpp
+  src/TagBar.cpp
   src/Charts.cpp
   src/term/CellCharts.cpp
   src/LineChart.cpp
@@ -188,7 +190,7 @@ endif()
 # Apple platforms or its GDI+ one on Windows. The cell rasterizer (the GTK
 # window's, the terminal's backdrops) is not built on Windows, whose window
 # draws cells itself.
-target_sources(cellui PRIVATE src/Dial.cpp src/NumberParse.cpp src/DialImage.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelCharts.cpp src/LineImage.cpp src/Lamp.cpp src/HdrSplit.cpp src/HdrBloom.cpp src/SparklineImage.cpp src/WaveformImage.cpp)
+target_sources(cellui PRIVATE src/Dial.cpp src/NumberParse.cpp src/DialImage.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelCharts.cpp src/LineImage.cpp src/Lamp.cpp src/HdrSplit.cpp src/HdrBloom.cpp src/SparklineImage.cpp src/TraceImage.cpp src/WaveformImage.cpp)
 if(NOT WIN32)
   target_sources(cellui PRIVATE src/CanvasRasterizer.cpp)
   target_compile_definitions(cellui PRIVATE CELLUI_CANVAS_RASTERIZER)
@@ -275,6 +277,7 @@ add_executable(cellui_tests
   tests/KeyReaderTests.cpp
   tests/LineEditorTests.cpp
   tests/MenuBarTests.cpp
+  tests/TableTests.cpp
   tests/MeterTests.cpp
   tests/NumberParseTests.cpp
   tests/Utf8Tests.cpp)

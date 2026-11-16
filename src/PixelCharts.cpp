@@ -11,6 +11,8 @@
 #include <cellui/term/CellCharts.h>
 
 #include <algorithm>
+#include <functional>
+#include <map>
 #include <set>
 #include <utility>
 #include <vector>
@@ -140,6 +142,38 @@ class PixelCharts : public Charts {
                   sparkline_image::renderPicture(slots, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()), plane.hdrPictures()), id,
                   clip_top, clip_bottom);
   }
+  void drawTrace(Plane & plane, int row, int col, int rows, int cols, const std::vector<float> & values, const TraceLook & look, int clip_top,
+                 int clip_bottom, uint64_t id) const override {
+    int cell_h = 0, cell_w = 0;
+    if (rows <= 0 || cols <= 0 || !plane.cellPixelSize(cell_h, cell_w)) {
+      term::drawCellTrace(plane, row, col, rows, cols, values, look, clip_top, clip_bottom);
+      return;
+    }
+    const unsigned width = static_cast<unsigned>(cols * cell_w), height = static_cast<unsigned>(rows * cell_h);
+    const float scale = static_cast<float>(plane.displayScale());
+    const bool hdr = plane.hdrPictures();
+    // A table redraws on every scroll step; a trace whose series and look have not changed keeps its picture.
+    if (id == 0) {
+      drawPictureAt(plane, row, col, trace_image::renderPicture(values, look, width, height, scale, hdr), id, clip_top, clip_bottom);
+      return;
+    }
+    size_t print = std::hash<unsigned>()(width * 31u + height) ^ std::hash<float>()(scale) ^ std::hash<bool>()(hdr);
+    auto mix = [&](float v) { print = print * 1099511628211ull + std::hash<float>()(v); };
+    for (float v : values) mix(v);
+    for (const Color * c : {&look.background, &look.line}) {
+      mix(c->r());
+      mix(c->g());
+      mix(c->b());
+    }
+    mix(look.fill ? look.fill->r() + 1.0f : 0.0f);
+    auto key = std::make_pair(&plane, id);
+    auto found = traces_.find(key);
+    if (found == traces_.end() || found->second.print != print) {
+      if (traces_.size() > 2048) traces_.clear();
+      found = traces_.insert_or_assign(key, CachedTrace{print, trace_image::renderPicture(values, look, width, height, scale, hdr)}).first;
+    }
+    drawPictureAt(plane, row, col, found->second.picture, id, clip_top, clip_bottom);
+  }
   void drawWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look) const override {
     int cell_h = 0, cell_w = 0;
     if (width <= 0 || !plane.cellPixelSize(cell_h, cell_w)) {
@@ -154,6 +188,12 @@ class PixelCharts : public Charts {
  private:
   // The meters (plane, id) that have been drawn as pixels.
   mutable std::set<std::pair<const Plane *, uint64_t>> drawn_;
+  // The traces' last pictures by (plane, id), with a print of what they were drawn from.
+  struct CachedTrace {
+    size_t print = 0;
+    Picture picture;
+  };
+  mutable std::map<std::pair<const Plane *, uint64_t>, CachedTrace> traces_;
 };
 
 }  // namespace

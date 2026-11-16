@@ -4,6 +4,7 @@
 #include <cellui/HeatmapChart.h>
 #include <cellui/LineChart.h>
 #include <cellui/SparklineImage.h>
+#include <cellui/TraceImage.h>
 
 #include <memory>
 #include <vector>
@@ -44,6 +45,12 @@ class Charts {
                      int clip_bottom, uint64_t id = 0) const {
     drawSparkline(plane, row, col, rows, std::vector<SparklineReading>{reading}, look, clip_top, clip_bottom, id);
   }
+  // A line through `values` from the left of a box of `rows` x `cols` cells at (row, col), scaled
+  // from the lowest value to the highest (a price history, in a table cell), drawn only in the plane
+  // rows from clip_top up to clip_bottom (one partly scrolled out of view). `id` names it for
+  // the plane's images (see Plane::drawImageAt()); 0 for none.
+  virtual void drawTrace(Plane & plane, int row, int col, int rows, int cols, const std::vector<float> & values, const TraceLook & look,
+                         int clip_top, int clip_bottom, uint64_t id = 0) const = 0;
   // One pattern row's slice of a sample clip's waveform across `width` cells
   // from (row, col): kWaveformSlices amplitudes (0..1) over the row's time,
   // each a bar centred in the row's width.
