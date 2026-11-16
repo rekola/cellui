@@ -9,6 +9,10 @@ cellui`. Tests in `tests/` use a copy of the tiny test framework. cellui owns
 the libunistring and canvas dependencies; fast_float is vendored in
 `third_party/` (never reformat it).
 
+Tests, the gallery and the tools build only when cellui is the top-level
+project, or with `-DCELLUI_BUILD_TESTS=ON`: an application that fetches cellui
+builds just the library, since every cellui change is tested in cellui's own CI.
+
 What the app adds on top is in synth's `src/ui/CLAUDE.md`; the app's `UIElement`
 extends `Widget` with the event handler and the controller, and `Plane`
 carries the app's object as an opaque `getAppContext()`.
