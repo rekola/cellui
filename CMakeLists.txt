@@ -58,6 +58,7 @@ if(NOT TARGET canvas)
 endif()
 
 add_library(cellui STATIC
+  src/Application.cpp
   src/BackendChoice.cpp
   src/BufferPlane.cpp
   src/CellBuffer.cpp
@@ -278,6 +279,7 @@ add_executable(cellui_tests
   tests/LineEditorTests.cpp
   tests/MenuBarTests.cpp
   tests/TableTests.cpp
+  tests/ApplicationTests.cpp
   tests/MeterTests.cpp
   tests/NumberParseTests.cpp
   tests/Utf8Tests.cpp)
