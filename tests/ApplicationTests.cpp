@@ -76,3 +76,43 @@ TEST(application_chooses_a_theme_for_a_light_display_and_a_named_one) {
   CHECK(f.app->setTheme("light"));
   CHECK(!f.app->setTheme("nonesuch"));
 }
+
+namespace {
+struct OwnStyles : StyleProvider {
+  int marker = 42;
+};
+}  // namespace
+
+TEST(application_takes_the_programs_styles_and_object_and_serves_its_own_loop) {
+  auto owned = std::make_unique<test::TestBackend>(8, 30);
+  test::TestBackend * backend = owned.get();
+  ApplicationOptions options;
+  options.styles = std::make_unique<OwnStyles>();
+  options.app_context = std::make_shared<int>(7);
+  auto app = Application::adopt(std::move(owned), std::move(options));
+  CHECK(static_cast<OwnStyles &>(app->styles()).marker == 42);
+  CHECK(&app->root().getStyles() == &app->styles());
+  CHECK(*std::static_pointer_cast<int>(app->root().getAppContext()) == 7);
+  CHECK(!app->setTheme("light"));  // the program's own colours are its own to set
+
+  // What a loop of its own does: hand over each event, draw from its frame handler.
+  bool focus = true, closed = false, refreshed = false;
+  auto a = app->focus_changed.connect([&](bool f) { focus = f; });
+  auto b = app->closed.connect([&] { closed = true; });
+  app->setBeforeRefresh([&] { refreshed = true; });
+  app->setQuitOnClose(false);
+  app->handle(BackendEvent::makeFocus(false));
+  CHECK(!focus && !app->styles().window_focused);
+  app->present();
+  CHECK(refreshed);
+  CHECK(backend->frameCount() == 1u);
+  int rows = 0;
+  auto c = app->resized.connect([&](int r, int) { rows = r; });
+  backend->resize(12, 40);
+  app->handle(BackendEvent::makeResize(12, 40));
+  CHECK(rows == 12 && app->root().getDim() == std::pair(12, 40));
+  BackendEvent end;
+  end.type = BackendEvent::Type::CLOSE;
+  app->handle(end);
+  CHECK(closed);
+}

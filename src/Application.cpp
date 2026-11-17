@@ -44,24 +44,38 @@ class Application::DisplayCharts : public Charts {
 
 namespace {
 
-std::unique_ptr<Backend> openOne(BackendKind kind, std::string * error) {
+// The backend of `kind`; `light` is whether its display is light.
+std::unique_ptr<Backend> openOne(BackendKind kind, const ApplicationOptions & options, bool & light, std::string * error) {
   switch (kind) {
-    case BackendKind::RASTER:
+    case BackendKind::RASTER: {
 #if defined(CELLUI_HAS_GTK)
-      return gtk::Window::open({}, error);
+      auto window = gtk::Window::open({}, error);
 #elif defined(CELLUI_HAS_WIN32)
-      return win32::Window::open({}, error);
+      auto window = win32::Window::open({}, error);
 #else
       if (error) *error = "this build has no window backend";
       return nullptr;
 #endif
-    case BackendKind::TERMINAL:
+#if defined(CELLUI_HAS_GTK) || defined(CELLUI_HAS_WIN32)
+      if (window) {
+        if (auto bg = window->display().default_bg) light = bg->luminance() > 0.2f;
+      }
+      return window;
+#endif
+    }
+    case BackendKind::TERMINAL: {
 #ifndef _WIN32
-      return term::TerminalSession::open(term::SessionOptions(), error);
+      term::SessionOptions session_options;
+      if (options.dither) session_options.dither = *options.dither;
+      auto session = term::TerminalSession::open(session_options, error);
+      if (session) light = session->capabilities().appearance == term::Appearance::LIGHT;
+      return session;
 #else
+      (void)options;
       if (error) *error = "there is no terminal backend on Windows";
       return nullptr;
 #endif
+    }
     case BackendKind::AUTO: break;
   }
   if (error) *error = "no backend";
@@ -71,8 +85,7 @@ std::unique_ptr<Backend> openOne(BackendKind kind, std::string * error) {
 }  // namespace
 
 std::unique_ptr<Application> Application::open(int argc, char ** argv, std::string * error) {
-  BackendKind requested = BackendKind::AUTO;
-  std::string theme;
+  ApplicationOptions options;
   std::vector<std::string> rest;
   for (int i = 1; i < argc; i++) {
     std::string_view arg = argv[i];
@@ -90,10 +103,10 @@ std::unique_ptr<Application> Application::open(int argc, char ** argv, std::stri
       name = arg.substr(5);
     }
     if (!is_ui && arg == "--theme" && i + 1 < argc) {
-      theme = argv[++i];
+      options.theme = argv[++i];
       Theme probe;
-      if (!Theme::byName(theme, probe)) {
-        if (error) *error = "unknown --theme '" + theme + "': use original, dark or light";
+      if (!Theme::byName(options.theme, probe)) {
+        if (error) *error = "unknown --theme '" + options.theme + "': use original, dark or light";
         return nullptr;
       }
       continue;
@@ -102,34 +115,47 @@ std::unique_ptr<Application> Application::open(int argc, char ** argv, std::stri
       rest.emplace_back(arg);
       continue;
     }
-    if (!parseBackendKind(name, requested)) {
+    if (!parseBackendKind(name, options.ui)) {
       if (error) *error = "unknown --ui '" + std::string(name) + "': use auto, terminal or window";
       return nullptr;
     }
   }
+  auto app = open(std::move(options), error);
+  if (app) app->arguments_ = std::move(rest);
+  return app;
+}
 
+std::unique_ptr<Application> Application::open(ApplicationOptions options, std::string * error) {
   std::string failure;
-  for (BackendKind kind : backendCandidates(requested, probeBackendEnvironment())) {
+  for (BackendKind kind : backendCandidates(options.ui, probeBackendEnvironment())) {
     std::string why;
-    if (auto backend = openOne(kind, &why)) return std::unique_ptr<Application>(new Application(std::move(backend), std::move(rest), theme));
+    bool light = false;
+    if (auto backend = openOne(kind, options, light, &why)) {
+      return std::unique_ptr<Application>(new Application(std::move(backend), {}, std::move(options), kind, light));
+    }
     failure += (failure.empty() ? "" : "; ") + std::string(backendName(kind)) + ": " + why;
   }
   if (error) *error = failure;
   return nullptr;
 }
 
-std::unique_ptr<Application> Application::adopt(std::unique_ptr<Backend> backend, const std::string & theme) {
-  return std::unique_ptr<Application>(new Application(std::move(backend), {}, theme));
+std::unique_ptr<Application> Application::adopt(std::unique_ptr<Backend> backend, ApplicationOptions options) {
+  return std::unique_ptr<Application>(new Application(std::move(backend), {}, std::move(options), BackendKind::TERMINAL, false));
 }
 
-Application::Application(std::unique_ptr<Backend> backend, std::vector<std::string> arguments, const std::string & theme)
+Application::Application(std::unique_ptr<Backend> backend, std::vector<std::string> arguments, ApplicationOptions options, BackendKind kind, bool light)
     : backend_(std::move(backend)),
       arguments_(std::move(arguments)),
+      own_theme_(!options.styles),
+      styles_(options.styles ? std::move(options.styles) : std::make_unique<StyleProvider>()),
+      kind_(kind),
+      light_(light),
       buffer_(backend_->rows(), backend_->cols()),
-      root_plane_(buffer_, styles_),
+      root_plane_(buffer_, *styles_, std::move(options.app_context)),
       charts_(std::make_unique<DisplayCharts>()),
-      dispatcher_(root_widget_) {
-  applyTheme(theme);
+      dispatcher_(root_widget_),
+      keymap_override_(options.keymap) {
+  if (own_theme_) applyTheme(options.theme);
   configurePlane();
   dispatcher_.setDragDropEnabled(backend_->display().drag_drop);
   // A bare Escape waits for the key after it, in case it was an Alt prefix,
@@ -164,12 +190,12 @@ void Application::applyTheme(const std::string & name) {
     theme = light ? Theme::light() : Theme::dark();
     theme_name_ = light ? "light" : "dark";
   }
-  styles_.applyTheme(theme);
+  styles_->applyTheme(theme);
 }
 
 bool Application::setTheme(const std::string & name) {
   Theme probe;
-  if (!Theme::byName(name, probe)) return false;
+  if (!own_theme_ || !Theme::byName(name, probe)) return false;
   applyTheme(name);
   root_plane_.invalidateSharedImages();
   return true;
@@ -178,22 +204,26 @@ bool Application::setTheme(const std::string & name) {
 void Application::configurePlane() {
   const DisplayInfo & display = backend_->display();
   if (display.default_fg && display.default_bg) root_plane_.setDefaultColors(*display.default_fg, *display.default_bg);
+  root_plane_.setDisplayScale(display.display_scale);
+  root_plane_.setHdrPictures(display.hdr_pictures);
   root_plane_.setProportionalText(display.proportional_text);
   root_plane_.setSmoothScroll(display.smooth_scroll);
   root_plane_.setCellBorders(display.cell_borders);
-  root_plane_.setKeymapProfile(display.keymap_profile);
+  root_plane_.setKeymapProfile(keymap_override_.value_or(display.keymap_profile));
   root_plane_.setFlatChildren(true);
   root_plane_.setThemedBases(true);
   key_reader_.setEscapeAsMeta(display.escape_as_meta);
   if (display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0) {
     root_plane_.setCellPixelSize(display.cell_px_height, display.cell_px_width);
-    root_plane_.setDisplayScale(display.display_scale);
-    root_plane_.setHdrPictures(display.hdr_pictures);
   } else {
     root_plane_.setCellPixelSize(0, 0);
-    root_plane_.setHdrPictures(false);
   }
   charts_->reset(display);
+}
+
+void Application::setKeymapProfile(KeymapProfile profile) {
+  keymap_override_ = profile;
+  root_plane_.setKeymapProfile(profile);
 }
 
 void Application::resizeTo(int rows, int cols) {
@@ -205,7 +235,10 @@ void Application::resizeTo(int rows, int cols) {
 
 void Application::handle(const BackendEvent & event) {
   switch (event.type) {
-    case BackendEvent::Type::CLOSE: quit(); break;
+    case BackendEvent::Type::CLOSE:
+      if (quit_on_close_) quit();
+      closed.emit();
+      break;
     case BackendEvent::Type::RESIZE: resizeTo(backend_->rows(), backend_->cols()); break;
     case BackendEvent::Type::DISPLAY:
       configurePlane();
@@ -220,7 +253,10 @@ void Application::handle(const BackendEvent & event) {
       break;
     }
     case BackendEvent::Type::PASTE: root_plane_.insertIntoReader(event.text); break;
-    case BackendEvent::Type::FOCUS: styles_.window_focused = event.focused; break;
+    case BackendEvent::Type::FOCUS:
+      styles_->window_focused = event.focused;
+      focus_changed.emit(event.focused);
+      break;
     default: break;
   }
 }
@@ -236,7 +272,8 @@ void Application::offerInput(const Input & in) {
   dispatcher_.offer(in);
 }
 
-void Application::frame() {
+void Application::present() {
+  if (before_refresh_) before_refresh_();
   root_plane_.refresh();
   dispatcher_.setHitAreas(root_plane_.takeHitAreas());
   CursorRequest cursor;
@@ -249,13 +286,14 @@ void Application::frame() {
   info.borders = root_plane_.takeBorders();
   if (backend_->wantsFrameInfo()) {
     info.planes = root_plane_.describe();
+    if (focus_name_) info.focus = focus_name_();
   }
   backend_->presentTaking(buffer_, cursor, root_plane_.images(), std::move(info));
 }
 
 int Application::run() {
   EventLoop & loop = backend_->eventLoop();
-  backend_->setFrameHandler([this](int64_t) { frame(); });
+  backend_->setFrameHandler([this](int64_t) { present(); });
   auto pump = [this] {
     for (const BackendEvent & event : backend_->poll()) handle(event);
     backend_->requestFrame();
