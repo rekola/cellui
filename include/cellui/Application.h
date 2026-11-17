@@ -92,8 +92,11 @@ class Application {
   // The screen-sized root plane to build widgets on, and the root of their
   // tree (attach() a widget to it to give it keys, the mouse and focus).
   BufferPlane & root() { return root_plane_; }
-  Widget & widgets() { return root_widget_; }
-  InputDispatcher & input() { return dispatcher_; }
+  Widget & widgets() { return *root_widget_; }
+  // Makes `root` the root of the widget tree instead of the application's own, for a program whose top-level
+  // widget is the one that takes modal dialogs and posted events. Call it before anything uses input().
+  void setRootWidget(Widget & root);
+  InputDispatcher & input() { return *dispatcher_; }
   KeyReader & keyReader() { return key_reader_; }
   // The style provider planes draw with: the one in the options, else the toolkit's.
   StyleProvider & styles() { return *styles_; }
@@ -168,8 +171,9 @@ class Application {
   CellBuffer buffer_;
   BufferPlane root_plane_;
   std::unique_ptr<DisplayCharts> charts_;
-  Widget root_widget_;
-  InputDispatcher dispatcher_;
+  Widget own_root_widget_;
+  Widget * root_widget_ = &own_root_widget_;
+  std::unique_ptr<InputDispatcher> dispatcher_;
   InputHook input_hook_;
   KeyReader key_reader_;
   std::optional<KeymapProfile> keymap_override_;

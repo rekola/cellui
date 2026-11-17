@@ -116,3 +116,15 @@ TEST(application_takes_the_programs_styles_and_object_and_serves_its_own_loop) {
   app->handle(end);
   CHECK(closed);
 }
+
+TEST(application_can_use_the_programs_top_widget_as_its_root) {
+  Fixture f;
+  Widget top;
+  Widget child(f.app->root());
+  child.setFocusable(true);
+  f.app->setRootWidget(top);
+  child.attach(top);
+  CHECK(&f.app->widgets() == &top);
+  f.app->input().setFocus(&child);
+  CHECK(f.app->input().focused() == &child);
+}

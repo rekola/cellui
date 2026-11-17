@@ -153,17 +153,17 @@ Application::Application(std::unique_ptr<Backend> backend, std::vector<std::stri
       buffer_(backend_->rows(), backend_->cols()),
       root_plane_(buffer_, *styles_, std::move(options.app_context)),
       charts_(std::make_unique<DisplayCharts>()),
-      dispatcher_(root_widget_),
+      dispatcher_(std::make_unique<InputDispatcher>(own_root_widget_)),
       keymap_override_(options.keymap) {
   if (own_theme_) applyTheme(options.theme);
   configurePlane();
-  dispatcher_.setDragDropEnabled(backend_->display().drag_drop);
+  dispatcher_->setDragDropEnabled(backend_->display().drag_drop);
   // A bare Escape waits for the key after it, in case it was an Alt prefix,
   // unless what has the focus wants it at once.
   key_reader_.takeEscape = [this](const Input & escape) {
-    Widget * focused = dispatcher_.focused();
+    Widget * focused = dispatcher_->focused();
     if (!focused || !focused->wantsBareEscape()) return false;
-    dispatcher_.offer(escape);
+    dispatcher_->offer(escape);
     return true;
   };
 }
@@ -221,6 +221,12 @@ void Application::configurePlane() {
   charts_->reset(display);
 }
 
+void Application::setRootWidget(Widget & root) {
+  root_widget_ = &root;
+  dispatcher_ = std::make_unique<InputDispatcher>(root);
+  dispatcher_->setDragDropEnabled(backend_->display().drag_drop);
+}
+
 void Application::setKeymapProfile(KeymapProfile profile) {
   keymap_override_ = profile;
   root_plane_.setKeymapProfile(profile);
@@ -265,17 +271,17 @@ void Application::offerInput(const Input & in) {
   if (input_hook_ && input_hook_(in)) return;
   // Tab walks the focus, as in any toolkit.
   if (in.getId() == Key::Tab && in.getKind() != Input::Kind::RELEASE && !in.hasCtrl() && !in.hasAlt()) {
-    if (in.hasShift()) dispatcher_.focusPrev();
-    else dispatcher_.focusNext();
+    if (in.hasShift()) dispatcher_->focusPrev();
+    else dispatcher_->focusNext();
     return;
   }
-  dispatcher_.offer(in);
+  dispatcher_->offer(in);
 }
 
 void Application::present() {
   if (before_refresh_) before_refresh_();
   root_plane_.refresh();
-  dispatcher_.setHitAreas(root_plane_.takeHitAreas());
+  dispatcher_->setHitAreas(root_plane_.takeHitAreas());
   CursorRequest cursor;
   if (auto at = root_plane_.cursorPosition()) cursor = {true, at->first, at->second};
   FrameInfo info;
