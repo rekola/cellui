@@ -10,7 +10,13 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release)
   endif()
-  add_compile_options(-Wall -Wextra)
+  add_compile_options(-Wall -Wextra
+    -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type
+    -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs
+    -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor -Werror=write-strings
+    -Werror=sign-conversion -Werror=sign-compare -Werror=sign-promo -Werror=duplicated-cond
+    -Werror=duplicated-branches -Werror=logical-op -Werror=redundant-decls -Werror=cast-align
+    -Wformat=2 -Werror=format -Werror=shadow -Werror=missing-declarations)
   enable_testing()
   set(CELLUI_STANDALONE ON)
 endif()
