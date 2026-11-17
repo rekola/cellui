@@ -294,6 +294,8 @@ class Plane {
 
   // The application's own object (opaque here), handed down to child planes.
   const std::shared_ptr<void> & getAppContext() const { return app_context_; }
+  // Gives the plane its object after it was made (planes made from it afterwards share it).
+  void setAppContext(std::shared_ptr<void> app_context) { app_context_ = std::move(app_context); }
 
   // The widget that draws on this plane, or null for a plane no widget owns
   // (a root, a scrim). Set by the widget; used to find the widget under a
