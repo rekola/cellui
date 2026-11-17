@@ -38,6 +38,7 @@ struct TextRun {
   bool italic = false, underline = false;
   TextFont font = TextFont::PROPORTIONAL;
   TextOverflow overflow = TextOverflow::CLIP;
+  TextAlign align = TextAlign::LEFT;
 };
 
 // The part of the screen a plane above the base covers, at its height above

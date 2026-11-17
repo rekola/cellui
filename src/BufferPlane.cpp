@@ -120,10 +120,11 @@ void BufferPlane::putText(int y, int x, int cols, const std::string & text, cons
   run.underline = style_.underline;
   run.font = style.font;
   run.overflow = style.overflow;
+  run.align = style.align;
   // The same run again (a widget redrawing without an erase) is the same one.
   auto same = [&](const TextRun & o) {
     return o.text == run.text && o.fg == run.fg && o.weight == run.weight && o.italic == run.italic && o.underline == run.underline &&
-           o.font == run.font && o.overflow == run.overflow;
+           o.font == run.font && o.overflow == run.overflow && o.align == run.align;
   };
   int mark = 0;
   for (size_t i = texts_.size(); i-- > 0 && texts_.size() - i <= 64;) {

@@ -31,13 +31,11 @@ std::string lower(std::string s) {
   return s;
 }
 
-std::string aligned(const std::string & text, int width, Align align) {
-  std::string cut = Plane::cutToCells(text, width, TextOverflow::ELLIPSIS);
-  int gap = std::max(0, width - utf8::displayWidth(cut));
+TextAlign textAlign(Align align) {
   switch (align) {
-    case Align::RIGHT: return std::string(static_cast<size_t>(gap), ' ') + cut;
-    case Align::CENTER: return std::string(static_cast<size_t>(gap / 2), ' ') + cut + std::string(static_cast<size_t>(gap - gap / 2), ' ');
-    default: return cut + std::string(static_cast<size_t>(gap), ' ');
+    case Align::RIGHT: return TextAlign::RIGHT;
+    case Align::CENTER: return TextAlign::CENTER;
+    default: return TextAlign::LEFT;
   }
 }
 
@@ -121,6 +119,11 @@ void Table::setModel(std::shared_ptr<TableModel> model) {
 void Table::modelChanged() {
   if (model_ && selected_ >= model_->rowCount()) selected_ = -1;
   resort();
+  render();
+}
+
+void Table::setFont(TextFont font) {
+  font_ = font;
   render();
 }
 
@@ -319,7 +322,7 @@ void Table::drawHeading(const Layout & l, const StyleProvider & styles) {
     }
     const bool pressed = static_cast<int>(i) == pressed_heading_;
     if (pressed) setBgColor(styles.button_pressed_bg_color);
-    putstr(0, l.x[i], aligned(title, l.width[i], columns_[i].align), kBoldFace);
+    putText(0, l.x[i], l.width[i], title, TextStyle{font_, TextOverflow::ELLIPSIS, kBoldFace, textAlign(columns_[i].align)});
     if (pressed) setBgColor(styles.heading_bg_color);
   }
 }
@@ -345,7 +348,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
       setBgColor(bg);
     } else {
       setFgColor((selected && focused_) || pressed ? fg : color.value_or(fg));
-      putstr(y + row_height_ / 2, l.x[c], aligned(model_->text(model_row, col), l.width[c], columns_[c].align));
+      putText(y + row_height_ / 2, l.x[c], l.width[c], model_->text(model_row, col), TextStyle{font_, TextOverflow::ELLIPSIS, kPlainFace, textAlign(columns_[c].align)});
     }
   }
 }
