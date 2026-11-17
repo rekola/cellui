@@ -12,7 +12,7 @@
 
 namespace cellui {
 
-// The bottom row of a screen: a one-line message, and the prompt that takes its
+// The bottom row of a screen: a one-line message (in the display's proportional face where it has one), and the prompt that takes its
 // place while a command or a name is typed (Emacs's echo area and minibuffer).
 // It has no background of its own, because a display cannot draw the last cell
 // of the last row, so a coloured row would end in a different one.
@@ -44,9 +44,14 @@ class StatusLine : public Widget {
       pending_message_ = std::move(s);
     } else {
       erase();
-      putstr(0, 0, s);
+      putText(0, 0, getDim().second, s, TextStyle{font_, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::LEFT});
     }
   }
+
+  // The face a message is set in: the display's proportional one by default (a display that lays text out
+  // itself draws it, another the cells' own). The prompt is a text field in cells either way.
+  void setFont(TextFont font) { font_ = font; }
+  TextFont font() const { return font_; }
 
   // Opens the prompt with `prompt`; `on_submit` gets the text on Enter. Opening
   // it first runs the before-show callback, so the owner can cancel any other
@@ -222,6 +227,7 @@ class StatusLine : public Widget {
   }
 
   bool indicator_shown_ = false;
+  TextFont font_ = TextFont::PROPORTIONAL;
   std::string pending_message_;
   std::function<void(const std::string &)> on_submit_;
   std::function<void()> before_show_prompt_;
