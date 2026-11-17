@@ -101,16 +101,9 @@ void TagBar::render() {
     chip.setFgColor(on ? styles.highlight_fg_color : styles.window_accent_fg_color);
     chip.putstr(0, 0, std::string(static_cast<size_t>(c[i].width), ' '));
     chip.putstr(0, 0, " " + tags_[i] + " ", on ? kBoldFace : kPlainFace);
-    // Only the border: no fill over the cells, a one pixel line inside the tag's rectangle with soft corners.
-    Band border;
-    border.rows = 1;
-    border.cols = c[i].width;
-    border.alpha = 0.0f;
-    border.border_color = on ? styles.highlight_bg_color.blend(0.45f, Color(255, 255, 255)) : styles.window_fg_color;
-    border.border_alpha = on ? 0.9f : 0.55f;
-    border.border_px = 1.0;
-    border.border_radius = 3.0;
-    chip.setBand(border);
+    // A one pixel border inside the tag's rectangle with soft corners.
+    chip.setCornerRadius(3.0);
+    chip.setBorder(on ? styles.highlight_bg_color.blend(0.45f, Color(255, 255, 255)) : styles.window_fg_color, 1.0, on ? 0.9f : 0.55f);
   }
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);

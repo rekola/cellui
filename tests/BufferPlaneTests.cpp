@@ -1384,3 +1384,45 @@ TEST(bufferplane_hdr_picture_at_a_cell_covers_only_its_cells) {
   root.refresh();
   CHECK(root.images().size() == 1 && root.images()[0].key == key && root.images()[0].col == 4);
 }
+
+TEST(plane_border_is_an_area_of_its_own_on_any_plane_and_goes_with_an_elevated_ones_but_makes_no_cell_edges) {
+  StyleProvider styles;
+  CellBuffer buffer(10, 30);
+  BufferPlane root(buffer, styles);
+  auto flat = root.createChild();
+  flat->resize(3, 10);
+  flat->move(1, 2);
+  flat->setCornerRadius(3.0);
+  flat->setBorder(Color(10, 200, 30), 1.0, 0.5f);
+  auto raised = root.createChild();
+  raised->resize(3, 10);
+  raised->move(5, 2);
+  raised->setElevation(1.0f);
+  raised->setBorder(Color(200, 10, 30), 2.0);
+  root.refresh();
+  auto areas = root.takeElevations();
+  CHECK(areas.size() == 2u);
+  for (auto & a : areas) {
+    if (a.row == 1) {
+      CHECK(a.border_px == 1.0 && a.border_alpha == 0.5f && a.radius == 3.0);
+      CHECK(!a.shadow);  // it casts nothing
+    } else {
+      CHECK(a.row == 5 && a.border_px == 2.0 && a.shadow);
+    }
+  }
+  // A terminal's cell edges are a band's alone: a plane's border is for a display that draws by pixels.
+  CHECK(root.takeBorders().empty());
+}
+
+TEST(plane_without_a_border_makes_no_area_and_none_when_it_is_taken_off) {
+  StyleProvider styles;
+  CellBuffer buffer(6, 20);
+  BufferPlane root(buffer, styles);
+  auto plane = root.createChild();
+  plane->resize(2, 8);
+  plane->setBorder(Color(1, 2, 3), 1.0);
+  plane->setBorder(Color(1, 2, 3), 0.0);
+  root.refresh();
+  CHECK(root.takeElevations().empty());
+  CHECK(root.takeBorders().empty());
+}

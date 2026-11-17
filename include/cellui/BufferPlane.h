@@ -47,6 +47,11 @@ class BufferPlane : public Plane {
   void setElevation(float elevation) override { elevation_ = elevation; }
   float elevation() const override { return elevation_; }
   void setCornerRadius(double radius) override { corner_radius_ = radius; }
+  void setBorder(const Color & color, double px, float alpha = 1.0f) override {
+    border_px_ = px;
+    border_color_ = color;
+    border_alpha_ = alpha;
+  }
   void setCastsShadow(bool casts) override { casts_shadow_ = casts; }
   void setScrim(bool scrim) override { scrim_ = scrim; }
   void setElevationArea(bool area) override { elevation_area_ = area; }
@@ -247,6 +252,9 @@ class BufferPlane : public Plane {
   bool visible_ = true;
   float elevation_ = 0;
   double corner_radius_ = 0;
+  double border_px_ = 0;
+  Color border_color_ = Color(255, 255, 255);
+  float border_alpha_ = 1.0f;
   bool casts_shadow_ = true;
   bool scrim_ = false;
   bool elevation_area_ = true;

@@ -175,6 +175,15 @@ can move onto `Application` as it needs.
   by the window) rounds an `ElevatedArea`: shadow outline and redrawn cells
   are rounded, and the cut-away corners show what lay under the corner cell
   (`ElevatedArea::corner_bg`).
+- `Plane::setBorder(color, px, alpha)` is a border inside any plane's rectangle,
+  rounded by the plane's corner radius (an elevated plane, whose corners are cut,
+  is a rounded box; any other has the corner pixels softened). `refresh()` makes
+  an `ElevatedArea` for it (`border_px`/`border_color`/`border_alpha`; one that
+  casts nothing for a plane that is not elevated) and the GTK window draws it
+  with a GSK border over what is composed. A terminal, kitty included, shows no
+  border for a plane: it would lie over planes stacked above it, which only a
+  `Band`'s border is meant to do (the cell edges of `FrameInfo::borders` are
+  the band's alone).
 - Backdrops are the backend's to apply: `refresh()` sets what is composed
   below each one aside as a `BackdropLayer` (cells, blur, dim, tint,
   rectangle; `FrameInfo::backdrops`, bottom first) and leaves the frame with

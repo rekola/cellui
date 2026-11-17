@@ -14,8 +14,8 @@ namespace cellui {
 // views. A click chooses the tag under the pointer; Left and Right move the
 // choice while the bar has the keyboard focus. Tags that do not fit are cut
 // off at the right edge. Each tag is a plane of its own with a rounded border
-// (a Band's, so a window draws it with rounded corners and a terminal with
-// kitty graphics with square ones; other displays show the fill only).
+// (Plane::setBorder(): a window draws it with rounded corners; a terminal shows
+// the fill only).
 //
 // Like Table it uses the plane's own position in the parent, so it sits on
 // the screen's root plane.
