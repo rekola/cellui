@@ -62,8 +62,7 @@ struct ApplicationOptions {
 //
 // The command line: `--ui auto|terminal|window` (or `--ui=...`) picks the
 // backend, `auto` (the default) being a window where the build has one and a
-// display is there and the terminal otherwise; `raster` is a second name for
-// `window`. `--theme original|dark|light` overrides the theme. Everything
+// display is there and the terminal otherwise. `--theme original|dark|light` overrides the theme. Everything
 // else is left in arguments() for the program.
 //
 // A program with a loop of its own (a tracker with audio and MIDI sources)

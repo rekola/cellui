@@ -56,7 +56,7 @@ carries the app's object as an opaque `getAppContext()`.
 
 `Application` (`cellui/Application.h`) is a program's whole connection to the
 display: `Application::open(argc, argv)` reads `--ui auto|terminal|window`
-(`raster` is the same as `window`) and `--theme`, opens the terminal or the
+and `--theme`, opens the terminal or the
 window (`auto`: the window where built and a display is there, else the
 terminal), and owns the screen-sized root plane (kept the size of the display;
 `resized` says when it changed), the root widget, the `InputDispatcher`, the
@@ -261,7 +261,7 @@ serves the terminal and `TestBackend`; `GlibEventLoop` the GTK window;
 `Win32EventLoop` waits on the message queue and handles (no descriptors:
 `inputFd()`/`wakeFd()` are -1, `inputHandle()`/`wakeHandle()` are events).
 
-`--ui auto|terminal|raster|headless`: `auto` tries the window when built with
+`--ui auto|terminal|window|headless`: `auto` tries the window when built with
 GTK and a display is there (`WAYLAND_DISPLAY` or `DISPLAY`), else the
 terminal; a named backend that cannot start is an error; the choice is made
 once (`cellui/BackendChoice.h`). `SYNTH_WINDOW_STATS=<file>` appends frame

@@ -11,17 +11,17 @@ namespace cellui {
 enum class BackendKind {
   AUTO,      // the best the machine can run
   TERMINAL,
-  RASTER,
+  WINDOW,
 };
 
 const char * backendName(BackendKind kind);
 
-// "auto", "terminal" or "raster"; false for anything else.
+// "auto", "terminal" or "window"; false for anything else.
 bool parseBackendKind(std::string_view name, BackendKind & kind);
 
 // What the machine offers, known before anything is shown.
 struct BackendEnvironment {
-  bool raster_built = false;  // this build has the platform's 2D window
+  bool window_built = false;  // this build has the platform's 2D window
   bool display = false;       // a display server can be reached
 };
 

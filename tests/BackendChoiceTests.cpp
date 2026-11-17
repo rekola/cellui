@@ -10,18 +10,17 @@ TEST(backend_names_parse_and_nothing_else_does) {
   BackendKind kind = BackendKind::TERMINAL;
   CHECK(parseBackendKind("auto", kind) && kind == BackendKind::AUTO);
   CHECK(parseBackendKind("terminal", kind) && kind == BackendKind::TERMINAL);
-  CHECK(parseBackendKind("raster", kind) && kind == BackendKind::RASTER);
-  kind = BackendKind::RASTER;
-  CHECK(parseBackendKind("window", kind) && kind == BackendKind::RASTER);
-  kind = BackendKind::TERMINAL;
-  CHECK(!parseBackendKind("gtk", kind) && kind == BackendKind::TERMINAL);
+  CHECK(parseBackendKind("window", kind) && kind == BackendKind::WINDOW);
+  kind = BackendKind::WINDOW;
+  CHECK(!parseBackendKind("raster", kind) && kind == BackendKind::WINDOW);
+  CHECK(!parseBackendKind("gtk", kind) && kind == BackendKind::WINDOW);
   CHECK(!parseBackendKind("", kind));
   CHECK(!parseBackendKind("Terminal", kind));
-  CHECK(std::string(backendName(BackendKind::RASTER)) == "raster");
+  CHECK(std::string(backendName(BackendKind::WINDOW)) == "window");
 }
 
 TEST(backend_auto_prefers_the_window_when_it_is_built_and_a_display_is_there) {
-  CHECK((backendCandidates(BackendKind::AUTO, {true, true}) == std::vector{BackendKind::RASTER, BackendKind::TERMINAL}));
+  CHECK((backendCandidates(BackendKind::AUTO, {true, true}) == std::vector{BackendKind::WINDOW, BackendKind::TERMINAL}));
   // No display (a remote login, a container): the terminal.
   CHECK((backendCandidates(BackendKind::AUTO, {true, false}) == std::vector{BackendKind::TERMINAL}));
   // A build without the window.
@@ -31,9 +30,9 @@ TEST(backend_auto_prefers_the_window_when_it_is_built_and_a_display_is_there) {
 
 TEST(backend_a_named_choice_is_the_only_candidate_even_when_unavailable) {
   CHECK((backendCandidates(BackendKind::TERMINAL, {true, true}) == std::vector{BackendKind::TERMINAL}));
-  CHECK((backendCandidates(BackendKind::RASTER, {true, true}) == std::vector{BackendKind::RASTER}));
+  CHECK((backendCandidates(BackendKind::WINDOW, {true, true}) == std::vector{BackendKind::WINDOW}));
   // It is for the caller to say why it could not start; nothing falls through.
-  CHECK((backendCandidates(BackendKind::RASTER, {false, false}) == std::vector{BackendKind::RASTER}));
+  CHECK((backendCandidates(BackendKind::WINDOW, {false, false}) == std::vector{BackendKind::WINDOW}));
 }
 
 #ifndef _WIN32

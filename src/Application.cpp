@@ -47,7 +47,7 @@ namespace {
 // The backend of `kind`; `light` is whether its display is light.
 std::unique_ptr<Backend> openOne(BackendKind kind, const ApplicationOptions & options, bool & light, std::string * error) {
   switch (kind) {
-    case BackendKind::RASTER: {
+    case BackendKind::WINDOW: {
 #if defined(CELLUI_HAS_GTK)
       auto window = gtk::Window::open({}, error);
 #elif defined(CELLUI_HAS_WIN32)
