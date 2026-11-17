@@ -253,7 +253,16 @@ class Plane {
   virtual void putText(int y, int x, int cols, const std::string & text, const TextStyle & style = {}) {
     if (cols < 0) cols = std::max(0, getDim().second - x);
     // The box is the plane's style across all `cols` cells, as on a display that lays text out.
-    putstr(y, x, utf8::padToWidth(cutToCells(text, cols, style.overflow), cols), style.face);
+    putstr(y, x, alignedInCells(cutToCells(text, cols, style.overflow), cols, style.align), style.face);
+  }
+  // `text`, already no wider than `cols` cells, padded with spaces to exactly `cols` with the text at `align`.
+  static std::string alignedInCells(const std::string & text, int cols, TextAlign align) {
+    int gap = std::max(0, cols - utf8::displayWidth(text));
+    switch (align) {
+      case TextAlign::RIGHT: return std::string(static_cast<size_t>(gap), ' ') + text;
+      case TextAlign::CENTER: return std::string(static_cast<size_t>(gap / 2), ' ') + text + std::string(static_cast<size_t>(gap - gap / 2), ' ');
+      default: return text + std::string(static_cast<size_t>(gap), ' ');
+    }
   }
   // `text` fitted into `cols` cells as `overflow` says.
   static std::string cutToCells(const std::string & text, int cols, TextOverflow overflow) {

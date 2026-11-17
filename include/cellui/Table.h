@@ -91,6 +91,11 @@ class Table : public Widget {
   void setRowHeight(int cells);
   int rowHeight() const { return row_height_; }
 
+  // The face the text of the headings and cells is set in: the display's proportional one by default (a display
+  // that lays text out itself draws it, another the cells' own), or the cells' own everywhere.
+  void setFont(TextFont font);
+  TextFont font() const { return font_; }
+
   void sortBy(int column, SortOrder order);
   int sortColumn() const { return sort_column_; }
   SortOrder sortOrder() const { return sort_order_; }
@@ -147,6 +152,7 @@ class Table : public Widget {
   SortOrder sort_order_ = SortOrder::NONE;
   int selected_ = -1;
   int row_height_ = 1;
+  TextFont font_ = TextFont::PROPORTIONAL;
   ScrollAxis rows_;
   bool focused_ = false;
   // While the left button is held: the heading or the row it is over (-1 for none), as at the last press or move.

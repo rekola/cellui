@@ -991,8 +991,10 @@ namespace {
 struct MarkedRun {
   int row, col, rows, cols;
 };
+// The boxes of the cells marked with each index: a run of one row, and, when `stack`, the same run in the rows
+// below joined to it (a picture over a rectangle). Text is never stacked: each row's is its own.
 template <typename Mark>
-std::map<int, std::vector<MarkedRun>> markedRuns(const CellBuffer & cells, Mark mark) {
+std::map<int, std::vector<MarkedRun>> markedRuns(const CellBuffer & cells, Mark mark, bool stack = true) {
   std::map<int, std::vector<MarkedRun>> runs;
   for (int r = 0; r < cells.rows(); r++) {
     for (int c = 0; c < cells.cols();) {
@@ -1004,7 +1006,7 @@ std::map<int, std::vector<MarkedRun>> markedRuns(const CellBuffer & cells, Mark 
       int end = c + 1;
       while (end < cells.cols() && mark(cells.at(r, end)) == index) end++;
       auto & list = runs[index];
-      auto above = std::find_if(list.begin(), list.end(), [&](const MarkedRun & run) { return run.col == c && run.cols == end - c && run.row + run.rows == r; });
+      auto above = stack ? std::find_if(list.begin(), list.end(), [&](const MarkedRun & run) { return run.col == c && run.cols == end - c && run.row + run.rows == r; }) : list.end();
       if (above != list.end()) above->rows++;
       else list.push_back(MarkedRun{ r, c, 1, end - c });
       c = end;
@@ -1105,7 +1107,7 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, co
 // ellipsis when asked, by the layout itself).
 void Window::Impl::appendTextRuns(GtkSnapshot * snap, const CellBuffer & cells) {
   if (text_runs.empty() || !proportional) return;
-  auto runs = markedRuns(cells, [](const CellBuffer::Cell & cell) { return cell.text_run; });
+  auto runs = markedRuns(cells, [](const CellBuffer::Cell & cell) { return cell.text_run; }, false);
   for (const auto & [index, list] : runs) {
     if (static_cast<size_t>(index) > text_runs.size()) continue;
     const TextRun & run = text_runs[static_cast<size_t>(index - 1)];
@@ -1133,7 +1135,10 @@ void Window::Impl::appendTextRuns(GtkSnapshot * snap, const CellBuffer & cells) 
       int text_w = 0, text_h = 0;
       pango_layout_get_pixel_size(layout, &text_w, &text_h);
       graphene_rect_t clip = GRAPHENE_RECT_INIT(x, y, w, h);
-      graphene_point_t at = GRAPHENE_POINT_INIT(x, y + std::max(0.0f, (h - static_cast<float>(text_h)) / 2.0f));
+      // Shorter text sits in its box as asked; longer is cut where the box ends.
+      float slack = std::max(0.0f, w - static_cast<float>(text_w));
+      float dx = run.align == TextAlign::RIGHT ? slack : run.align == TextAlign::CENTER ? slack / 2.0f : 0.0f;
+      graphene_point_t at = GRAPHENE_POINT_INIT(x + dx, y + std::max(0.0f, (h - static_cast<float>(text_h)) / 2.0f));
       gtk_snapshot_push_clip(snap, &clip);
       gtk_snapshot_save(snap);
       gtk_snapshot_translate(snap, &at);

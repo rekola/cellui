@@ -393,6 +393,8 @@ void Window::Impl::drawTextRun(const TextRun & run, float x, float y, int box_co
   Com<IDWriteTextLayout> layout;
   if (FAILED(dwrite->CreateTextLayout(text.c_str(), static_cast<UINT32>(text.size()), format, w, h, layout.put()))) return;
   if (run.underline) layout->SetUnderline(TRUE, DWRITE_TEXT_RANGE{ 0, static_cast<UINT32>(text.size()) });
+  if (run.align == TextAlign::RIGHT) layout->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+  else if (run.align == TextAlign::CENTER) layout->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
   if (run.overflow == TextOverflow::ELLIPSIS) {
     Com<IDWriteInlineObject> sign;
     if (SUCCEEDED(dwrite->CreateEllipsisTrimmingSign(layout.get(), sign.put()))) {

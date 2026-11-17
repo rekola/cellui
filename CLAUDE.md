@@ -214,7 +214,12 @@ can move onto `Application` as it needs.
   (`Cell::text_run`) and reports `FrameInfo::text_runs`, set in the system UI
   font sized to the cell height; any other display, or a `MONOSPACE` request,
   gets the text written as cells (`Plane::cutToCells()`). Writing over a
-  marked cell takes the text back.
+  marked cell takes the text back. `TextStyle::align` (`LEFT`/`RIGHT`/`CENTER`)
+  says where text shorter than its box sits (the window shifts the laid-out
+  text, cells are padded with `Plane::alignedInCells()`); a text run is one row,
+  and the window never stacks the runs of rows below into one box, as it does
+  for pictures. `Table` sets its headings and cells this way (`setFont()` for the
+  cells' own face), so a window shows them proportional, numbers right-aligned.
 - The pointer shape is a plane attribute (`Plane::setMouseCursor()`:
   `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`/`GRABBING`/`NOT_ALLOWED`); `refresh()` lists the requesting
   planes' rectangles in drawing order (`FrameInfo::mouse_cursors`) and the

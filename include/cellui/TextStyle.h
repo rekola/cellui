@@ -30,12 +30,16 @@ constexpr TextFace kPlainFace{};
 constexpr TextFace kBoldFace{ kWeightBold, TextSlant::UPRIGHT };
 constexpr TextFace kItalicFace{ kWeightNormal, TextSlant::ITALIC };
 
+// Where text that is shorter than its box sits in it.
+enum class TextAlign { LEFT, RIGHT, CENTER };
+
 // How Plane::putText() sets text. Colours and underline are the plane's
 // current ones, as for putstr(); the face is per call.
 struct TextStyle {
   TextFont font = TextFont::PROPORTIONAL;
   TextOverflow overflow = TextOverflow::CLIP;
   TextFace face;
+  TextAlign align = TextAlign::LEFT;
 };
 
 }  // namespace cellui

@@ -1426,3 +1426,20 @@ TEST(plane_without_a_border_makes_no_area_and_none_when_it_is_taken_off) {
   CHECK(root.takeElevations().empty());
   CHECK(root.takeBorders().empty());
 }
+
+TEST(text_in_a_box_is_aligned_in_cells_and_a_run_remembers_its_alignment) {
+  StyleProvider styles;
+  CellBuffer buffer(3, 20);
+  BufferPlane root(buffer, styles);
+  root.putText(0, 0, 8, "ab", {TextFont::PROPORTIONAL, TextOverflow::CLIP, {}, TextAlign::RIGHT});
+  root.putText(1, 0, 8, "ab", {TextFont::PROPORTIONAL, TextOverflow::CLIP, {}, TextAlign::CENTER});
+  root.refresh();
+  CHECK(buffer.toPlainText().find("      ab\n") != std::string::npos);
+  CHECK(buffer.toPlainText().find("   ab\n") != std::string::npos);
+  root.setProportionalText(true);
+  root.putText(2, 0, 8, "ab", {TextFont::PROPORTIONAL, TextOverflow::CLIP, {}, TextAlign::RIGHT});
+  root.putText(2, 8, 8, "ab", {TextFont::PROPORTIONAL, TextOverflow::CLIP, {}, TextAlign::LEFT});
+  root.refresh();
+  auto runs = root.takeTextRuns();
+  CHECK(runs.size() == 2u && runs[0].align == TextAlign::RIGHT && runs[1].align == TextAlign::LEFT);  // the same text, two runs
+}

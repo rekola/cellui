@@ -218,3 +218,31 @@ TEST(trace_line_is_a_gradient_that_is_lit_past_white_only_at_the_top) {
   Color flat = trace_image::lineColorAt(look, 1.0f, false);
   CHECK(std::max({flat.r(), flat.g(), flat.b()}) <= 1.0f);
 }
+
+TEST(table_text_is_laid_out_by_the_display_when_it_can_and_aligned_in_cells_when_not) {
+  Fixture f;  // no proportional text here: the box is written in cells, the numbers right-aligned
+  CHECK(f.text().find("      4.20") != std::string::npos);
+  CHECK(f.table.font() == TextFont::PROPORTIONAL);
+  f.table.setFont(TextFont::MONOSPACE);
+  CHECK(f.text().find("      4.20") != std::string::npos);
+}
+
+TEST(table_cells_are_text_runs_of_their_column_alignment_on_a_display_with_proportional_text) {
+  StyleProvider styles;
+  CellBuffer buffer(8, 30);
+  BufferPlane root(buffer, styles);
+  root.setProportionalText(true);
+  std::unique_ptr<Charts> charts = cellCharts();
+  Table table(root, *charts);
+  table.setColumns({{"Name", 10, Align::LEFT, true, false}, {"Price", 8, Align::RIGHT, true, false}});
+  table.resize(4, 30);
+  table.setModel(std::make_shared<Quotes>());
+  root.refresh();
+  auto runs = root.takeTextRuns();
+  bool right = false, left = false;
+  for (auto & run : runs) {
+    if (run.text == "4.20") right = run.align == TextAlign::RIGHT && run.overflow == TextOverflow::ELLIPSIS;
+    if (run.text == "Nokia") left = run.align == TextAlign::LEFT;
+  }
+  CHECK(right && left);
+}
