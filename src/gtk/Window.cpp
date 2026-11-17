@@ -1345,6 +1345,20 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRen
     }
     i = level_end;
   }
+  // The planes' borders, inside each area's rectangle and rounded like it. They are drawn over what is
+  // composed, so one a covered area has (under a backdrop) is left out with it.
+  for (const ElevatedArea & a : elevations) {
+    if (a.border_px <= 0 || a.border_alpha <= 0.0f || !shown(a)) continue;
+    graphene_rect_t rect = rectOf(a);
+    GskRoundedRect outline;
+    gsk_rounded_rect_init_from_rect(&outline, &rect, radiusOf(a));
+    float width = std::max(1.0f, std::round(static_cast<float>(a.border_px * display_info.display_scale)));
+    auto rgb = a.border_color.toSrgb8();
+    GdkRGBA color = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, a.border_alpha };
+    float widths[4] = { width, width, width, width };
+    GdkRGBA colors[4] = { color, color, color, color };
+    gtk_snapshot_append_border(snap, &outline, widths, colors);
+  }
 }
 
 void Window::Impl::snapshot(GtkSnapshot * snap) {

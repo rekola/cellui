@@ -62,6 +62,11 @@ struct ElevatedArea {
   std::array<std::optional<Color>, 4> corner_bg{};
   // A scrim: blank cells with a backdrop, never drawn again over a shadow.
   bool scrim = false;
+  // The plane's border (Plane::setBorder()), inside the rectangle and rounded by `radius`. A plane that is
+  // not elevated has an area for its border only: `shadow` is false and it casts nothing.
+  double border_px = 0;
+  Color border_color = Color(255, 255, 255);
+  float border_alpha = 1.0f;
 };
 
 // The part of the screen a plane asked a pointer shape for.

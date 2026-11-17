@@ -206,14 +206,36 @@ void BufferPlane::refresh() {
       for (int k = 0; k < 4; k++) corner_bg[static_cast<size_t>(k)] = top.target_->at(rs[k / 2], cs[k % 2]).bg;
     }
     p.plane->compose(*top.target_, p.row, p.col, p.clip_row, p.clip_col, p.clip_rows, p.clip_cols, p.elevation);
-    if (!owner && !elevated && p.plane->mouse_cursor_ == MouseCursor::INHERIT) continue;
+    const bool bordered = p.plane->border_px_ > 0 && p.plane->border_alpha_ > 0.0f;
+    if (!owner && !elevated && !bordered && p.plane->mouse_cursor_ == MouseCursor::INHERIT) continue;
     if (!inside) continue;
     if (owner) top.hit_areas_.push_back(HitArea{ r0, c0, r1 - r0, c1 - c0, owner, owner->life() });
     if (p.plane->mouse_cursor_ != MouseCursor::INHERIT) {
       top.mouse_cursors_.push_back(CursorArea{ r0, c0, r1 - r0, c1 - c0, p.plane->mouse_cursor_ });
     }
-    if (elevated && p.plane->elevation_area_) {
+    const bool has_area = elevated && p.plane->elevation_area_;
+    if (has_area) {
       top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size(), p.plane->casts_shadow_, 0.0, 0.0, p.plane->corner_radius_, corner_bg, p.plane->scrim_ });
+    }
+    if (bordered) {
+      // The border goes with the plane's area, or is an area of its own that casts nothing.
+      if (!has_area) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size(), false, 0.0, 0.0, p.plane->corner_radius_, {}, false });
+      ElevatedArea & area = top.elevations_.back();
+      area.border_px = p.plane->border_px_;
+      area.border_color = p.plane->border_color_;
+      area.border_alpha = p.plane->border_alpha_;
+      // Where the display has no pixels for it, its cells' edges, as a band's border is.
+      if (!top.smooth_scroll_) {
+        Band edges;
+        edges.row = r0;
+        edges.col = c0;
+        edges.rows = r1 - r0;
+        edges.cols = c1 - c0;
+        edges.border_px = 1.0;
+        edges.border_color = p.plane->border_color_;
+        edges.border_alpha = p.plane->border_alpha_;
+        top.addBandBorders(edges, 0, 0, r0, r1, c0, c1);
+      }
     }
   }
   top.collectLifts(*top.target_, top.layers_.size());
