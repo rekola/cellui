@@ -224,18 +224,6 @@ void BufferPlane::refresh() {
       area.border_px = p.plane->border_px_;
       area.border_color = p.plane->border_color_;
       area.border_alpha = p.plane->border_alpha_;
-      // Where the display has no pixels for it, its cells' edges, as a band's border is.
-      if (!top.smooth_scroll_) {
-        Band edges;
-        edges.row = r0;
-        edges.col = c0;
-        edges.rows = r1 - r0;
-        edges.cols = c1 - c0;
-        edges.border_px = 1.0;
-        edges.border_color = p.plane->border_color_;
-        edges.border_alpha = p.plane->border_alpha_;
-        top.addBandBorders(edges, 0, 0, r0, r1, c0, c1);
-      }
     }
   }
   top.collectLifts(*top.target_, top.layers_.size());

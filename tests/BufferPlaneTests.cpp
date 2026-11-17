@@ -1385,7 +1385,7 @@ TEST(bufferplane_hdr_picture_at_a_cell_covers_only_its_cells) {
   CHECK(root.images().size() == 1 && root.images()[0].key == key && root.images()[0].col == 4);
 }
 
-TEST(plane_border_is_an_area_of_its_own_on_any_plane_and_goes_with_an_elevated_ones) {
+TEST(plane_border_is_an_area_of_its_own_on_any_plane_and_goes_with_an_elevated_ones_but_makes_no_cell_edges) {
   StyleProvider styles;
   CellBuffer buffer(10, 30);
   BufferPlane root(buffer, styles);
@@ -1410,8 +1410,8 @@ TEST(plane_border_is_an_area_of_its_own_on_any_plane_and_goes_with_an_elevated_o
       CHECK(a.row == 5 && a.border_px == 2.0 && a.shadow);
     }
   }
-  // On a display with no pixels for it the border is the cells' edges (the root is not smooth scrolling).
-  CHECK(!root.takeBorders().empty());
+  // A terminal's cell edges are a band's alone: a plane's border is for a display that draws by pixels.
+  CHECK(root.takeBorders().empty());
 }
 
 TEST(plane_without_a_border_makes_no_area_and_none_when_it_is_taken_off) {

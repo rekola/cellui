@@ -180,9 +180,10 @@ can move onto `Application` as it needs.
   is a rounded box; any other has the corner pixels softened). `refresh()` makes
   an `ElevatedArea` for it (`border_px`/`border_color`/`border_alpha`; one that
   casts nothing for a plane that is not elevated) and the GTK window draws it
-  with a GSK border over what is composed; where the display scrolls by whole
-  cells (`!smooth_scroll`) the cells' edges are composed into `CellBorder`s as for
-  a band's border. No `Band` is needed for a border.
+  with a GSK border over what is composed. A terminal, kitty included, shows no
+  border for a plane: it would lie over planes stacked above it, which only a
+  `Band`'s border is meant to do (the cell edges of `FrameInfo::borders` are
+  the band's alone).
 - Backdrops are the backend's to apply: `refresh()` sets what is composed
   below each one aside as a `BackdropLayer` (cells, blur, dim, tint,
   rectangle; `FrameInfo::backdrops`, bottom first) and leaves the frame with
