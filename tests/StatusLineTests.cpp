@@ -87,3 +87,21 @@ TEST(statusline_command_prompt_shortcut_follows_the_keymap_profile) {
   CHECK(opened);
   CHECK(!f.line.isCommandPromptShortcut(key('p', true, false, true)));  // Ctrl+Shift+P is the desktop's
 }
+
+TEST(statusline_message_is_a_proportional_text_run_where_the_display_lays_text_out) {
+  StyleProvider styles;
+  CellBuffer buffer(3, 30);
+  BufferPlane root(buffer, styles);
+  root.setProportionalText(true);
+  StatusLine line(root);
+  line.resize(1, 30);
+  line.move(2, 0);
+  line.setMessage("Showing Commodities");
+  root.refresh();
+  auto runs = root.takeTextRuns();
+  CHECK(runs.size() == 1u && runs[0].text == "Showing Commodities" && runs[0].font == TextFont::PROPORTIONAL && runs[0].overflow == TextOverflow::ELLIPSIS);
+  line.setFont(TextFont::MONOSPACE);
+  line.setMessage("Other");
+  root.refresh();
+  CHECK(buffer.toPlainText().find("Other") != std::string::npos);  // the cells' own face
+}
