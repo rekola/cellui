@@ -50,7 +50,8 @@ carries the app's object as an opaque `getAppContext()`.
   drawing, keymap and prefix-key dispatch),
   `UIMenu`, `Viewport.h`, the generic widgets (`ChoiceList`/`ChoiceDialog`,
   `InlineEditor`, `SpinBox`, `Dial`, `Lamp`, `LineChart`, `HeatmapChart`, `InfoDialog`,
-  `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`), `Gallery.h`.
+  `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`, `StatusLine`: the bottom row's message
+  and its Emacs-style prompt with Tab completion), `Gallery.h`.
 
 ## Application
 
