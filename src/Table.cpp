@@ -344,7 +344,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
       charts_.drawTrace(getPlane(), y, l.x[c], row_height_, l.width[c], model_->trace(model_row, col), look, 1, getDim().first, id);
       setBgColor(bg);
     } else {
-      setFgColor(selected && focused_ || pressed ? fg : color.value_or(fg));
+      setFgColor((selected && focused_) || pressed ? fg : color.value_or(fg));
       putstr(y + row_height_ / 2, l.x[c], aligned(model_->text(model_row, col), l.width[c], columns_[c].align));
     }
   }
