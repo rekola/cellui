@@ -67,6 +67,13 @@ class Plane {
   // multiplies it by displayScale()), where it draws by pixels; 0 is square.
   // Only an elevated plane shows it. Default no-op.
   virtual void setCornerRadius(double) {}
+  // A border of `px` pixels at 96 dpi (scaled by displayScale()) drawn inside the plane's rectangle in `color`
+  // at `alpha`, on any plane; 0 pixels is none. It follows the corner radius (setCornerRadius()), so an
+  // elevated plane, whose corners are cut, is a rounded box, and any other plane has the corner pixels
+  // softened. Only a display that draws by pixels (the GTK window) shows it: it is drawn over everything
+  // composed under it, which a terminal's pictures could not keep to the plane's own stacking, so a
+  // terminal shows none (a Band's border, which is meant to lie over everything, is the one it draws). Default no-op.
+  virtual void setBorder(const Color &, double, float = 1.0f) { }
   // Whether an elevated plane casts a shadow and edge shading of its own; one
   // laid over another at the same height (a list on a dialog) does not.
   virtual void setCastsShadow(bool) {}

@@ -175,6 +175,15 @@ can move onto `Application` as it needs.
   by the window) rounds an `ElevatedArea`: shadow outline and redrawn cells
   are rounded, and the cut-away corners show what lay under the corner cell
   (`ElevatedArea::corner_bg`).
+- `Plane::setBorder(color, px, alpha)` is a border inside any plane's rectangle,
+  rounded by the plane's corner radius (an elevated plane, whose corners are cut,
+  is a rounded box; any other has the corner pixels softened). `refresh()` makes
+  an `ElevatedArea` for it (`border_px`/`border_color`/`border_alpha`; one that
+  casts nothing for a plane that is not elevated) and the GTK window draws it
+  with a GSK border over what is composed. A terminal, kitty included, shows no
+  border for a plane: it would lie over planes stacked above it, which only a
+  `Band`'s border is meant to do (the cell edges of `FrameInfo::borders` are
+  the band's alone).
 - Backdrops are the backend's to apply: `refresh()` sets what is composed
   below each one aside as a `BackdropLayer` (cells, blur, dim, tint,
   rectangle; `FrameInfo::backdrops`, bottom first) and leaves the frame with
@@ -421,5 +430,6 @@ rewritten with `CELLUI_UPDATE_GOLDEN=1`.
   (`.claude/hooks/check-pr-footer.py` reminds you) and update the body
   without it.
 - Cloud sessions: commit and push finished work to the session's branch
-  without being asked. Once a branch's pull request is merged, start the
-  next change on a new branch off the latest default branch.
+  without being asked.
+- Never re-use a branch. Once a branch's pull request is merged, start the
+  next change on a new branch with a new name, off the latest default branch.

@@ -68,13 +68,23 @@ Picture renderPicture(const std::vector<float> & values, const TraceLook & look,
       ctx.beginPath().moveTo(x_at(0), h);
       for (size_t x = 0; x < levels.size(); x++) ctx.lineTo(x_at(x), y_at(x));
       ctx.lineTo(x_at(levels.size() - 1), h).closePath();
-      ctx.fillStyle = toCanvas(*look.fill, 0.18f);
+      // Fades in from nothing at the bottom, so the line's body is the brightest part of the fill.
+      auto fill = ctx.createLinearGradient(0, h, 0, 0);
+      fill.addColorStop(0.0f, toCanvas(*look.fill, 0.03f));
+      fill.addColorStop(1.0f, toCanvas(*look.fill, 0.30f));
+      ctx.fillStyle = fill;
       ctx.fill();
     }
     ctx.beginPath().moveTo(x_at(0), y_at(0));
     for (size_t x = 1; x < levels.size(); x++) ctx.lineTo(x_at(x), y_at(x));
-    ctx.strokeStyle = toCanvas(look.line);
-    ctx.lineWidth = 1.25f;
+    auto stroke = ctx.createLinearGradient(0, h, 0, 0);
+    // The light past white rises on a curve, so the gradient is more than its two ends.
+    for (int i = 0; i <= 8; i++) {
+      float t = static_cast<float>(i) / 8.0f;
+      stroke.addColorStop(t, toCanvas(lineColorAt(look, t, true)));
+    }
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.5f;
     ctx.stroke();
   }
 

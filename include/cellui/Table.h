@@ -60,8 +60,9 @@ class TableModel {
 
 // A scrollable table with a heading row, the rows of a TableModel and a
 // selected row. A click on a heading sorts by that column (ascending, then
-// descending, then the model's order again); a click on a row selects it; the
-// wheel scrolls and the arrow, page, Home and End keys move the selection.
+// descending, then the model's order again); a click on a row selects it; both
+// act when the button is released over what it was pressed on, and show a
+// pressed look while it is held (moving off cancels); the wheel scrolls and the arrow, page, Home and End keys move the selection.
 // A trace column shows each row's series as a small line chart in the
 // display's own version (pictures where it has them, braille dots where it
 // has not).
@@ -129,8 +130,9 @@ class Table : public Widget {
   void resort();
   void moveSelection(int delta);
   void selectPosition(int position);
-  void clickHeading(int column);
-  void clickBody(int local_row);
+  // What is under a screen cell: the heading's column (sortable ones only) or the position of a row, -1 for none.
+  void hitAt(int screen_row, int screen_col, int & heading, int & position) const;
+  void setPressed(int heading, int position);
   int columnAt(int local_col) const;
   bool key(const KeyDown & e);
   void drawHeading(const Layout & l, const StyleProvider & styles);
@@ -147,6 +149,9 @@ class Table : public Widget {
   int row_height_ = 1;
   ScrollAxis rows_;
   bool focused_ = false;
+  // While the left button is held: the heading or the row it is over (-1 for none), as at the last press or move.
+  int pressed_heading_ = -1, pressed_position_ = -1;
+  bool pressing_ = false;
   std::vector<Connection> connections_;
 };
 

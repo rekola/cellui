@@ -4,6 +4,7 @@
 #include <cellui/Signal.h>
 #include <cellui/Widget.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -12,7 +13,9 @@ namespace cellui {
 // A row of clickable tags (chips), one of which is chosen: filters, presets,
 // views. A click chooses the tag under the pointer; Left and Right move the
 // choice while the bar has the keyboard focus. Tags that do not fit are cut
-// off at the right edge.
+// off at the right edge. Each tag is a plane of its own with a rounded border
+// (Plane::setBorder(): a window draws it with rounded corners; a terminal shows
+// the fill only).
 //
 // Like Table it uses the plane's own position in the parent, so it sits on
 // the screen's root plane.
@@ -50,6 +53,7 @@ class TagBar : public Widget {
   std::vector<Chip> chips() const;
 
   std::vector<std::string> tags_;
+  std::vector<std::unique_ptr<Plane>> chip_planes_;
   int selected_ = -1;
   bool focused_ = false;
   std::vector<Connection> connections_;

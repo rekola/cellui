@@ -37,7 +37,12 @@ struct Fixture {
     root.refresh();
     return buffer.toPlainText();
   }
-  void click(int row, int col) { table.post(MouseDown{static_cast<float>(col), static_cast<float>(row), row, col, 1, {}}); }
+  void press(int row, int col) { table.post(MouseDown{static_cast<float>(col), static_cast<float>(row), row, col, 1, {}}); }
+  void release(int row, int col) { table.post(MouseUp{static_cast<float>(col), static_cast<float>(row), row, col, 1, {}}); }
+  void click(int row, int col) {
+    press(row, col);
+    release(row, col);
+  }
   void keyPress(int key) {
     KeyDown k;
     k.key = key;
@@ -165,4 +170,51 @@ TEST(trace_resample_scales_lowest_to_highest) {
   CHECK(trace_image::resample({}, 4).empty());
   auto flat = trace_image::resample({7, 7}, 3);
   CHECK(flat[0] == 0.5f);
+}
+
+TEST(table_row_is_pressed_while_the_button_is_held_and_selected_on_release) {
+  Fixture f;
+  int selected = -2;
+  auto c = f.table.selection_changed.connect([&](int r) { selected = r; });
+  f.keyPress(Key::Home);
+  CHECK(selected == 0);
+  f.press(4, 5);  // the third row on screen: position 2
+  f.root.refresh();
+  CHECK(f.buffer.at(4, 5).bg == f.styles.row_pressed_bg_color);
+  CHECK(f.table.selectedRow() == 0);  // nothing chosen until the release
+  f.release(4, 5);
+  f.root.refresh();
+  CHECK(f.table.selectedRow() == 2);
+  CHECK(f.buffer.at(4, 5).bg != f.styles.row_pressed_bg_color);
+}
+
+TEST(table_press_moved_off_its_row_is_cancelled) {
+  Fixture f;
+  f.press(4, 5);
+  f.table.post(MouseMove{5, 5, 5, 5, 1u, {}});  // over the next row, button held
+  f.root.refresh();
+  CHECK(f.buffer.at(4, 5).bg != f.styles.row_pressed_bg_color);
+  CHECK(f.buffer.at(5, 5).bg != f.styles.row_pressed_bg_color);
+  f.release(5, 5);
+  CHECK(f.table.selectedRow() == -1);
+}
+
+TEST(table_heading_is_pressed_while_held_and_sorts_on_release) {
+  Fixture f;
+  f.press(1, 12);
+  f.root.refresh();
+  CHECK(f.buffer.at(1, 12).bg == f.styles.button_pressed_bg_color);
+  CHECK(f.table.sortOrder() == SortOrder::NONE);
+  f.release(1, 12);
+  CHECK(f.table.sortColumn() == 1);
+}
+
+TEST(trace_line_is_a_gradient_that_is_lit_past_white_only_at_the_top) {
+  TraceLook look{Color(10, 10, 10), Color(60, 180, 80), std::nullopt};
+  Color low = trace_image::lineColorAt(look, 0.1f, true), high = trace_image::lineColorAt(look, 1.0f, true);
+  auto top = std::max({high.r(), high.g(), high.b()});
+  CHECK(top > 1.0f);
+  CHECK(std::max({low.r(), low.g(), low.b()}) < 1.0f);
+  Color flat = trace_image::lineColorAt(look, 1.0f, false);
+  CHECK(std::max({flat.r(), flat.g(), flat.b()}) <= 1.0f);
 }
