@@ -54,11 +54,30 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
   setFocusable(true);
   connections_.push_back(on<MouseDown>([this](const MouseDown & e, EventContext &) {
     if (e.button != 1) return Handled::no;
-    auto [py, px] = getPosition();
-    (void)px;
-    int y = e.row - py;
-    if (y == 0) clickHeading(columnAt(e.col - getPosition().second));
-    else if (y > 0) clickBody(y - 1);
+    int heading = -1, position = -1;
+    hitAt(e.row, e.col, heading, position);
+    pressing_ = true;
+    setPressed(heading, position);
+    return Handled::yes;
+  }));
+  // The pointer is grabbed from the press to the release, so a drag off the row is still ours: it cancels the press.
+  connections_.push_back(on<MouseMove>([this](const MouseMove & e, EventContext &) {
+    if (!pressing_ || !(e.buttons & 1)) return Handled::no;
+    int heading = -1, position = -1;
+    hitAt(e.row, e.col, heading, position);
+    // Only what was pressed stays pressed.
+    setPressed(heading == pressed_heading_ ? heading : -1, position == pressed_position_ ? position : -1);
+    return Handled::yes;
+  }));
+  connections_.push_back(on<MouseUp>([this](const MouseUp & e, EventContext &) {
+    if (e.button != 1 || !pressing_) return Handled::no;
+    int heading = -1, position = -1;
+    hitAt(e.row, e.col, heading, position);
+    int pressed_heading = pressed_heading_, pressed_position = pressed_position_;
+    pressing_ = false;
+    setPressed(-1, -1);
+    if (pressed_heading >= 0 && heading == pressed_heading) toggleSort(pressed_heading);
+    else if (pressed_position >= 0 && position == pressed_position) selectPosition(position);
     return Handled::yes;
   }));
   connections_.push_back(on<Wheel>([this](const Wheel & e, EventContext &) {
@@ -175,12 +194,25 @@ void Table::moveSelection(int delta) {
   selectPosition(at < 0 ? (delta > 0 ? 0 : static_cast<int>(order_.size()) - 1) : at + delta);
 }
 
-void Table::clickHeading(int column) { toggleSort(column); }
+void Table::hitAt(int screen_row, int screen_col, int & heading, int & position) const {
+  heading = position = -1;
+  auto [py, px] = getPosition();
+  int y = screen_row - py, x = screen_col - px;
+  if (y < 0 || y >= getDim().first || x < 0 || x >= getDim().second) return;
+  if (y == 0) {
+    int c = columnAt(x);
+    if (c >= 0 && columns_[static_cast<size_t>(c)].sortable) heading = c;
+    return;
+  }
+  int at = rows_.offset() + (y - 1) / row_height_;
+  if ((y - 1) / row_height_ < visibleRows() && at < static_cast<int>(order_.size())) position = at;
+}
 
-void Table::clickBody(int local_row) {
-  rows_.setExtent(static_cast<int>(order_.size()), visibleRows());
-  int position = rows_.offset() + local_row / row_height_;
-  if (position < static_cast<int>(order_.size())) selectPosition(position);
+void Table::setPressed(int heading, int position) {
+  if (heading == pressed_heading_ && position == pressed_position_) return;
+  pressed_heading_ = heading;
+  pressed_position_ = position;
+  render();
 }
 
 int Table::columnAt(int local_col) const {
@@ -285,7 +317,10 @@ void Table::drawHeading(const Layout & l, const StyleProvider & styles) {
       std::string arrow = sort_order_ == SortOrder::DESCENDING ? " ▼" : " ▲";
       title = Plane::cutToCells(columns_[i].title, std::max(0, l.width[i] - 2), TextOverflow::CLIP) + arrow;
     }
+    const bool pressed = static_cast<int>(i) == pressed_heading_;
+    if (pressed) setBgColor(styles.button_pressed_bg_color);
     putstr(0, l.x[i], aligned(title, l.width[i], columns_[i].align), kBoldFace);
+    if (pressed) setBgColor(styles.heading_bg_color);
   }
 }
 
@@ -293,8 +328,10 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
   const int cols = getDim().second;
   const int model_row = order_[static_cast<size_t>(position)];
   const bool selected = model_row == selected_;
-  Color bg = selected ? (focused_ ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color) : styles.window_bg_color;
-  Color fg = selected && focused_ ? styles.highlight_fg_color : styles.window_fg_color;
+  const bool pressed = position == pressed_position_;
+  Color bg = pressed ? styles.row_pressed_bg_color
+                     : selected ? (focused_ ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color) : styles.window_bg_color;
+  Color fg = pressed ? styles.window_accent_fg_color : selected && focused_ ? styles.highlight_fg_color : styles.window_fg_color;
   setBgColor(bg);
   setFgColor(fg);
   for (int r = 0; r < row_height_; r++) putstr(y + r, 0, std::string(static_cast<size_t>(cols), ' '));
@@ -307,7 +344,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
       charts_.drawTrace(getPlane(), y, l.x[c], row_height_, l.width[c], model_->trace(model_row, col), look, 1, getDim().first, id);
       setBgColor(bg);
     } else {
-      setFgColor(selected && focused_ ? fg : color.value_or(fg));
+      setFgColor(selected && focused_ || pressed ? fg : color.value_or(fg));
       putstr(y + row_height_ / 2, l.x[c], aligned(model_->text(model_row, col), l.width[c], columns_[c].align));
     }
   }

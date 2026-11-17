@@ -202,10 +202,11 @@ void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, const st
     }
   }
   plane.setBgColor(look.background);
-  plane.setFgColor(look.line);
   for (int i = 0; i < rows; i++) {
     int y = row + i;
     if (y < clip_top || y >= clip_bottom) continue;
+    // Shaded by the height of this row, like the picture's gradient, but with no light past white.
+    plane.setFgColor(trace_image::lineColorAt(look, rows == 1 ? 1.0f : (static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows), false));
     std::string line;
     for (int c = 0; c < cols; c++) {
       int mask = 0;

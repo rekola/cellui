@@ -81,13 +81,36 @@ void TagBar::render() {
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
   fill();
+  // A plane for each tag, so each can have its own border.
+  while (chip_planes_.size() > tags_.size()) chip_planes_.pop_back();
+  while (chip_planes_.size() < tags_.size()) {
+    chip_planes_.push_back(getPlane().createChild());
+    chip_planes_.back()->setMouseCursor(MouseCursor::POINTER);
+  }
   auto c = chips();
   for (size_t i = 0; i < c.size(); i++) {
-    if (c[i].x >= cols) break;
+    Plane & chip = *chip_planes_[i];
+    const bool shown = c[i].x < cols;
+    chip.setVisible(shown);
+    if (!shown) continue;
+    chip.resize(1, c[i].width);
+    chip.move(0, c[i].x);
     const bool on = static_cast<int>(i) == selected_;
-    setBgColor(on ? styles.highlight_bg_color : styles.button_bg_color);
-    setFgColor(on ? styles.highlight_fg_color : styles.button_fg_color);
-    putstr(0, c[i].x, Plane::cutToCells(" " + tags_[i] + " ", cols - c[i].x, TextOverflow::CLIP), on ? kBoldFace : kPlainFace);
+    // The chosen tag is filled with the accent; the others are dark with a lighter border, so both read as tags.
+    chip.setBgColor(on ? styles.highlight_bg_color : styles.heading_bg_color);
+    chip.setFgColor(on ? styles.highlight_fg_color : styles.window_accent_fg_color);
+    chip.putstr(0, 0, std::string(static_cast<size_t>(c[i].width), ' '));
+    chip.putstr(0, 0, " " + tags_[i] + " ", on ? kBoldFace : kPlainFace);
+    // Only the border: no fill over the cells, a one pixel line inside the tag's rectangle with soft corners.
+    Band border;
+    border.rows = 1;
+    border.cols = c[i].width;
+    border.alpha = 0.0f;
+    border.border_color = on ? styles.highlight_bg_color.blend(0.45f, Color(255, 255, 255)) : styles.window_fg_color;
+    border.border_alpha = on ? 0.9f : 0.55f;
+    border.border_px = 1.0;
+    border.border_radius = 3.0;
+    chip.setBand(border);
   }
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);

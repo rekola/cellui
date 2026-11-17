@@ -166,6 +166,7 @@ class PixelCharts : public Charts {
       mix(c->b());
     }
     mix(look.fill ? look.fill->r() + 1.0f : 0.0f);
+    mix(look.hdr_gain);
     auto key = std::make_pair(&plane, id);
     auto found = traces_.find(key);
     if (found == traces_.end() || found->second.print != print) {

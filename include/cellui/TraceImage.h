@@ -15,13 +15,28 @@ namespace cellui {
 // trace is a series drawn left to right as a line - a price history, a load
 // curve - scaled to fill its box from its lowest value to its highest, with
 // nothing said about what the values are.
+//
+// The line is a gradient up its box: `line` blended in from the background at
+// the bottom, and from about a third of the way up lit past white, `hdr_gain`
+// times its light at the top, so on a display that shows light past white (a
+// float picture, DisplayInfo::hdr_pictures) the high part of the series glows
+// in its own colour; elsewhere it is the colour washed toward white. The
+// version drawn in cells has no light past white and keeps to the colour.
 struct TraceLook {
   Color background;
   Color line;
   std::optional<Color> fill;
+  float hdr_gain = 4.0f;  // 0: no light past white
 };
 
 namespace trace_image {
+
+// The line's colour `t` of the way up its box (0 the bottom, 1 the top). With
+// `hdr` the top is lit past white by look.hdr_gain.
+inline Color lineColorAt(const TraceLook & look, float t, bool hdr) {
+  Color base = look.background.blend(0.55f + 0.45f * t, look.line);
+  return hdr ? base * StyleProvider::litGain(t, 0.35f, look.hdr_gain) : base;
+}
 
 // `values` as `count` evenly spaced points from 0 (the lowest value) to 1
 // (the highest), interpolated between neighbours. Values that are not finite
