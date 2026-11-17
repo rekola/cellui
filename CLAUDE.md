@@ -52,6 +52,22 @@ carries the app's object as an opaque `getAppContext()`.
   `InlineEditor`, `SpinBox`, `Dial`, `Lamp`, `LineChart`, `HeatmapChart`, `InfoDialog`,
   `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`), `Gallery.h`.
 
+## Application
+
+`Application` (`cellui/Application.h`) is a program's whole connection to the
+display: `Application::open(argc, argv)` reads `--ui auto|terminal|window`
+(`raster` is the same as `window`) and `--theme`, opens the terminal or the
+window (`auto`: the window where built and a display is there, else the
+terminal), and owns the screen-sized root plane (kept the size of the display;
+`resized` says when it changed), the root widget, the `InputDispatcher`, the
+`KeyReader`, the theme chosen to suit the display, the charts (`charts()` stays
+valid when the display changes) and the loop (`run()`/`quit()`). A program
+names no platform: it builds widgets on `root()`, attaches them to
+`widgets()`, lays them out from `rows()`/`cols()` and on `resized`, and calls
+`run()`. Tab and Shift+Tab move the focus. synth's `InteractiveUI` does the
+same and more by hand (modal dialogs, the command palette, link profiles); it
+can move onto `Application` as it needs.
+
 ## Events and input dispatch
 
 - `EventTypes.h`: an event is any struct; widgets form a tree via

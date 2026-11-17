@@ -14,6 +14,11 @@ const char * backendName(BackendKind kind) {
 }
 
 bool parseBackendKind(std::string_view name, BackendKind & kind) {
+  // The window backend is also `window`, what a person calls it.
+  if (name == "window") {
+    kind = BackendKind::RASTER;
+    return true;
+  }
   for (BackendKind k : {BackendKind::AUTO, BackendKind::TERMINAL, BackendKind::RASTER}) {
     if (name == backendName(k)) {
       kind = k;

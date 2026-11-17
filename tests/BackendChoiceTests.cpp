@@ -12,7 +12,9 @@ TEST(backend_names_parse_and_nothing_else_does) {
   CHECK(parseBackendKind("terminal", kind) && kind == BackendKind::TERMINAL);
   CHECK(parseBackendKind("raster", kind) && kind == BackendKind::RASTER);
   kind = BackendKind::RASTER;
-  CHECK(!parseBackendKind("window", kind) && kind == BackendKind::RASTER);
+  CHECK(parseBackendKind("window", kind) && kind == BackendKind::RASTER);
+  kind = BackendKind::TERMINAL;
+  CHECK(!parseBackendKind("gtk", kind) && kind == BackendKind::TERMINAL);
   CHECK(!parseBackendKind("", kind));
   CHECK(!parseBackendKind("Terminal", kind));
   CHECK(std::string(backendName(BackendKind::RASTER)) == "raster");
