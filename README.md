@@ -134,11 +134,48 @@ well.
 | mlterm | Untested | OK | ? | |
 | Konsole | Untested | OK | ? | True color images, but on HiDPI system images are upscaled |
 | contour | Untested | Inline image layout doesn't work | ? | |
-| xterm | Works | True color where built with it and `directColor` is on (found by asking the terminal); else the 256-color palette | OK | Sixel support must be enabled in `.Xresources`, and images have maximum size 1000x1000 |
+| xterm | Works | True color where built with it and `directColor` is on (found by asking the terminal); else the 256-color palette | OK | Sixel support must be enabled in `.Xresources` (see [xterm setup](#xterm-setup)), and images have maximum size 1000x1000 |
 | Black Box | Untested | Inline image layout doesn't work | ? | On HiDPI system the images are upscaled, and the terminal and the flatpak system use too much CPU time when idling. |
 | Alacritty | Untested | None | ? | |
 | GNOME Terminal | Works | None | ? | Sixel support is not enabled by default |
 | mintty | Untested | ? | ? | Not tested yet. |
+
+### xterm setup
+
+xterm's defaults are poor for cellui: 16 colors, no Sixels, a small image
+limit, a tiny bitmap font. Put this in `~/.Xresources`:
+
+```
+XTerm*termName: xterm-256color
+XTerm*decTerminalID: vt340
+XTerm*numColorRegisters: 256
+XTerm*maxGraphicSize: 2048x2048
+XTerm*renderFont: true
+XTerm*faceName: monospace
+XTerm*faceSize: 12
+```
+
+- `termName` sets `TERM`; xterm's default `xterm` has only 8/16 colors, which
+  is why the UI looked 16-color everywhere but the Sixel images.
+- `decTerminalID: vt340` makes xterm identify as Sixel-capable, and
+  `numColorRegisters` sets the image palette size.
+- `maxGraphicSize` raises the Sixel image size limit (default 1000x1000).
+- `renderFont` with `faceName` selects an antialiased Xft font through
+  fontconfig. `monospace` is fontconfig's alias for the system's default
+  monospace font, so it is the same on every machine; name a font such as
+  `DejaVu Sans Mono` to pick one. `faceSize` is in points.
+
+xterm shows 24-bit color only when it is built with direct-color support and
+`XTerm*directColor: true` (the default in some builds). The UI asks the
+terminal at start-up by setting a color and reading it back; where xterm
+reports it kept, the UI uses true color, otherwise it is limited to the
+256-color palette. In that case xterm snaps the colors of text to its palette
+while Sixel pictures keep their own, so a picture's flat background can differ
+slightly in shade from the cells beside it.
+
+Reload with `xrdb -merge ~/.Xresources` and start a new xterm; running ones
+keep their old settings. If `TERM` is still `xterm` inside it, check with
+`echo $TERM`; a shell profile that exports `TERM` overrides the resource.
 
 ## Adapting to a slow link
 
