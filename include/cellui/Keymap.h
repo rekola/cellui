@@ -1,10 +1,14 @@
 #pragma once
 
 #include <cellui/CommandRegistry.h>
+#include <cellui/KeyStrokeNames.h>
 #include <cellui/KeymapProfile.h>
+
+#include <cassert>
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -35,6 +39,13 @@ class Keymap {
     table(profile).bindings[stroke] = std::move(command_name);
   }
 
+  // The same with the keys as a person writes them (KeyStroke::parse()): "q", "C-x C-c", "Ctrl+Shift+P". One key
+  // or a prefix and a key; false (and an assertion) for anything else.
+  bool bind(std::string_view keys, std::string command_name) { return bindKeys(shared_, keys, std::move(command_name)); }
+  bool bind(KeymapProfile profile, std::string_view keys, std::string command_name) {
+    return bindKeys(table(profile), keys, std::move(command_name));
+  }
+
   const std::string * lookup(uint64_t stroke, KeymapProfile profile) const {
     if (auto name = find(table(profile).bindings, stroke)) return name;
     return find(shared_.bindings, stroke);
@@ -57,8 +68,6 @@ class Keymap {
     return findPrefixed(shared_, prefix, stroke);
   }
 
-  // Startup-time safety net: a typo'd command name is an assertion failure
-  // instead of a silently dead keybinding.
   // Every key sequence (one shortcut, or a prefix and a shortcut) that runs
   // `command_name` in `profile`, in no particular order.
   std::vector<std::vector<uint64_t>> sequencesFor(const std::string & command_name, KeymapProfile profile) const {
@@ -76,6 +85,34 @@ class Keymap {
     return result;
   }
 
+  // How `command_name` is bound in `profile` as a person reads it ("C-x C-s", "Ctrl+S"): the simplest of its
+  // bindings (fewest keys, then fewest modifiers); "" if it has none. A raw control byte (a terminal's own spelling
+  // of a shortcut that is bound as well) is never the one shown.
+  std::string bindingFor(const std::string & command_name, KeymapProfile profile) const {
+    auto modifiers = [](const std::vector<uint64_t> & sequence) {
+      int n = 0;
+      for (uint64_t stroke : sequence) n += KeyStroke::hasCtrl(stroke) + KeyStroke::hasAlt(stroke) + KeyStroke::hasShift(stroke) + KeyStroke::hasMeta(stroke);
+      return n;
+    };
+    auto simpler = [&](const std::vector<uint64_t> & a, const std::vector<uint64_t> & b) {
+      if (a.size() != b.size()) return a.size() < b.size();
+      if (modifiers(a) != modifiers(b)) return modifiers(a) < modifiers(b);
+      return a < b;
+    };
+    std::vector<uint64_t> best;
+    for (auto & sequence : sequencesFor(command_name, profile)) {
+      bool printable = true;
+      for (uint64_t stroke : sequence) {
+        int id = KeyStroke::idOf(stroke);
+        if (id < 0x20 && id != Key::Tab && id != Key::Escape) printable = false;
+      }
+      if (printable && (best.empty() || simpler(sequence, best))) best = sequence;
+    }
+    return best.empty() ? std::string() : KeyStroke::describe(best, profile);
+  }
+
+  // Startup-time safety net: a typo'd command name is an assertion failure
+  // instead of a silently dead keybinding.
   bool allBoundIn(const CommandRegistry & registry) const {
     return allBound(shared_, registry) && allBound(emacs_, registry) && allBound(desktop_, registry);
   }
@@ -89,6 +126,15 @@ class Keymap {
 
   Table & table(KeymapProfile profile) { return profile == KeymapProfile::TERMINAL ? emacs_ : desktop_; }
   const Table & table(KeymapProfile profile) const { return profile == KeymapProfile::TERMINAL ? emacs_ : desktop_; }
+
+  static bool bindKeys(Table & t, std::string_view keys, std::string command_name) {
+    std::vector<uint64_t> sequence = KeyStroke::parse(keys);
+    assert((sequence.size() == 1 || sequence.size() == 2) && "Keymap::bind: not one key or a prefix and a key");
+    if (sequence.size() == 1) t.bindings[sequence[0]] = std::move(command_name);
+    else if (sequence.size() == 2) t.prefixed[sequence[0]][sequence[1]] = std::move(command_name);
+    else return false;
+    return true;
+  }
 
   static const std::string * find(const Strokes & strokes, uint64_t stroke) {
     auto it = strokes.find(stroke);

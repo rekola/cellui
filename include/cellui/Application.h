@@ -4,8 +4,11 @@
 #include <cellui/BackendChoice.h>
 #include <cellui/BufferPlane.h>
 #include <cellui/Charts.h>
+#include <cellui/CommandPalette.h>
+#include <cellui/CommandRegistry.h>
 #include <cellui/InputDispatcher.h>
 #include <cellui/KeyReader.h>
+#include <cellui/Keymap.h>
 #include <cellui/Signal.h>
 #include <cellui/StyleProvider.h>
 #include <cellui/Widget.h>
@@ -52,7 +55,9 @@ struct ApplicationOptions {
 //   if (!app) { /* report error */ return 1; }
 //   Table table(app->root(), app->charts());
 //   table.attach(app->widgets());
-//   app->resized.connect([&](int rows, int cols) { table.resize(rows, cols); });
+//   auto resized = app->resized.connect([&](int rows, int cols) { table.resize(rows, cols); });
+//   app->commands().define("quit", "Leave the program", [&] { app->quit(); });
+//   app->keymap().bind("C-x C-c", "quit");
 //   return app->run();
 //
 // It also does what every program on cellui does with the display it got: the
@@ -60,6 +65,15 @@ struct ApplicationOptions {
 // profile), a theme to suit the display's colours (`--theme` names one),
 // escape-as-Meta key reading, Tab to move the focus, paste into an open text
 // field, the window's focus in the style provider, and drag and drop.
+//
+// And it runs the program's commands: named actions (commands()) that the keys
+// bound to them (keymap()) and the command palette run. A key goes to the
+// focused widget first; one it does not take is looked up in the keymap, and
+// one nothing takes moves the focus if it is Tab or Shift+Tab. A prefix (C-x)
+// takes the key after it whatever has the focus. "command-palette" is defined
+// and bound already (M-x on the terminal keymap, Ctrl+Shift+P on the desktop
+// one); while the palette is open it has every key and pointer event, Escape
+// included at once.
 //
 // The command line: `--ui auto|terminal|window` (or `--ui=...`) picks the
 // backend, `auto` (the default) being a window where the build has one and a
@@ -125,8 +139,30 @@ class Application {
   // The display went away: the end of input, or the window was closed.
   Signal<> closed;
 
+  // What the application has to say on the echo line: a prefix waiting for its
+  // key ("C-x-"), a key sequence that is not bound, a bare Escape waiting on a
+  // terminal for the key it may be the Meta of ("ESC-"). The program shows it where
+  // it shows messages (StatusLine::setMessage()).
+  Signal<std::string> message;
+
+  // --- Commands
+  // The program's named commands and the keys bound to them (see above).
+  // Define a command with a description, which the palette shows.
+  CommandRegistry & commands() { return commands_; }
+  Keymap & keymap() { return keymap_; }
+  // Runs a command by name; false when there is none.
+  bool execute(const std::string & name) { return commands_.execute(name); }
+  // How `command` is bound on this display ("C-x C-c", "Ctrl+Q"); "" if it is not.
+  std::string bindingFor(const std::string & command) const;
+  // Opens the command palette over the bottom of the screen with every command;
+  // the chosen one runs once the palette has closed.
+  void openCommandPalette();
+  bool commandPaletteOpen() const { return palette_.isOpen(); }
+  const CommandPalette & commandPalette() const { return palette_; }
+
   // Offered every key and mouse input before the dispatcher; returns whether
-  // it took it (a global shortcut).
+  // it took it. A last resort: a key binding (keymap()) or a capture handler on
+  // widgets() does what a program needs without the display's raw input.
   using InputHook = std::function<bool(const Input &)>;
   void setInputHook(InputHook hook) { input_hook_ = std::move(hook); }
 
@@ -153,9 +189,9 @@ class Application {
   // (data that arrived).
   void requestFrame() { backend_->requestFrame(); }
 
-  // Runs until quit() or the display closes. Returns the exit status.
+  // Runs until quit() or the display closes. Returns the status given to quit(), 0 when the display closed.
   int run();
-  void quit();
+  void quit(int status = 0);
 
  private:
   Application(std::unique_ptr<Backend> backend, std::vector<std::string> arguments, ApplicationOptions options, BackendKind kind, bool light);
@@ -163,6 +199,15 @@ class Application {
   void applyTheme(const std::string & name);
   void offerInput(const Input & input);
   void resizeTo(int rows, int cols);
+  void installRootHandlers();
+  // The key the focused widget left: a binding of the keymap, or the start of a prefix.
+  bool keyBinding(const KeyDown & e);
+  // The key after a prefix, whatever has the focus.
+  bool prefixedKey(const KeyDown & e);
+  void layoutPalette();
+  void echoEscape();
+  void paletteResult(CommandPalette::Result result);
+  KeymapProfile profile() const { return root_plane_.keymapProfile(); }
 
   class DisplayCharts;
 
@@ -186,6 +231,14 @@ class Application {
   bool quit_on_close_ = true;
   std::string theme_name_;
   std::optional<std::chrono::steady_clock::time_point> last_frame_;
+  int exit_status_ = 0;
+  bool escape_echoed_ = false;
+  CommandRegistry commands_;
+  Keymap keymap_;
+  CommandPalette palette_;
+  // The prefix key (C-x) of a sequence, while it waits for the key after it.
+  std::optional<uint64_t> pending_prefix_;
+  std::vector<Connection> root_handlers_;
 };
 
 }  // namespace cellui

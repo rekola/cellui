@@ -16,6 +16,11 @@ namespace cellui {
 class CommandRegistry {
  public:
   void define(std::string name, std::function<void()> fn) {
+    // Defining a name again replaces what it does; it is indexed once.
+    if (auto it = commands_.find(name); it != commands_.end()) {
+      it->second = std::move(fn);
+      return;
+    }
     // Every prefix of `name` (including the empty one, so matching("")
     // lists everything) indexes straight to every full name sharing it -
     // built once here rather than scanning the whole table on every
@@ -25,6 +30,26 @@ class CommandRegistry {
       prefixes_[name.substr(0, len)].push_back(name);
     }
     commands_[std::move(name)] = std::move(fn);
+  }
+
+  // The same with a one-line description, for a command palette.
+  void define(std::string name, std::string description, std::function<void()> fn) {
+    descriptions_[name] = std::move(description);
+    define(std::move(name), std::move(fn));
+  }
+
+  // What define() was told the command does; "" when it was not told.
+  const std::string & description(const std::string & name) const {
+    static const std::string kNone;
+    auto it = descriptions_.find(name);
+    return it == descriptions_.end() ? kNone : it->second;
+  }
+
+  // Every defined name, sorted.
+  std::vector<std::string> names() const {
+    std::vector<std::string> out = matching("");
+    std::sort(out.begin(), out.end());
+    return out;
   }
 
   bool execute(const std::string & name) const {
@@ -46,6 +71,7 @@ class CommandRegistry {
   // - define() alone can add/overwrite but never retract one.
   void undefine(const std::string & name) {
     if (commands_.erase(name) == 0) return;
+    descriptions_.erase(name);
     for (size_t len = 0; len <= name.size(); len++) {
       auto it = prefixes_.find(name.substr(0, len));
       if (it == prefixes_.end()) continue;
@@ -66,6 +92,7 @@ class CommandRegistry {
  private:
   std::unordered_map<std::string, std::function<void()>> commands_;
   std::unordered_map<std::string, std::vector<std::string>> prefixes_;
+  std::unordered_map<std::string, std::string> descriptions_;
 };
 
 }  // namespace cellui

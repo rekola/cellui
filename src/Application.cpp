@@ -1,6 +1,7 @@
 #include <cellui/Application.h>
 
 #include <cellui/BackendChoice.h>
+#include <cellui/KeyStrokeNames.h>
 #ifdef CELLUI_HAS_GTK
 #include <cellui/gtk/Window.h>
 #endif
@@ -103,8 +104,16 @@ std::unique_ptr<Application> Application::open(int argc, char ** argv, std::stri
       is_ui = true;
       name = arg.substr(5);
     }
-    if (!is_ui && arg == "--theme" && i + 1 < argc) {
-      options.theme = argv[++i];
+    if (!is_ui && (arg == "--theme" || arg.substr(0, 8) == "--theme=")) {
+      if (arg == "--theme") {
+        if (i + 1 >= argc) {
+          if (error) *error = "--theme needs a name: original, dark or light";
+          return nullptr;
+        }
+        options.theme = argv[++i];
+      } else {
+        options.theme = std::string(arg.substr(8));
+      }
       Theme probe;
       if (!Theme::byName(options.theme, probe)) {
         if (error) *error = "unknown --theme '" + options.theme + "': use original, dark or light";
@@ -163,10 +172,113 @@ Application::Application(std::unique_ptr<Backend> backend, std::vector<std::stri
   // unless what has the focus wants it at once.
   key_reader_.takeEscape = [this](const Input & escape) {
     Widget * focused = dispatcher_->focused();
-    if (!focused || !focused->wantsBareEscape()) return false;
+    if (!palette_.isOpen() && (!focused || !focused->wantsBareEscape())) return false;
     dispatcher_->offer(escape);
     return true;
   };
+  commands_.define("command-palette", "Search the commands and run one", [this] { openCommandPalette(); });
+  keymap_.bind(KeymapProfile::TERMINAL, "M-x", "command-palette");
+  keymap_.bind(KeymapProfile::DESKTOP, "Ctrl+Shift+P", "command-palette");
+  installRootHandlers();
+}
+
+// On the root of the widget tree: the palette ahead of everything while it is
+// open, then the key after a prefix (capture, ahead of the focused widget),
+// and the keymap for a key the focused widget left (bubble).
+void Application::installRootHandlers() {
+  root_handlers_.clear();
+  Widget & root = *root_widget_;
+  auto yes = [](bool taken) { return taken ? Handled::yes : Handled::no; };
+  root_handlers_.push_back(root.on<KeyDown>([this, yes](const KeyDown & e, EventContext &) {
+    if (palette_.isOpen()) {
+      paletteResult(palette_.key(e));
+      return Handled::yes;
+    }
+    return yes(prefixedKey(e));
+  },
+                                            Phase::capture));
+  root_handlers_.push_back(root.on<KeyUp>([this, yes](const KeyUp &, EventContext &) { return yes(palette_.isOpen()); }, Phase::capture));
+  root_handlers_.push_back(root.on<MouseDown>([this, yes](const MouseDown &, EventContext &) { return yes(palette_.isOpen()); }, Phase::capture));
+  root_handlers_.push_back(root.on<MouseMove>([this, yes](const MouseMove &, EventContext &) { return yes(palette_.isOpen()); }, Phase::capture));
+  root_handlers_.push_back(root.on<MouseUp>([this](const MouseUp & e, EventContext &) {
+    if (!palette_.isOpen()) return Handled::no;
+    if (e.button == 1) paletteResult(palette_.click(e.row, e.col));
+    return Handled::yes;
+  },
+                                            Phase::capture));
+  root_handlers_.push_back(root.on<Wheel>([this](const Wheel & e, EventContext &) {
+    if (!palette_.isOpen()) return Handled::no;
+    if (e.dy != 0) paletteResult(palette_.wheel(e.dy > 0));
+    return Handled::yes;
+  },
+                                          Phase::capture));
+  root_handlers_.push_back(root.on<KeyDown>([this, yes](const KeyDown & e, EventContext &) { return yes(keyBinding(e)); }));
+}
+
+namespace {
+
+// The stroke a key is bound as. On the terminal keymap Meta is Alt (M-x), however the terminal sent it.
+uint64_t strokeOf(const KeyDown & e, KeymapProfile profile) {
+  Modifiers mods = e.mods;
+  if (profile == KeymapProfile::TERMINAL && mods.meta) {
+    mods.alt = true;
+    mods.meta = false;
+  }
+  return KeyStroke::pack(e.key, mods);
+}
+
+}  // namespace
+
+bool Application::prefixedKey(const KeyDown & e) {
+  if (!pending_prefix_) return false;
+  uint64_t prefix = *pending_prefix_;
+  pending_prefix_.reset();
+  uint64_t stroke = strokeOf(e, profile());
+  // A started sequence takes the key after it, bound or not, so a half-typed prefix never does something else.
+  if (const std::string * name = keymap_.lookupPrefixed(prefix, stroke, profile())) {
+    message.emit("");
+    commands_.execute(*name);
+  } else {
+    message.emit(KeyStroke::describe({prefix, stroke}, profile()) + " is undefined");
+  }
+  return true;
+}
+
+bool Application::keyBinding(const KeyDown & e) {
+  uint64_t stroke = strokeOf(e, profile());
+  if (keymap_.isPrefix(stroke, profile())) {
+    pending_prefix_ = stroke;
+    message.emit(KeyStroke::describe({stroke}, profile()) + "-");
+    return true;
+  }
+  if (const std::string * name = keymap_.lookup(stroke, profile())) return commands_.execute(*name);
+  return false;
+}
+
+std::string Application::bindingFor(const std::string & command) const { return keymap_.bindingFor(command, root_plane_.keymapProfile()); }
+
+void Application::openCommandPalette() {
+  pending_prefix_.reset();
+  std::vector<PaletteEntry> entries;
+  for (const std::string & name : commands_.names()) entries.push_back({name, commands_.description(name), bindingFor(name)});
+  palette_.open(std::move(entries));
+  layoutPalette();
+}
+
+void Application::layoutPalette() {
+  if (palette_.isOpen()) palette_.show(root_plane_, rows(), cols());
+}
+
+void Application::paletteResult(CommandPalette::Result result) {
+  if (result == CommandPalette::Result::NONE) {
+    layoutPalette();  // the new query or selection
+    return;
+  }
+  std::string name;
+  if (result == CommandPalette::Result::CHOSEN && palette_.chosen()) name = palette_.chosen()->name;
+  // Closed before the command runs, which may open something of its own.
+  palette_.close();
+  if (!name.empty() && !commands_.execute(name)) message.emit("No command " + name);
 }
 
 Application::~Application() = default;
@@ -226,6 +338,7 @@ void Application::setRootWidget(Widget & root) {
   root_widget_ = &root;
   dispatcher_ = std::make_unique<InputDispatcher>(root);
   dispatcher_->setDragDropEnabled(backend_->display().drag_drop);
+  installRootHandlers();
 }
 
 void Application::setKeymapProfile(KeymapProfile profile) {
@@ -237,6 +350,7 @@ void Application::resizeTo(int rows, int cols) {
   if (rows == buffer_.rows() && cols == buffer_.cols()) return;
   buffer_ = CellBuffer(rows, cols);
   root_plane_.resize(rows, cols);
+  layoutPalette();
   resized.emit(rows, cols);
 }
 
@@ -250,6 +364,7 @@ void Application::handle(const BackendEvent & event) {
     case BackendEvent::Type::DISPLAY:
       configurePlane();
       resizeTo(backend_->rows(), backend_->cols());
+      layoutPalette();
       display_changed.emit();
       break;
     case BackendEvent::Type::INPUT: {
@@ -269,14 +384,18 @@ void Application::handle(const BackendEvent & event) {
 }
 
 void Application::offerInput(const Input & in) {
+  if (escape_echoed_ && !key_reader_.escapePending()) {
+    // The key the Escape waited for: the echo goes before what that key has to say.
+    escape_echoed_ = false;
+    message.emit("");
+  }
   if (input_hook_ && input_hook_(in)) return;
-  // Tab walks the focus, as in any toolkit.
+  if (dispatcher_->offer(in) == Handled::yes) return;
+  // Tab that nothing took walks the focus, as in any toolkit.
   if (in.getId() == Key::Tab && in.getKind() != Input::Kind::RELEASE && !in.hasCtrl() && !in.hasAlt()) {
     if (in.hasShift()) dispatcher_->focusPrev();
     else dispatcher_->focusNext();
-    return;
   }
-  dispatcher_->offer(in);
 }
 
 void Application::present() {
@@ -312,11 +431,48 @@ int Application::run() {
   // A pending Escape that no key followed is held until the key reader says otherwise.
   loop.addSource({backend_->inputFd(), backend_->wakeFd()}, pump);
   if (auto handles = backend_->inputHandles(); !handles.empty()) loop.addHandles(handles, pump);
+  // The backend's own clock: what the terminal's input holds of a sequence a read split (a lone ESC byte) is
+  // settled when its grace runs out, and a frame the pacer held back starts when it may; and the "ESC-" echo is
+  // due a moment into a bare Escape's wait.
+  using Clock = std::chrono::steady_clock;
+  auto msUntil = [](Clock::time_point t) {
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t - Clock::now()).count() + 1;
+    return static_cast<int>(std::clamp<long long>(ms, 0, 60000));
+  };
+  loop.setBefore([this, msUntil] {
+    int wait = -1;
+    auto sooner = [&](int ms) { wait = wait < 0 ? ms : std::min(wait, ms); };
+    if (auto deadline = backend_->nextDeadline()) sooner(msUntil(*deadline));
+    if (auto due = key_reader_.indicatorDue(); due && !escape_echoed_) sooner(msUntil(*due));
+    return wait;
+  });
+  loop.setAfter([this, pump](bool woken) {
+    if (!woken) {
+      if (auto deadline = backend_->nextDeadline(); deadline && Clock::now() >= *deadline) pump();
+    }
+    echoEscape();
+  });
   backend_->requestFrame();
+  exit_status_ = 0;
   loop.run();
-  return 0;
+  loop.setBefore(nullptr);
+  loop.setAfter(nullptr);
+  return exit_status_;
 }
 
-void Application::quit() { backend_->eventLoop().quit(); }
+// Emacs's "ESC-" in the echo area while a bare Escape waits for the key it may be the Meta of.
+void Application::echoEscape() {
+  auto due = key_reader_.indicatorDue();
+  if (due && !escape_echoed_ && std::chrono::steady_clock::now() >= *due) {
+    escape_echoed_ = true;
+    message.emit("ESC-");
+    backend_->requestFrame();
+  }
+}
+
+void Application::quit(int status) {
+  exit_status_ = status;
+  backend_->eventLoop().quit();
+}
 
 }  // namespace cellui
