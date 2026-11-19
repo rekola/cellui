@@ -62,16 +62,21 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
   // The pointer is grabbed from the press to the release, so a drag is still ours: the pressed look moves with it.
   connections_.push_back(on<MouseMove>([this](const MouseMove & e, EventContext &) {
     if (!pressing_ || !(e.buttons & 1)) return Handled::no;
-    int heading = -1, position = -1;
-    hitAt(e.row, e.col, heading, position);
-    // Among the headings or among the rows, as the button went down; over neither, nothing is pressed.
-    setPressed(press_on_heading_ ? heading : -1, press_on_heading_ ? -1 : position);
+    if (press_on_heading_) {
+      int heading = -1, position = -1;
+      hitAt(e.row, e.col, heading, position);
+      setPressed(heading, -1);  // among the headings; over none, nothing is pressed
+    } else {
+      // Among the rows, whatever the column; past the first or last the view scrolls (a move at a time).
+      setPressed(-1, dragPosition(e.row, true));
+    }
     return Handled::yes;
   }));
   connections_.push_back(on<MouseUp>([this](const MouseUp & e, EventContext &) {
     if (e.button != 1 || !pressing_) return Handled::no;
     int heading = -1, position = -1;
     hitAt(e.row, e.col, heading, position);
+    if (!press_on_heading_) position = dragPosition(e.row, false);
     pressing_ = false;
     setPressed(-1, -1);
     if (press_on_heading_) {
@@ -212,6 +217,29 @@ void Table::hitAt(int screen_row, int screen_col, int & heading, int & position)
   }
   int at = rows_.offset() + (y - 1) / row_height_;
   if ((y - 1) / row_height_ < visibleRows() && at < static_cast<int>(order_.size())) position = at;
+}
+
+int Table::dragPosition(int screen_row, bool scroll) {
+  const int count = static_cast<int>(order_.size());
+  if (count == 0) return -1;
+  rows_.setExtent(count, visibleRows());
+  const int y = screen_row - getPosition().first;
+  if (y < 1 || (y - 1) / row_height_ < 0) {
+    if (scroll && rows_.offset() > 0) {
+      rows_.scrollBy(-1);
+      render();
+    }
+    return rows_.offset();
+  }
+  if ((y - 1) / row_height_ >= visibleRows()) {
+    if (scroll && !rows_.atEnd()) {
+      rows_.scrollBy(1);
+      render();
+    }
+    return std::min(count - 1, rows_.offset() + visibleRows() - 1);
+  }
+  int at = rows_.offset() + (y - 1) / row_height_;
+  return std::min(at, count - 1);
 }
 
 void Table::setPressed(int heading, int position) {
