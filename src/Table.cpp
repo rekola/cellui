@@ -55,27 +55,30 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
     int heading = -1, position = -1;
     hitAt(e.row, e.col, heading, position);
     pressing_ = true;
+    press_on_heading_ = heading >= 0;
     setPressed(heading, position);
     return Handled::yes;
   }));
-  // The pointer is grabbed from the press to the release, so a drag off the row is still ours: it cancels the press.
+  // The pointer is grabbed from the press to the release, so a drag is still ours: the pressed look moves with it.
   connections_.push_back(on<MouseMove>([this](const MouseMove & e, EventContext &) {
     if (!pressing_ || !(e.buttons & 1)) return Handled::no;
     int heading = -1, position = -1;
     hitAt(e.row, e.col, heading, position);
-    // Only what was pressed stays pressed.
-    setPressed(heading == pressed_heading_ ? heading : -1, position == pressed_position_ ? position : -1);
+    // Among the headings or among the rows, as the button went down; over neither, nothing is pressed.
+    setPressed(press_on_heading_ ? heading : -1, press_on_heading_ ? -1 : position);
     return Handled::yes;
   }));
   connections_.push_back(on<MouseUp>([this](const MouseUp & e, EventContext &) {
     if (e.button != 1 || !pressing_) return Handled::no;
     int heading = -1, position = -1;
     hitAt(e.row, e.col, heading, position);
-    int pressed_heading = pressed_heading_, pressed_position = pressed_position_;
     pressing_ = false;
     setPressed(-1, -1);
-    if (pressed_heading >= 0 && heading == pressed_heading) toggleSort(pressed_heading);
-    else if (pressed_position >= 0 && position == pressed_position) selectPosition(position);
+    if (press_on_heading_) {
+      if (heading >= 0) toggleSort(heading);
+    } else if (position >= 0) {
+      selectPosition(position);
+    }
     return Handled::yes;
   }));
   connections_.push_back(on<Wheel>([this](const Wheel & e, EventContext &) {

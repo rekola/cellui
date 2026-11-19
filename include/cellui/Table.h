@@ -155,8 +155,10 @@ class Table : public Widget {
   TextFont font_ = TextFont::PROPORTIONAL;
   ScrollAxis rows_;
   bool focused_ = false;
-  // While the left button is held: the heading or the row it is over (-1 for none), as at the last press or move.
+  // While the left button is held: the heading or the row it is over (-1 for none) is drawn pressed, and moves with the
+  // pointer, among the headings if the button went down on one, among the rows if on a row. A release acts on it.
   int pressed_heading_ = -1, pressed_position_ = -1;
+  bool press_on_heading_ = false;
   bool pressing_ = false;
   std::vector<Connection> connections_;
 };
