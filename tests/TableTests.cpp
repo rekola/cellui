@@ -297,3 +297,75 @@ TEST(table_cells_are_text_runs_of_their_column_alignment_on_a_display_with_propo
   }
   CHECK(right && left);
 }
+
+TEST(tagbar_places_its_chips_in_the_bars_own_columns_in_a_flat_tree_too) {
+  StyleProvider styles;
+  CellBuffer buffer(3, 40);
+  BufferPlane root(buffer, styles);
+  root.setFlatChildren(true);
+  TagBar bar(root);
+  bar.resize(1, 30);
+  bar.move(1, 5);
+  bar.setTags({"ab", "cd"});
+  bar.select(0);
+  root.refresh();
+  // The bar is at column 5, its first chip " ab " starts there and the click mapping agrees.
+  CHECK(buffer.toPlainText().find("\n     " " ab ") != std::string::npos);
+  CHECK(bar.tagAt(0) == 0);
+}
+
+namespace {
+struct SmoothFixture {
+  StyleProvider styles;
+  CellBuffer buffer{8, 30};
+  BufferPlane root{buffer, styles};
+  std::unique_ptr<Charts> charts = cellCharts();
+  Table table{root, *charts};
+  SmoothFixture(bool smooth) {
+    root.setSmoothScroll(smooth);
+    table.setColumns({{"Name", 10, Align::LEFT, true, false}, {"Price", 8, Align::RIGHT, true, false}});
+    table.resize(3, 30);  // the heading and two rows in view, four rows in all
+    table.move(1, 0);
+    table.setModel(std::make_shared<Quotes>());
+    root.refresh();
+  }
+  void wheelDown() { table.post(Wheel{0, 0, 3, 3, 0, -1, {}}); }
+};
+}  // namespace
+
+TEST(table_eases_to_a_new_scroll_position_where_the_display_scrolls_smoothly) {
+  SmoothFixture f(true);
+  CHECK(!f.table.animating());
+  f.wheelDown();
+  CHECK(f.table.firstVisiblePosition() == 2);  // where it is scrolled to (at most content - view)
+  CHECK(f.table.animating());
+  CHECK(f.table.scrollPosition() == 0.0);      // not there yet
+  CHECK(f.table.tick(0.03));                   // still moving
+  CHECK(f.table.scrollPosition() > 0.0 && f.table.scrollPosition() < 2.0);
+  int ticks = 0;
+  while (f.table.tick(0.03) && ticks < 200) ticks++;
+  CHECK(ticks < 200);
+  CHECK(!f.table.animating());
+  CHECK(f.table.scrollPosition() == 2.0);
+  f.root.refresh();  // and it draws without trouble in each state
+}
+
+TEST(table_jumps_where_the_display_does_not_scroll_smoothly_and_with_taller_rows) {
+  SmoothFixture plain(false);
+  plain.wheelDown();
+  CHECK(!plain.table.animating() && plain.table.scrollPosition() == 2.0);
+  SmoothFixture tall(true);
+  tall.table.setRowHeight(2);  // whole rows only: the plane would have to be shifted by parts of a table row
+  tall.wheelDown();
+  CHECK(!tall.table.animating());
+}
+
+TEST(table_rows_are_under_the_pointer_by_where_they_are_shown_while_easing) {
+  SmoothFixture f(true);
+  f.wheelDown();
+  f.table.tick(0.03);
+  // Halfway into the first row's height the pointer is over what is shown there, not over where the scroll is going.
+  f.table.post(MouseDown{5, 2, 2, 5, 1, {}});
+  f.table.post(MouseUp{5, 2, 2, 5, 1, {}});
+  CHECK(f.table.selectedRow() == 0 || f.table.selectedRow() == 1);  // the first row or the next, never the ones scrolled to
+}

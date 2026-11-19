@@ -103,6 +103,10 @@ class Plane {
   virtual KeymapProfile keymapProfile() const { return KeymapProfile::TERMINAL; }
   // Whether setScrollOffset() shifts a plane here.
   virtual bool smoothScroll() const { return false; }
+  // What to add to a position inside this plane to give the move() of a plane made from it (createChild()): in a tree
+  // that is flat (BufferPlane::setFlatChildren()) every plane's position is the root's, so it is this plane's own
+  // position; otherwise a child is placed in its parent, and it is nothing.
+  virtual std::pair<int, int> childOrigin() const { return { 0, 0 }; }
   // Whether the display draws a band's border (DisplayInfo::cell_borders): the application tints where not.
   virtual bool cellBorders() const { return false; }
   // The plane's size in pixels, when the display can show pixels here;

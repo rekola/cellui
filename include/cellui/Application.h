@@ -11,6 +11,7 @@
 #include <cellui/Widget.h>
 #include <cellui/term/ImageEncoder.h>
 
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -115,6 +116,10 @@ class Application {
   // The display's description changed (cell size, scale, pictures): charts()
   // is already the new display's, and widgets that drew pictures draw again.
   Signal<> display_changed;
+  // A frame is about to be drawn: the seconds since the one before (at most a tenth, 0 for the first), for what
+  // animates (a table easing to its scroll position). A widget that is still moving asks for the next frame
+  // (requestFrame()) from its handler.
+  Signal<double> frame_started;
   // The window got or lost the keyboard focus (styles().window_focused is set).
   Signal<bool> focus_changed;
   // The display went away: the end of input, or the window was closed.
@@ -180,6 +185,7 @@ class Application {
   std::function<std::string()> focus_name_;
   bool quit_on_close_ = true;
   std::string theme_name_;
+  std::optional<std::chrono::steady_clock::time_point> last_frame_;
 };
 
 }  // namespace cellui

@@ -11,6 +11,7 @@
 #include <cellui/term/TerminalSession.h>
 #endif
 
+#include <algorithm>
 #include <cstring>
 #include <string_view>
 
@@ -279,6 +280,10 @@ void Application::offerInput(const Input & in) {
 }
 
 void Application::present() {
+  auto now = std::chrono::steady_clock::now();
+  double seconds = last_frame_ ? std::min(0.1, std::chrono::duration<double>(now - *last_frame_).count()) : 0.0;
+  last_frame_ = now;
+  frame_started.emit(seconds);
   if (before_refresh_) before_refresh_();
   root_plane_.refresh();
   dispatcher_->setHitAreas(root_plane_.takeHitAreas());

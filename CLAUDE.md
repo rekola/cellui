@@ -134,6 +134,12 @@ can move onto `Application` as it needs.
   popups), modal (dialog + scrim). Cells can stand above their plane
   (`Plane::setLift()`, a cell attribute, so a partial redraw keeps it). Every
   frame reports the areas above the base (`FrameInfo::elevations`).
+- `Plane::childOrigin()` is what to add to a position in a plane for the `move()`
+  of a plane made from it: its own position in a flat tree (every plane's
+  position is the root's), nothing otherwise. `Application::frame_started` says
+  how long since the last frame, for what eases (`Table::tick()`, which moves
+  its rows on their own plane under the heading and asks for the next frame
+  while it is still moving).
 - `Viewport.h` holds the offset, `reveal()` margins and the wheel's detached
   state every scrolling widget shares. Where `DisplayInfo::smooth_scroll`, it
   animates the shown position toward the offset, and a widget on a plane of

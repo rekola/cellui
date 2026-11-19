@@ -112,6 +112,15 @@ class Table : public Widget {
   int rowAt(int position) const { return position >= 0 && position < static_cast<int>(order_.size()) ? order_[static_cast<size_t>(position)] : -1; }
   // How many rows fit under the heading.
   int visibleRows() const;
+
+  // Where the display scrolls smoothly (DisplayInfo::smooth_scroll), the rows ease to a new scroll position instead
+  // of jumping to it (a row height of 1 only). The easing moves with time: call tick() for each frame, with the
+  // seconds since the last (Application::frame_started), and ask for another frame while it says it is still moving.
+  bool animating() const;
+  // Moves the rows toward where they were scrolled to by `seconds` and redraws them; returns whether they are still moving.
+  bool tick(double seconds);
+  // The position of the first row in view, with the fraction of a row it is scrolled into the next while it eases.
+  double scrollPosition() const { return rows_.shown(); }
   // The position of the first row in view.
   int firstVisiblePosition() const { return rows_.offset(); }
 
@@ -158,6 +167,9 @@ class Table : public Widget {
   int row_height_ = 1;
   TextFont font_ = TextFont::PROPORTIONAL;
   ScrollAxis rows_;
+  // The rows' own plane over the table's, under the heading: the display shifts it by the part of a row the rows
+  // are scrolled into while they ease.
+  std::unique_ptr<Plane> body_;
   bool focused_ = false;
   // While the left button is held: the heading or the row it is over (-1 for none) is drawn pressed, and moves with the
   // pointer, among the headings if the button went down on one, among the rows if on a row. A release acts on it.

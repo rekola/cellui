@@ -95,6 +95,7 @@ class BufferPlane : public Plane {
   // are shown unshifted otherwise (root only).
   void setSmoothScroll(bool smooth) { smooth_scroll_ = smooth; }
   bool smoothScroll() const override { return root().smooth_scroll_; }
+  std::pair<int, int> childOrigin() const override { return root().flat_ ? getPosition() : std::pair<int, int>{ 0, 0 }; }
   void setCellBorders(bool on) { cell_borders_ = on; }
   bool cellBorders() const override { return root().cell_borders_ || root().smooth_scroll_; }
   void erase() override {
