@@ -114,6 +114,32 @@ The page is drawn by `Gallery` through `Plane` only, so any backend can show
 it. The text of the page is compared with `tests/golden/gallery.txt`; after a
 deliberate change, run the tests with `CELLUI_UPDATE_GOLDEN=1` to rewrite it.
 
+## Supported terminals
+
+The terminal backend works in any terminal with xterm-style escape sequences.
+Terminals with the Kitty keyboard protocol (kitty, foot, WezTerm, Ghostty)
+report key releases; the others do not. Terminals with Kitty graphics or Sixels
+show pictures, and the rest get glyph versions of them.
+
+Known to work are kitty, xterm, GNOME Terminal and foot; the rest are untested
+here. The Graphics and Mouse columns come from testing another program
+(nanoclj) in these terminals; xterm's lack of true color applies to cellui as
+well.
+
+| Terminal | Status | Graphics | Mouse | Notes |
+| - | - | - | - | - |
+| foot | Works | OK | OK | Wayland only |
+| kitty | Works | OK | ? | True color images |
+| wezterm | Untested | OK | OK | Buggy (as of 20230712) |
+| mlterm | Untested | OK | ? | |
+| Konsole | Untested | OK | ? | True color images, but on HiDPI system images are upscaled |
+| contour | Untested | Inline image layout doesn't work | ? | |
+| xterm | Works | True color where built with it and `directColor` is on (found by asking the terminal); else the 256-color palette | OK | Sixel support must be enabled in `.Xresources`, and images have maximum size 1000x1000 |
+| Black Box | Untested | Inline image layout doesn't work | ? | On HiDPI system the images are upscaled, and the terminal and the flatpak system use too much CPU time when idling. |
+| Alacritty | Untested | None | ? | |
+| GNOME Terminal | Works | None | ? | Sixel support is not enabled by default |
+| mintty | Untested | ? | ? | Not tested yet. |
+
 ## Adapting to a slow link
 
 *Partly built.* The link status, its classes, the status-bar text and pinning a class exist; what an
