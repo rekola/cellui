@@ -202,17 +202,40 @@ TEST(table_pressed_look_moves_with_the_pointer_and_release_selects_the_row_it_is
   CHECK(f.buffer.at(5, 6).bg != f.styles.row_pressed_bg_color);
 }
 
-TEST(table_press_dragged_off_the_rows_shows_nothing_pressed_and_release_selects_nothing) {
+TEST(table_drag_past_the_first_or_last_row_presses_that_row_whatever_the_column) {
   Fixture f;
-  f.press(4, 5);
-  f.table.post(MouseMove{5, 0, 0, 5, 1u, {}});  // over the tag row, above the table
+  f.press(4, 5);  // position 2
+  f.table.post(MouseMove{25, 0, 0, 25, 1u, {}});  // over the tag row above the table, far to the right
   f.root.refresh();
-  CHECK(f.buffer.at(4, 5).bg != f.styles.row_pressed_bg_color);
-  f.release(0, 5);
-  CHECK(f.table.selectedRow() == -1);
+  CHECK(f.buffer.at(2, 5).bg == f.styles.row_pressed_bg_color);  // the first row
+  f.table.post(MouseMove{5, 30, 7, 5, 1u, {}});  // below the table (the model has four rows)
+  f.root.refresh();
+  CHECK(f.buffer.at(5, 5).bg == f.styles.row_pressed_bg_color);  // the last row
+  f.release(7, 5);
+  CHECK(f.table.selectedRow() == 3);
   f.table.post(MouseMove{5, 4, 4, 5, 1u, {}});  // no button held now: nothing follows
   f.root.refresh();
   CHECK(f.buffer.at(4, 5).bg != f.styles.row_pressed_bg_color);
+}
+
+TEST(table_drag_past_the_bottom_or_top_scrolls_a_row_a_move_and_release_selects_the_row_reached) {
+  Fixture f;
+  f.table.resize(3, 30);  // the heading and two rows in view, four rows in all
+  f.press(2, 5);          // the first row
+  CHECK(f.table.firstVisiblePosition() == 0);
+  f.table.post(MouseMove{5, 8, 8, 5, 1u, {}});  // below the table
+  CHECK(f.table.firstVisiblePosition() == 1);
+  f.table.post(MouseMove{5, 9, 9, 5, 1u, {}});
+  CHECK(f.table.firstVisiblePosition() == 2);
+  f.table.post(MouseMove{5, 9, 9, 5, 1u, {}});  // at the end: it cannot scroll further
+  CHECK(f.table.firstVisiblePosition() == 2);
+  f.release(9, 5);
+  CHECK(f.table.selectedRow() == 3);  // the last row
+  f.press(3, 5);
+  f.table.post(MouseMove{5, 0, 0, 5, 1u, {}});  // above the table
+  CHECK(f.table.firstVisiblePosition() == 1);
+  f.release(0, 5);
+  CHECK(f.table.selectedRow() == 1);  // the first row in view
 }
 
 TEST(table_pressed_heading_follows_the_pointer_among_the_headings_and_sorts_by_the_one_released_on) {
