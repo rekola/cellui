@@ -87,7 +87,7 @@ class StatusLine : public Widget {
   bool keyUp(const KeyUp &) { return getPlane().readerActive(); }
 
   // Whether the line took the key: all of them while the prompt is open, else
-  // only the command prompt shortcut.
+  // only the command prompt shortcut, and that only when it opens something.
   bool keyDown(const KeyDown & e) {
     if (getPlane().readerActive()) {
       if (tab_completer_ && e.key == Key::Tab) {
@@ -105,8 +105,8 @@ class StatusLine : public Widget {
       }
       return true;
     }
-    if (isCommandPromptShortcut(e)) {
-      if (open_command_palette_) open_command_palette_();
+    if (open_command_palette_ && isCommandPromptShortcut(e)) {
+      open_command_palette_();
       return true;
     }
     return false;

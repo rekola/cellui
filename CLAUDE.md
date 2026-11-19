@@ -42,8 +42,9 @@ carries the app's object as an opaque `getAppContext()`.
   handlers that disconnect, connect, re-emit or destroy the owner
   mid-emission).
 - Input: `Input.h` (key id, modifiers, position, press/release kind;
-  `Key::Up` etc.), key stroke packing, `Keymap`, `CommandRegistry`,
-  `KeymapProfile`. `EscapeCoalescer.h`/`KeyReader` fold a bare ESC followed
+  `Key::Up` etc.), key stroke packing and `KeyStroke::parse()`/`describe()`,
+  `Keymap` (`bindingFor()`: the simplest binding as a person reads it),
+  `CommandRegistry` (with descriptions), `KeymapProfile`. `EscapeCoalescer.h`/`KeyReader` fold a bare ESC followed
   arbitrarily later by a key into one Meta event (Emacs's indefinite
   ESC-as-Meta; no timing window) and know when the "ESC-" indicator is due.
 - Theme (`Theme`, `StyleProvider`), `Plane`, `Widget` (`Widget.h`: the plane,
@@ -65,9 +66,21 @@ terminal), and owns the screen-sized root plane (kept the size of the display;
 valid when the display changes) and the loop (`run()`/`quit()`). A program
 names no platform: it builds widgets on `root()`, attaches them to
 `widgets()`, lays them out from `rows()`/`cols()` and on `resized`, and calls
-`run()`. Tab and Shift+Tab move the focus. synth's `InteractiveUI` does the
-same and more by hand (modal dialogs, the command palette, link profiles); it
-can move onto `Application` as it needs.
+`run()` (`quit(status)` is what `run()` returns). It also runs the program's
+commands: `commands()` (`CommandRegistry`, `define(name, description, fn)`) and
+`keymap()` (`Keymap`, bound as written: `bind("C-x C-c", "quit")`,
+`bind(KeymapProfile::DESKTOP, "Ctrl+Q", "quit")`; `KeyStroke::parse()` reads both
+spellings `describe()` writes). A key goes to the focused widget first, then the
+keymap (a root bubble handler; on the terminal keymap Meta is Alt), and Tab or
+Shift+Tab that nothing took moves the focus; the key after a prefix is the
+prefix's whatever has the focus (a root capture handler). `command-palette` is
+defined and bound (M-x, Ctrl+Shift+P); the open palette takes every key and
+pointer event and a bare Escape at once, and the chosen command runs once it has
+closed. `message` says "C-x-", "C-x C-z is undefined" and "ESC-" (a bare
+Escape waiting for its key) for the program's echo line. `run()` waits for the
+backend's `nextDeadline()` too, so a lone ESC byte the terminal's parser holds
+is settled and a frame the pacer held back starts without another input. synth's `InteractiveUI` does the same and more by hand (modal dialogs, the
+command palette, link profiles); it can move onto `Application` as it needs.
 
 ## Events and input dispatch
 

@@ -139,3 +139,97 @@ TEST(application_says_how_long_since_the_last_frame_before_drawing_one) {
   CHECK(seconds[0] == 0.0);  // none before the first
   CHECK(seconds[1] >= 0.0 && seconds[1] <= 0.1);
 }
+
+namespace {
+// Presses a key the way the display reports one, and draws.
+void press(Application & app, int key, unsigned mods = 0) {
+  app.handle(BackendEvent::makeInput(keyInput(key, mods, Input::Kind::PRESS)));
+  app.present();
+}
+}  // namespace
+
+TEST(application_runs_commands_by_their_keys_and_prefixes_take_the_next_key) {
+  Fixture f;
+  int saves = 0, quits = 0;
+  std::vector<std::string> said;
+  auto m = f.app->message.connect([&](std::string s) { said.push_back(std::move(s)); });
+  f.app->commands().define("save", "Save", [&] { saves++; });
+  f.app->commands().define("quit", "Quit", [&] { quits++; });
+  f.app->keymap().bind("C-s", "save");
+  f.app->keymap().bind("C-x C-c", "quit");
+  press(*f.app, 's', kModCtrl);
+  CHECK(saves == 1);
+  press(*f.app, 'x', kModCtrl);
+  CHECK(!said.empty() && said.back() == "C-x-");
+  press(*f.app, 'c', kModCtrl);
+  CHECK(quits == 1);
+  press(*f.app, 'x', kModCtrl);
+  press(*f.app, 's', kModCtrl);  // C-x C-s is not bound: the prefix takes it, nothing runs
+  CHECK(saves == 1 && said.back() == "C-x C-s is undefined");
+  CHECK(f.app->bindingFor("quit") == "C-x C-c");
+}
+
+TEST(application_gives_a_key_to_the_focused_widget_before_the_keymap) {
+  Fixture f;
+  Widget w(f.app->root());
+  w.setFocusable(true);
+  w.attach(f.app->widgets());
+  f.app->input().setFocus(&w);
+  int widget_keys = 0, commands = 0;
+  auto c = w.on<KeyDown>([&](const KeyDown & e, EventContext &) { return e.key == 'r' ? (widget_keys++, Handled::yes) : Handled::no; });
+  f.app->commands().define("reload", [&] { commands++; });
+  f.app->keymap().bind("r", "reload");
+  press(*f.app, 'r');
+  CHECK(widget_keys == 1 && commands == 0);
+  c.disconnect();
+  press(*f.app, 'r');
+  CHECK(commands == 1);
+}
+
+TEST(application_palette_lists_the_commands_takes_every_key_and_escape_closes_it_at_once) {
+  Fixture f(20, 60);
+  Widget a(f.app->root()), b(f.app->root());
+  a.setFocusable(true);
+  b.setFocusable(true);
+  a.attach(f.app->widgets());
+  b.attach(f.app->widgets());
+  f.app->input().setFocus(&a);
+  int quits = 0;
+  f.app->commands().define("quit", "Leave", [&] { quits++; });
+  f.app->keymap().bind("q", "quit");
+  press(*f.app, 'x', kModAlt);
+  CHECK(f.app->commandPaletteOpen());
+  CHECK(f.backend->text().find("command-palette") != std::string::npos);
+  press(*f.app, 'q');  // typed into the query, not a quit
+  CHECK(quits == 0 && f.app->commandPalette().query() == "q");
+  press(*f.app, Key::Tab);  // completes in the palette instead of moving the focus
+  CHECK(f.app->input().focused() == &a);
+  CHECK(f.app->commandPalette().query() == "quit");
+  // A bare Escape is held on a terminal in case it starts a Meta key; the palette takes it at once.
+  press(*f.app, Key::Escape);
+  CHECK(!f.app->commandPaletteOpen() && quits == 0);
+  press(*f.app, 'x', kModAlt);
+  press(*f.app, 'q');
+  press(*f.app, Key::Enter);
+  CHECK(!f.app->commandPaletteOpen() && quits == 1);
+  press(*f.app, Key::Tab);  // with the palette closed, Tab moves the focus
+  CHECK(f.app->input().focused() == &b);
+}
+
+TEST(application_run_returns_the_status_given_to_quit) {
+  Fixture f;
+  f.app->commands().define("fail", [&] { f.app->quit(3); });
+  f.app->keymap().bind("q", "fail");
+  f.backend->pushKey('q');
+  CHECK(f.app->run() == 3);
+}
+
+TEST(application_reads_theme_in_both_spellings_and_wants_its_name) {
+  std::string error;
+  char prog[] = "prog", theme[] = "--theme";
+  char * argv[] = {prog, theme};
+  CHECK(!Application::open(2, argv, &error) && error.find("--theme needs a name") != std::string::npos);
+  char bad[] = "--theme=nonesuch";
+  char * argv2[] = {prog, bad};
+  CHECK(!Application::open(2, argv2, &error) && error.find("unknown --theme 'nonesuch'") != std::string::npos);
+}
