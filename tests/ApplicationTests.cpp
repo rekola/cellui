@@ -128,3 +128,14 @@ TEST(application_can_use_the_programs_top_widget_as_its_root) {
   f.app->input().setFocus(&child);
   CHECK(f.app->input().focused() == &child);
 }
+
+TEST(application_says_how_long_since_the_last_frame_before_drawing_one) {
+  Fixture f;
+  std::vector<double> seconds;
+  auto c = f.app->frame_started.connect([&](double s) { seconds.push_back(s); });
+  f.app->present();
+  f.app->present();
+  CHECK(seconds.size() == 2u);
+  CHECK(seconds[0] == 0.0);  // none before the first
+  CHECK(seconds[1] >= 0.0 && seconds[1] <= 0.1);
+}

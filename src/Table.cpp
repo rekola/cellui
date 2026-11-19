@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstring>
 
 namespace cellui {
@@ -215,8 +216,9 @@ void Table::hitAt(int screen_row, int screen_col, int & heading, int & position)
     if (c >= 0 && columns_[static_cast<size_t>(c)].sortable) heading = c;
     return;
   }
-  int at = rows_.offset() + (y - 1) / row_height_;
-  if ((y - 1) / row_height_ < visibleRows() && at < static_cast<int>(order_.size())) position = at;
+  // The row under the middle of the cell, as the view moves.
+  int at = rows_.indexAt((y - 1) / row_height_);
+  if ((y - 1) / row_height_ < visibleRows() && at >= 0 && at < static_cast<int>(order_.size())) position = at;
 }
 
 int Table::dragPosition(int screen_row, bool scroll) {
@@ -238,8 +240,8 @@ int Table::dragPosition(int screen_row, bool scroll) {
     }
     return std::min(count - 1, rows_.offset() + visibleRows() - 1);
   }
-  int at = rows_.offset() + (y - 1) / row_height_;
-  return std::min(at, count - 1);
+  int at = rows_.indexAt((y - 1) / row_height_);
+  return std::clamp(at, 0, count - 1);
 }
 
 void Table::setPressed(int heading, int position) {
@@ -319,21 +321,46 @@ Table::Layout Table::layout() const {
   return l;
 }
 
+bool Table::animating() const { return rows_.animating(); }
+
+bool Table::tick(double seconds) {
+  if (!rows_.animating()) return false;
+  rows_.tick(seconds);
+  render();
+  return rows_.animating();
+}
+
 void Table::render() {
   if (!hasPlane()) return;
   auto [rows, cols] = getDim();
   if (rows <= 0 || cols <= 0) return;
   const StyleProvider & styles = getPlane().getStyles();
-  rows_.setExtent(static_cast<int>(order_.size()), visibleRows());
+  const int count = static_cast<int>(order_.size()), view = visibleRows();
+  const bool smooth = getPlane().smoothScroll() && row_height_ == 1;
+  rows_.setSmooth(smooth);
+  rows_.setExtent(count, view);
   getPlane().erase();
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
   fill();
   Layout l = layout();
   drawHeading(l, styles);
-  const int first = rows_.offset();
-  for (int i = 0; i < visibleRows() && first + i < static_cast<int>(order_.size()); i++) drawRow(l, styles, first + i, 1 + i * row_height_);
   drawScrollbar(l, styles);
+
+  // The rows are on a plane of their own under the heading, beside the scrollbar's column. The tree being flat or
+  // not decides whether where it goes is in the table's columns or the root's.
+  if (!body_) body_ = getPlane().createChild();
+  auto [origin_row, origin_col] = getPlane().childOrigin();
+  body_->move(origin_row + 1, origin_col);
+  body_->resize(view * row_height_, std::max(0, cols - 1));
+  body_->setScrollOffset(smooth ? rows_.fraction() : 0.0, 0.0);
+  body_->erase();
+  swapPlane(body_);  // the drawing helpers now draw on the rows' plane; body_ holds the table's own
+  setFgColor(styles.window_fg_color);
+  setBgColor(styles.window_bg_color);
+  const int first = rows_.firstShown(), drawn = view + (smooth ? 1 : 0);
+  for (int i = 0; i < drawn && first + i < count; i++) drawRow(l, styles, first + i, i * row_height_);
+  swapPlane(body_);
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
 }
@@ -375,7 +402,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
     if (columns_[c].trace) {
       TraceLook look{bg, color.value_or(fg), color ? color : std::nullopt};
       uint64_t id = (static_cast<uint64_t>(model_row) + 1) * 64 + static_cast<uint64_t>(c) + 1;
-      charts_.drawTrace(getPlane(), y, l.x[c], row_height_, l.width[c], model_->trace(model_row, col), look, 1, getDim().first, id);
+      charts_.drawTrace(getPlane(), y, l.x[c], row_height_, l.width[c], model_->trace(model_row, col), look, 0, getDim().first + 1, id);
       setBgColor(bg);
     } else {
       setFgColor((selected && focused_) || pressed ? fg : color.value_or(fg));
@@ -392,7 +419,7 @@ void Table::drawScrollbar(const Layout & l, const StyleProvider & styles) {
   setFgColor(styles.theme.surface_overlay);
   for (int y = 0; y < body; y++) putstr(1 + y, l.scrollbar_x, "│");
   int thumb = std::max(1, body * view / content);
-  int top = (body - thumb) * rows_.offset() / std::max(1, content - view);
+  int top = static_cast<int>(std::lround((body - thumb) * rows_.shown() / std::max(1, content - view)));
   setFgColor(styles.window_accent_fg_color);
   for (int y = 0; y < thumb; y++) putstr(1 + top + y, l.scrollbar_x, "┃");
 }

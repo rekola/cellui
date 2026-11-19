@@ -94,7 +94,9 @@ void TagBar::render() {
     chip.setVisible(shown);
     if (!shown) continue;
     chip.resize(1, c[i].width);
-    chip.move(0, c[i].x);
+    // Where the chip goes is given in the bar's own columns; a flat tree wants the root's.
+    auto [origin_row, origin_col] = getPlane().childOrigin();
+    chip.move(origin_row, origin_col + c[i].x);
     const bool on = static_cast<int>(i) == selected_;
     // The chosen tag is filled with the accent; the others are dark with a lighter border, so both read as tags.
     chip.setBgColor(on ? styles.highlight_bg_color : styles.heading_bg_color);
