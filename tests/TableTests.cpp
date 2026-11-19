@@ -188,15 +188,43 @@ TEST(table_row_is_pressed_while_the_button_is_held_and_selected_on_release) {
   CHECK(f.buffer.at(4, 5).bg != f.styles.row_pressed_bg_color);
 }
 
-TEST(table_press_moved_off_its_row_is_cancelled) {
+TEST(table_pressed_look_moves_with_the_pointer_and_release_selects_the_row_it_is_on) {
   Fixture f;
-  f.press(4, 5);
-  f.table.post(MouseMove{5, 5, 5, 5, 1u, {}});  // over the next row, button held
+  f.press(4, 5);  // position 2
+  f.table.post(MouseMove{6, 5, 5, 6, 1u, {}});  // dragged to the next row, button held
   f.root.refresh();
   CHECK(f.buffer.at(4, 5).bg != f.styles.row_pressed_bg_color);
-  CHECK(f.buffer.at(5, 5).bg != f.styles.row_pressed_bg_color);
-  f.release(5, 5);
+  CHECK(f.buffer.at(5, 6).bg == f.styles.row_pressed_bg_color);
+  CHECK(f.table.selectedRow() == -1);  // nothing chosen until the release
+  f.release(5, 6);
+  CHECK(f.table.selectedRow() == 3);
+  f.root.refresh();
+  CHECK(f.buffer.at(5, 6).bg != f.styles.row_pressed_bg_color);
+}
+
+TEST(table_press_dragged_off_the_rows_shows_nothing_pressed_and_release_selects_nothing) {
+  Fixture f;
+  f.press(4, 5);
+  f.table.post(MouseMove{5, 0, 0, 5, 1u, {}});  // over the tag row, above the table
+  f.root.refresh();
+  CHECK(f.buffer.at(4, 5).bg != f.styles.row_pressed_bg_color);
+  f.release(0, 5);
   CHECK(f.table.selectedRow() == -1);
+  f.table.post(MouseMove{5, 4, 4, 5, 1u, {}});  // no button held now: nothing follows
+  f.root.refresh();
+  CHECK(f.buffer.at(4, 5).bg != f.styles.row_pressed_bg_color);
+}
+
+TEST(table_pressed_heading_follows_the_pointer_among_the_headings_and_sorts_by_the_one_released_on) {
+  Fixture f;
+  f.press(1, 2);  // Name heading (column 0)
+  f.table.post(MouseMove{12, 1, 1, 12, 1u, {}});  // dragged to the Price heading
+  f.root.refresh();
+  CHECK(f.buffer.at(1, 2).bg != f.styles.button_pressed_bg_color);
+  CHECK(f.buffer.at(1, 12).bg == f.styles.button_pressed_bg_color);
+  CHECK(f.table.sortOrder() == SortOrder::NONE);
+  f.release(1, 12);
+  CHECK(f.table.sortColumn() == 1 && f.table.sortOrder() == SortOrder::ASCENDING);
 }
 
 TEST(table_heading_is_pressed_while_held_and_sorts_on_release) {
