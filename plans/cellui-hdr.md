@@ -156,7 +156,7 @@ equal colours; the composer is deterministic, so that is enough.
 
 ## Choosing the backend
 
-cellui has one switch for what draws the UI: `--ui auto|terminal|raster|vulkan`
+cellui has one switch for what draws the UI: `--ui auto|terminal|window|vulkan`
 It names a `cellui::Backend`
 implementation by how it draws, not by the window it happens to sit in
 (everything graphical runs in a window; the toolkit that provides it, GTK or
@@ -164,7 +164,7 @@ SDL3, is a build and host matter below, not a name on the switch). There is no
 separate renderer switch and no "basic" or "advanced" tier. `window` is
 retired. The names are proposals and cheap to change.
 
-- **`terminal` and `raster`** happen to draw SDR only. `raster` is the
+- **`terminal` and `window`** happen to draw SDR only. `window` is the
   platform's own 2D window: on Linux today's GTK-hosted window (cells
   rasterised with canvas and shown as a texture), on Windows the planned
   Direct2D one; the name is the same on both and picks the platform's. They take every `Color` through `toSrgb8()`,
@@ -178,7 +178,7 @@ retired. The names are proposals and cheap to change.
   mode.
 - **`auto`** is the default and picks the best backend the system can handle,
   by probing **in advance**, before anything is shown, in this order:
-  `vulkan`, then `raster`, then `terminal`.
+  `vulkan`, then `window`, then `terminal`.
 
 ```
 vulkan  if - a display is available, and
@@ -301,7 +301,7 @@ methods, native text inputs and the accessibility tree.
   compositor of the day pass an FP16 or PQ dma-buf through as HDR or tone-map
   it, and whether the texture's colour state reaches the compositor at all.
   X11 has no HDR.
-- Size, scale, focus, popups and the pointer are GTK's, as for `raster`;
+- Size, scale, focus, popups and the pointer are GTK's, as for `window`;
   effects do not reach GTK's own popups.
 - Windows has no GTK arm; GTK on Windows was rejected in
   `plans/cellui-window.md`.
@@ -327,15 +327,15 @@ code on both.
   `plans/cellui-window.md` gets bigger, not different.
 - *Packaging:* vendored SDL3 (Ubuntu 24.04 has only SDL2).
 - *Windows:* a Vulkan swap chain on the SDL3 window. Whether the planned
-  Direct2D `raster` backend (native menus, UI Automation) is built as well is a
+  Direct2D `window` backend (native menus, UI Automation) is built as well is a
   priority call in `plans/cellui-window.md`.
 
 **Deciding.** After the Vulkan spike: if the GTK texture reaches the compositor
 as HDR, GTK hosts `vulkan` on Linux and the menus, dialogs and accessibility
 stay native; if it does not, or the dma-buf handover proves fragile, SDL3 does,
-and whether `auto` should still prefer `vulkan` over `raster` for users who
+and whether `auto` should still prefer `vulkan` over `window` for users who
 value the native chrome is the open question below. Windows is SDL3 or Win32
-either way. Since `auto` prefers `vulkan`, `--ui raster` is how a user gets the
+either way. Since `auto` prefers `vulkan`, `--ui window` is how a user gets the
 native-toolkit window without effects; a saved default is a small addition.
 
 ## Steps
@@ -364,7 +364,7 @@ native-toolkit window without effects; a saved default is a small addition.
 4. **`DisplayInfo::hdr`**, the display-change event, `TestBackend`
    `setHdr()`/`sdrFrame()`; terminal and SDR window report none. Done
    (`BackendEvent::Type::DISPLAY`; `TerminalUI` redraws on it).
-5. **Backend choice**: `--ui auto|terminal|raster` with the probe and `auto`
+5. **Backend choice**: `--ui auto|terminal|window` with the probe and `auto`
    as the default (`window` retired), the probe's tests (no display, CPU device,
    bad driver); `vulkan` does not exist yet, so the seam is proved. Done
    (`cellui/BackendChoice.h`; `main.cpp` tries the candidates in order, an
@@ -404,7 +404,7 @@ native-toolkit window without effects; a saved default is a small addition.
     waits for it. Then: bump the `FetchContent` pin; `ImageData` in float for
     `SpectrumImage`, `HeatmapImage` and `VuMeterImage` (taking `Color`'s linear
     values unchanged, canvas not interpreting the space), `CanvasRasterizer`'s
-    text and cells for `raster` stay 8-bit sRGB and need nothing; the `vulkan`
+    text and cells for `window` stay 8-bit sRGB and need nothing; the `vulkan`
     backend samples the float images directly and `Image::gain` is dropped.
     Cairo's image surface has the float formats (`CAIRO_FORMAT_RGBA128F`, in
     1.17.2 and later; Ubuntu 24.04's 1.18 has them), Quartz 2D has float
@@ -420,11 +420,11 @@ native-toolkit window without effects; a saved default is a small addition.
 - Whether Vulkan alone is reliable enough on Windows drivers (Intel in
   particular) for HDR swap chains; the contingency is a Direct3D backend
   behind the same thin layer. Decided by the Vulkan spike on real hardware.
-- Whether `auto` should prefer `vulkan` over `raster` when the user has no use
+- Whether `auto` should prefer `vulkan` over `window` when the user has no use
   for effects, if the host turns out to be SDL3 (native menus and
   accessibility are what is given up): a saved default, or `auto` stays as it
   is.
-- The backend names (`raster`, `vulkan`).
+- The backend names (`window`, `vulkan`).
 - The Vulkan floor (1.2 or 1.3) and the required extensions: with the shaders.
 - Whether `vulkan` follows display changes at run time or the first version
   applies them at restart.
