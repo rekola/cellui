@@ -68,6 +68,9 @@ struct ElevatedArea {
   double border_px = 0;
   Color border_color = Color(255, 255, 255);
   float border_alpha = 1.0f;
+  // Where a plane painted after this one shows content over it (screen cells {row, col, rows, cols}, inside the
+  // area): the border is not drawn over what lies there, as it would be over the cells of any other plane.
+  std::vector<std::array<int, 4>> covers;
 };
 
 // The part of the screen a plane asked a pointer shape for.

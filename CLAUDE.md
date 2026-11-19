@@ -181,10 +181,12 @@ can move onto `Application` as it needs.
   is a rounded box; any other has the corner pixels softened). `refresh()` makes
   an `ElevatedArea` for it (`border_px`/`border_color`/`border_alpha`; one that
   casts nothing for a plane that is not elevated) and the GTK window draws it
-  with a GSK border over what is composed. A terminal, kitty included, shows no
-  border for a plane: it would lie over planes stacked above it, which only a
-  `Band`'s border is meant to do (the cell edges of `FrameInfo::borders` are
-  the band's alone).
+  with a GSK border over what is composed, except where a plane painted after it
+  shows content (`ElevatedArea::covers`: the cells that are not blank, or all of
+  a raised plane's overlap), where the composed cells are drawn again over it. A
+  terminal, kitty included, shows no border for a plane: it would lie over planes
+  stacked above it, which only a `Band`'s border is meant to do (the cell edges
+  of `FrameInfo::borders` are the band's alone).
 - Backdrops are the backend's to apply: `refresh()` sets what is composed
   below each one aside as a `BackdropLayer` (cells, blur, dim, tint,
   rectangle; `FrameInfo::backdrops`, bottom first) and leaves the frame with
