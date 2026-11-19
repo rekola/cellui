@@ -339,6 +339,14 @@ timing (and missed-vsync counts) at exit.
   `InfoLine` shows `Link: ...` (`n/a` until available). The app chooses what to draw by
   link class (synth's `PerformanceProfile.h`). `tools/pacing/run_assertions.py`
   (ctest `cellui_pacing_harness`) runs `cellui_pacing_probe` on a shaped pty.
+- `tools/e2e/ptyscreen.py`: runs a terminal program under a pty and reads its
+  screen through `pyte`, answering the start-up queries (cursor position, pixel
+  geometry, kitty keyboard, colours) a plain pty never does, so an application's
+  end-to-end scripts (synth's `tools/e2e/harness.py`) need none of that. It
+  claims no kitty keyboard or pictures, so the program runs as on plain xterm.
+  `tools/pacing/ptylink.py` is the other terminal emulator here, for shaped
+  links; ctest `cellui_ptyscreen` (`tools/e2e/selftest.py`, skipped without
+  `pyte`) checks the replies.
 - The terminal cannot blur: `term::BackdropEmulation` averages cells over
   their neighbours with glyphs faded out, or with pictures draws, blurs and
   stretches the cells in 4x16-cell tiles redrawn only when changed. The link

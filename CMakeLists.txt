@@ -240,6 +240,11 @@ if(NOT WIN32)
       COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/pacing/run_assertions.py $<TARGET_FILE:cellui_pacing_probe>)
     # Timing-based: parallel load on a busy machine would fail its checks.
     set_tests_properties(cellui_pacing_harness PROPERTIES TIMEOUT 400 RUN_SERIAL TRUE)
+    # tools/e2e/ptyscreen.py, the pty screen reader applications' end-to-end
+    # scripts use; skipped (77) where pyte is not installed.
+    add_test(NAME cellui_ptyscreen
+      COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/e2e/selftest.py)
+    set_tests_properties(cellui_ptyscreen PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
   endif()
 endif()
 
