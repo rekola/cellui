@@ -1443,3 +1443,54 @@ TEST(text_in_a_box_is_aligned_in_cells_and_a_run_remembers_its_alignment) {
   auto runs = root.takeTextRuns();
   CHECK(runs.size() == 2u && runs[0].align == TextAlign::RIGHT && runs[1].align == TextAlign::LEFT);  // the same text, two runs
 }
+
+TEST(plane_border_is_covered_only_where_a_plane_painted_later_shows_content) {
+  StyleProvider styles;
+  CellBuffer buffer(10, 30);
+  BufferPlane root(buffer, styles);
+  auto before = root.createChild();  // painted before: it cannot cover the border
+  before->resize(2, 4);
+  before->move(1, 6);
+  before->putstr(0, 0, "xx");
+  auto bordered = root.createChild();
+  bordered->resize(4, 12);
+  bordered->move(1, 2);
+  bordered->setBorder(Color(10, 200, 30), 1.0);
+  auto over = root.createChild();  // painted after, over the right edge, with content in two of its cells
+  over->resize(2, 6);
+  over->move(2, 11);
+  over->putstr(0, 1, "ab");
+  auto blank = root.createChild();  // painted after, over the left edge, with nothing in it
+  blank->resize(2, 3);
+  blank->move(2, 1);
+  root.refresh();
+  auto areas = root.takeElevations();
+  CHECK(areas.size() == 1u);
+  CHECK(areas[0].covers.size() == 1u);
+  if (!areas[0].covers.empty()) {
+    auto c = areas[0].covers[0];  // the cells of "ab" on row 2, columns 12 and 13: only 12 is inside the area (columns 2..13)
+    CHECK(c[0] == 2 && c[1] == 12 && c[2] == 1 && c[3] == 2);
+  }
+}
+
+TEST(plane_border_is_covered_over_all_of_a_raised_plane_that_overlaps_it) {
+  StyleProvider styles;
+  CellBuffer buffer(8, 30);
+  BufferPlane root(buffer, styles);
+  auto bordered = root.createChild();
+  bordered->resize(4, 10);
+  bordered->move(1, 1);
+  bordered->setBorder(Color(10, 200, 30), 1.0);
+  auto dialog = root.createChild();
+  dialog->resize(3, 4);
+  dialog->move(2, 8);
+  dialog->setElevation(1.0f);
+  root.refresh();
+  auto areas = root.takeElevations();
+  const ElevatedArea * border = nullptr;
+  for (auto & a : areas) {
+    if (a.border_px > 0) border = &a;
+  }
+  CHECK(border && border->covers.size() == 1u);
+  if (border && !border->covers.empty()) CHECK((border->covers[0] == std::array<int, 4>{2, 8, 3, 3}));  // columns 8..10 of the dialog's 8..11
+}

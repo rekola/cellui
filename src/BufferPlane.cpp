@@ -191,6 +191,8 @@ void BufferPlane::refresh() {
   // Lower planes first, whatever their place in the tree; planes of one
   // height in tree order (a parent before its children).
   std::vector<Paint> paints;
+  // The areas made so far that have a border, which a plane painted after them may cover.
+  std::vector<size_t> bordered_areas;
   top.collect(paints, 0, 0, 0, 0, top.target_->rows(), top.target_->cols(), 0.0f);
   std::stable_sort(paints.begin(), paints.end(), [](const Paint & a, const Paint & b) { return a.elevation < b.elevation; });
   for (const Paint & p : paints) {
@@ -207,6 +209,28 @@ void BufferPlane::refresh() {
       for (int k = 0; k < 4; k++) corner_bg[static_cast<size_t>(k)] = top.target_->at(rs[k / 2], cs[k % 2]).bg;
     }
     p.plane->compose(*top.target_, p.row, p.col, p.clip_row, p.clip_col, p.clip_rows, p.clip_cols, p.elevation);
+    // A bordered plane painted before this one is covered where this one shows content: all of the overlap if it is
+    // raised, else the cells that are not blank.
+    if (inside) {
+      for (size_t index : bordered_areas) {
+        ElevatedArea & under = top.elevations_[index];
+        int or0 = std::max(r0, under.row), or1 = std::min(r1, under.row + under.rows);
+        int oc0 = std::max(c0, under.col), oc1 = std::min(c1, under.col + under.cols);
+        if (or0 >= or1 || oc0 >= oc1) continue;
+        int lo_r = or1, hi_r = or0, lo_c = oc1, hi_c = oc0;
+        for (int r = or0; r < or1; r++) {
+          for (int c = oc0; c < oc1; c++) {
+            int lr = r - p.row, lc = c - p.col;
+            if (!elevated && (lr < 0 || lc < 0 || lr >= p.plane->local_.rows() || lc >= p.plane->local_.cols() || CellBuffer::isBlank(p.plane->local_.at(lr, lc)))) continue;
+            lo_r = std::min(lo_r, r);
+            hi_r = std::max(hi_r, r + 1);
+            lo_c = std::min(lo_c, c);
+            hi_c = std::max(hi_c, c + 1);
+          }
+        }
+        if (lo_r < hi_r && lo_c < hi_c) under.covers.push_back({ lo_r, lo_c, hi_r - lo_r, hi_c - lo_c });
+      }
+    }
     const bool bordered = p.plane->border_px_ > 0 && p.plane->border_alpha_ > 0.0f;
     if (!owner && !elevated && !bordered && p.plane->mouse_cursor_ == MouseCursor::INHERIT) continue;
     if (!inside) continue;
@@ -225,6 +249,7 @@ void BufferPlane::refresh() {
       area.border_px = p.plane->border_px_;
       area.border_color = p.plane->border_color_;
       area.border_alpha = p.plane->border_alpha_;
+      bordered_areas.push_back(top.elevations_.size() - 1);
     }
   }
   top.collectLifts(*top.target_, top.layers_.size());

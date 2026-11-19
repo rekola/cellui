@@ -1363,6 +1363,14 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRen
     float widths[4] = { width, width, width, width };
     GdkRGBA colors[4] = { color, color, color, color };
     gtk_snapshot_append_border(snap, &outline, widths, colors);
+    // What a plane painted after this one shows over it goes back over the border.
+    for (const std::array<int, 4> & cover : a.covers) {
+      graphene_rect_t over = GRAPHENE_RECT_INIT(static_cast<float>(cover[1] * cell_w), static_cast<float>(cover[0] * cell_h),
+                                                static_cast<float>(cover[3] * cell_w), static_cast<float>(cover[2] * cell_h));
+      gtk_snapshot_push_clip(snap, &over);
+      redraw(a);
+      gtk_snapshot_pop(snap);
+    }
   }
 }
 
