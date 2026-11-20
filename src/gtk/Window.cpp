@@ -321,7 +321,7 @@ struct Window::Impl {
   void buttonEvent(int button, double x, double y, bool pressed, GdkModifierType state);
   void motionEvent(double x, double y, GdkModifierType state);
   void updateMouseCursor();
-  bool scrollEvent(double dx, double dy, GdkModifierType state);
+  bool scrollEvent(double dx, double dy, bool surface_units, GdkModifierType state);
 };
 
 }  // namespace cellui::gtk
@@ -1683,7 +1683,18 @@ void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
   push(BackendEvent::makeInput(input.withPosition(fy, fx)));
 }
 
-bool Window::Impl::scrollEvent(double dx, double dy, GdkModifierType state) {
+// Cells of finger travel that make one wheel notch, for devices that report surface units.
+constexpr double kSurfaceCellsPerNotch = 2.0;
+
+bool Window::Impl::scrollEvent(double dx, double dy, bool surface_units, GdkModifierType state) {
+  // A wheel reports notches; a touchpad or a high-resolution wheel reports surface units
+  // (about pixels), tens per event, which are notches only after dividing by how far a
+  // notch is worth (taking them as notches scrolled a screenful at a touch).
+  if (surface_units) {
+    double per_notch = std::max(cell_h, 1) * kSurfaceCellsPerNotch;
+    dx /= per_notch;
+    dy /= per_notch;
+  }
   scroll_x += dx;
   scroll_y += dy;
   unsigned mods = modsFrom(state);
@@ -1776,7 +1787,8 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
   GtkEventController * scroll = gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
   g_signal_connect(scroll, "scroll", G_CALLBACK(+[](GtkEventControllerScroll * controller, gdouble dx, gdouble dy, gpointer data) -> gboolean {
                      auto state = gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(controller));
-                     return static_cast<Impl *>(data)->scrollEvent(dx, dy, state);
+                     bool surface = gtk_event_controller_scroll_get_unit(controller) == GDK_SCROLL_UNIT_SURFACE;
+                     return static_cast<Impl *>(data)->scrollEvent(dx, dy, surface, state);
                    }),
                    self);
   gtk_widget_add_controller(impl.view, scroll);
