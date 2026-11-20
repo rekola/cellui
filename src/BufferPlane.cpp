@@ -375,6 +375,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
           for (int c = c_lo; c < c_hi; c++) {
             CellBuffer::Cell marked;
             marked.image = placement.index + 1;
+            marked.bg = content.cells.at(r, c).bg;
             marked.lift = content.cells.at(r, c).lift;
             marked.lift_joined = content.cells.at(r, c).lift_joined;
             marked.lift_shadow = content.cells.at(r, c).lift_shadow;

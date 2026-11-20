@@ -1079,11 +1079,16 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, co
     // The bottom of the blend is drawn on its own, so it holds the backgrounds under the picture too: a
     // picture with transparent pixels would otherwise leave the light to be laid over the cells, not added.
     gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
-    gtk_snapshot_push_clip(snap, &wide);
-    for (const Painted::Band & band : layer_bands.bands) {
-      if (band.bg) gtk_snapshot_append_node(snap, band.bg);
+    // Only under the picture's own cells: the backgrounds of the cells around it would cover the pictures
+    // drawn before this one.
+    for (const MarkedRun & run : list) {
+      graphene_rect_t under = cutTo(run);
+      gtk_snapshot_push_clip(snap, &under);
+      for (const Painted::Band & band : layer_bands.bands) {
+        if (band.bg) gtk_snapshot_append_node(snap, band.bg);
+      }
+      gtk_snapshot_pop(snap);
     }
-    gtk_snapshot_pop(snap);
     for (const MarkedRun & run : list) {
       graphene_rect_t clip = cutTo(run);
       gtk_snapshot_push_clip(snap, &clip);
@@ -1684,7 +1689,7 @@ void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
 }
 
 // Cells of finger travel that make one wheel notch, for devices that report surface units.
-constexpr double kSurfaceCellsPerNotch = 2.0;
+constexpr double kSurfaceCellsPerNotch = 1.0;
 
 bool Window::Impl::scrollEvent(double dx, double dy, bool surface_units, GdkModifierType state) {
   // A wheel reports notches; a touchpad or a high-resolution wheel reports surface units
@@ -1695,6 +1700,7 @@ bool Window::Impl::scrollEvent(double dx, double dy, bool surface_units, GdkModi
     dx /= per_notch;
     dy /= per_notch;
   }
+  // A notch is reported once half of it has come, so the first movement is not held back.
   scroll_x += dx;
   scroll_y += dy;
   unsigned mods = modsFrom(state);
@@ -1703,10 +1709,10 @@ bool Window::Impl::scrollEvent(double dx, double dy, bool surface_units, GdkModi
     push(BackendEvent::makeInput(Input(button, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper), Input::Kind::PRESS)
                                      .withPosition(std::max(last_fy, 0.0f), std::max(last_fx, 0.0f))));
   };
-  while (scroll_y >= 1.0) { emit(Key::Button5); scroll_y -= 1.0; }
-  while (scroll_y <= -1.0) { emit(Key::Button4); scroll_y += 1.0; }
-  while (scroll_x >= 1.0) { emit(Key::Button7); scroll_x -= 1.0; }
-  while (scroll_x <= -1.0) { emit(Key::Button6); scroll_x += 1.0; }
+  while (scroll_y >= 0.5) { emit(Key::Button5); scroll_y -= 1.0; }
+  while (scroll_y <= -0.5) { emit(Key::Button4); scroll_y += 1.0; }
+  while (scroll_x >= 0.5) { emit(Key::Button7); scroll_x -= 1.0; }
+  while (scroll_x <= -0.5) { emit(Key::Button6); scroll_x += 1.0; }
   return true;
 }
 

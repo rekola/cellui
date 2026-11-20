@@ -14,7 +14,7 @@ namespace {
 
 constexpr int kGap = 1;          // cells between columns
 constexpr int kMinFlexWidth = 4;
-constexpr int kWheelStep = 3;    // rows per wheel notch
+constexpr int kWheelStep = 2;    // rows per wheel notch
 
 bool asNumber(const std::string & text, double & out) {
   std::string s = text;
