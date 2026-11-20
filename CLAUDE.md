@@ -84,8 +84,13 @@ description, binding, execute): the palette lists them with `commands()`'s,
 and `execute()`, `bindingFor()` and the keymap reach them for a name
 `commands()`/`keymap()` do not have. `run()` waits for the
 backend's `nextDeadline()` too, so a lone ESC byte the terminal's parser holds
-is settled and a frame the pacer held back starts without another input. synth's `InteractiveUI` does the same and more by hand (modal dialogs, the
-command palette, link profiles); it can move onto `Application` as it needs.
+is settled and a frame the pacer held back starts without another input. It
+asks for a frame when the display reported something, never for a bare wake (a
+`ThreadInbox` post asks itself). A program with work of its own in the loop
+adds its sources to `backend().eventLoop()` before `run()` and sets
+`setBeforeTurn()` (its longest wait), `setAfterTurn()` and `setFrameHook()` (draws, and
+says whether the frame is shown); synth's `InteractiveUI` runs this way, with
+its stderr, MIDI and Launchpad sources and a frame rate of its own.
 
 ## Events and input dispatch
 

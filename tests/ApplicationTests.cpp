@@ -263,3 +263,46 @@ TEST(application_palette_lists_runs_and_names_the_programs_own_commands) {
   CHECK(!f.app->execute("nonesuch"));
   CHECK(ran.back() == "nonesuch");
 }
+
+TEST(application_loop_runs_the_programs_turn_hooks_and_draws_only_what_its_frame_hook_shows) {
+  Fixture f;
+  int befores = 0, afters = 0, hooked_frames = 0;
+  bool show = false;
+  f.app->setBeforeTurn([&] {
+    befores++;
+    return 5;  // a short wait, so turns keep coming without input
+  });
+  f.app->setAfterTurn([&](bool) {
+    if (++afters == 3) {
+      show = true;
+      f.app->requestFrame();
+    }
+    if (afters == 6) f.app->quit(7);
+  });
+  f.app->setFrameHook([&] {
+    hooked_frames++;
+    return show;
+  });
+  CHECK(f.app->run() == 7);
+  CHECK(befores >= 6 && afters == 6);
+  CHECK(hooked_frames >= 2);  // the first frame, held back, and the one asked for after
+  CHECK(f.backend->frameCount() >= 1u && f.backend->frameCount() < static_cast<size_t>(hooked_frames));
+}
+
+TEST(application_loop_asks_no_frame_for_a_wake_with_nothing_from_the_display) {
+  Fixture f;
+  int frames = 0, turns = 0;
+  f.app->setFrameHook([&] {
+    frames++;
+    return true;
+  });
+  f.app->setBeforeTurn([] { return 5; });
+  f.app->setAfterTurn([&](bool) {
+    turns++;
+    if (turns == 2) f.backend->wake();         // another thread's post
+    if (turns == 4) f.backend->pushKey('a');  // an input
+    if (turns == 7) f.app->quit();
+  });
+  f.app->run();
+  CHECK(frames == 2);  // the first one and the input's, not the wake's
+}

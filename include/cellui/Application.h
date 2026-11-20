@@ -198,11 +198,27 @@ class Application {
   // is only said by `closed`.
   void setQuitOnClose(bool quit) { quit_on_close_ = quit; }
 
+  // --- A program's own work in run()'s loop (synth: sources of its own, a frame
+  // rate of its own, statistics). Each runs alongside the application's own.
+  // As a turn starts: the longest the turn may wait, in milliseconds (negative:
+  // as long as it takes; the sooner of this and the application's own wins).
+  void setBeforeTurn(std::function<int()> hook) { before_turn_ = std::move(hook); }
+  // As a turn ends, with whether a source woke it.
+  void setAfterTurn(std::function<void(bool woken)> hook) { after_turn_ = std::move(hook); }
+  // When the display lets a frame start: draws what the program has to and
+  // says whether there is anything new to show; false skips the frame, so a
+  // program that redraws only what changed sends nothing when nothing did.
+  // Unset, every frame is shown.
+  void setFrameHook(std::function<bool()> hook) { frame_hook_ = std::move(hook); }
+
   // Asks for a frame; call after changing anything outside an input handler
   // (data that arrived).
   void requestFrame() { backend_->requestFrame(); }
 
   // Runs until quit() or the display closes. Returns the status given to quit(), 0 when the display closed.
+  // A frame is asked for when the display reported something (an input, a resize); a source of the program's own
+  // or a post from another thread (ThreadInbox) asks for one itself (requestFrame()) when it changed what shows.
+  // The program's own sources are added to backend().eventLoop() before run().
   int run();
   void quit(int status = 0);
 
@@ -245,6 +261,9 @@ class Application {
   std::string theme_name_;
   std::optional<std::chrono::steady_clock::time_point> last_frame_;
   int exit_status_ = 0;
+  std::function<int()> before_turn_;
+  std::function<void(bool)> after_turn_;
+  std::function<bool()> frame_hook_;
   bool escape_echoed_ = false;
   CommandRegistry commands_;
   Keymap keymap_;

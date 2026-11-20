@@ -442,10 +442,14 @@ void Application::present() {
 
 int Application::run() {
   EventLoop & loop = backend_->eventLoop();
-  backend_->setFrameHandler([this](int64_t) { present(); });
+  backend_->setFrameHandler([this](int64_t) {
+    if (!frame_hook_ || frame_hook_()) present();
+  });
+  // A wake with nothing from the display (another thread's post) asks for no frame by itself.
   auto pump = [this] {
-    for (const BackendEvent & event : backend_->poll()) handle(event);
-    backend_->requestFrame();
+    std::vector<BackendEvent> events = backend_->poll();
+    for (const BackendEvent & event : events) handle(event);
+    if (!events.empty()) backend_->requestFrame();
   };
   // A pending Escape that no key followed is held until the key reader says otherwise.
   loop.addSource({backend_->inputFd(), backend_->wakeFd()}, pump);
@@ -463,6 +467,9 @@ int Application::run() {
     auto sooner = [&](int ms) { wait = wait < 0 ? ms : std::min(wait, ms); };
     if (auto deadline = backend_->nextDeadline()) sooner(msUntil(*deadline));
     if (auto due = key_reader_.indicatorDue(); due && !escape_echoed_) sooner(msUntil(*due));
+    if (before_turn_) {
+      if (int own = before_turn_(); own >= 0) sooner(own);
+    }
     return wait;
   });
   loop.setAfter([this, pump](bool woken) {
@@ -470,6 +477,7 @@ int Application::run() {
       if (auto deadline = backend_->nextDeadline(); deadline && Clock::now() >= *deadline) pump();
     }
     echoEscape();
+    if (after_turn_) after_turn_(woken);
   });
   backend_->requestFrame();
   exit_status_ = 0;
