@@ -12,7 +12,7 @@
 
 namespace cellui {
 
-// A check box: a box, "[x]" when on and "[ ]" when off, and a label after it, on one row. It owns no state
+// A check box: a box, ☑ (U+2611) when on and ☐ (U+2610) when off, and a label after it, on one row. It owns no state
 // (get/set callbacks, like SpinBox), so it can show any flag. It takes the keyboard focus (focusable, so the
 // dispatcher's focus order and a click reach it); focused it is drawn with the theme's highlight, and Space or
 // Enter toggles it. A press of the left button on it toggles it as well. A host that does not use the
@@ -30,7 +30,7 @@ class Checkbox : public Widget {
   }
 
   // The columns the box and its label need.
-  int preferredWidth() const { return kBoxWidth + 1 + utf8::displayWidth(label_); }
+  int preferredWidth() const { return utf8::displayWidth(kOn) + 1 + utf8::displayWidth(label_); }
 
   bool checked() const { return get_value_(); }
   bool focused() const { return focused_; }
@@ -59,7 +59,7 @@ class Checkbox : public Widget {
     setFgColor(focused_ ? styles.highlight_fg_color : styles.window_fg_color);
     setBgColor(focused_ ? styles.highlight_bg_color : styles.picker_bg_color);
     putstr(0, 0, std::string(static_cast<size_t>(std::max(0, cols)), ' '));
-    putstr(0, 0, std::string(on ? "[x] " : "[ ] ") + label_);
+    putstr(0, 0, std::string(on ? kOn : kOff) + " " + label_);
     drawn_ = true;
     drawn_value_ = on;
     drawn_focus_ = focused_;
@@ -67,7 +67,8 @@ class Checkbox : public Widget {
   }
 
  private:
-  static constexpr int kBoxWidth = 3;
+  static constexpr const char * kOn = "☑";
+  static constexpr const char * kOff = "☐";
   std::string label_;
   std::function<bool()> get_value_;
   std::function<void(bool)> set_value_;

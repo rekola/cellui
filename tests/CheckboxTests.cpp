@@ -33,12 +33,12 @@ KeyDown keyDown(int key, bool shift = false) {
 
 TEST(checkbox_shows_its_state_and_label) {
   Fixture f;
-  CHECK(f.buffer.toPlainText() == "\n  [ ] Borrowed chords\n");
+  CHECK(f.buffer.toPlainText() == "\n  ☐ Borrowed chords\n");
   f.value = true;
   CHECK(f.box.render(f.styles));
   f.root.refresh();
-  CHECK(f.buffer.toPlainText() == "\n  [x] Borrowed chords\n");
-  CHECK(f.box.preferredWidth() == 4 + 15);
+  CHECK(f.buffer.toPlainText() == "\n  ☑ Borrowed chords\n");
+  CHECK(f.box.preferredWidth() == 2 + 15);
 }
 
 TEST(checkbox_render_only_redraws_when_something_changed) {
