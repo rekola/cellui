@@ -206,6 +206,7 @@ struct Window::Impl {
   std::vector<TextRun> text_runs;
   // The proportional face: the system's own UI font, sized to a cell's height.
   PangoFontDescription * proportional = nullptr;
+  float proportional_baseline = 0.0f;  // from the row's top
   // The areas planes asked a pointer shape for, and the one now set.
   std::vector<CursorArea> mouse_cursors;
   MouseCursor shown_cursor = MouseCursor::DEFAULT;
@@ -500,6 +501,11 @@ void Window::Impl::measure(const WindowOptions & options) {
       if (h <= cell_h) break;
       px *= 0.97;
     }
+    // Where the face's own baseline lies in a row, so text keeps it whatever fallback font a glyph needs.
+    int ref_h = 0;
+    pango_layout_get_pixel_size(probe, nullptr, &ref_h);
+    double ref_baseline = static_cast<double>(pango_layout_get_baseline(probe)) / PANGO_SCALE;
+    proportional_baseline = static_cast<float>(std::max(0.0, (cell_h - ref_h) / 2.0) + ref_baseline);
     g_object_unref(probe);
   }
 
@@ -1143,7 +1149,10 @@ void Window::Impl::appendTextRuns(GtkSnapshot * snap, const CellBuffer & cells) 
       // Shorter text sits in its box as asked; longer is cut where the box ends.
       float slack = std::max(0.0f, w - static_cast<float>(text_w));
       float dx = run.align == TextAlign::RIGHT ? slack : run.align == TextAlign::CENTER ? slack / 2.0f : 0.0f;
-      graphene_point_t at = GRAPHENE_POINT_INIT(x + dx, y + std::max(0.0f, (h - static_cast<float>(text_h)) / 2.0f));
+      // The baseline stays where the face puts it; a fallback font's taller line must not move it.
+      float baseline = static_cast<float>(pango_layout_get_baseline(layout)) / PANGO_SCALE;
+      float row_top = box.rows == 1 ? proportional_baseline - baseline : std::max(0.0f, (h - static_cast<float>(text_h)) / 2.0f);
+      graphene_point_t at = GRAPHENE_POINT_INIT(x + dx, y + row_top);
       gtk_snapshot_push_clip(snap, &clip);
       gtk_snapshot_save(snap);
       gtk_snapshot_translate(snap, &at);
