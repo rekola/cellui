@@ -152,21 +152,38 @@ class Application {
   Keymap & keymap() { return keymap_; }
   // Runs a command by name (commands(), then the command source's); false when there is none.
   bool execute(const std::string & name);
-  // How `command` is bound on this display ("C-x C-c", "Ctrl+Q"; keymap(), then the command source's); "" if it is not.
+  // How `command` is bound on this display ("C-x C-c", "Ctrl+Q"; the command source's, then keymap()'s); "" if it is not.
   std::string bindingFor(const std::string & command) const;
 
   // Commands the program keeps itself, for one whose commands are not all in
   // commands(): spread over several registries, or run differently by what
   // has the focus. The palette lists them with commands()'s, and a name that
-  // commands() and keymap() do not have is run, described and bound by the
-  // source. A part left empty adds nothing.
+  // commands() does not have is run and described by the source. Its binding
+  // comes first (a widget may bind a name its own way where it has the focus),
+  // then keymap()'s. A part left empty adds nothing.
   struct CommandSource {
     std::function<std::vector<std::string>()> names;
     std::function<std::string(const std::string &)> description;
     std::function<std::string(const std::string &)> binding;
     std::function<bool(const std::string &)> execute;
+    // Runs a name a key of keymap() is bound to, where that is not what
+    // execute() would run (synth: a key runs the application's own command,
+    // the palette the focused widget's first). Empty: execute.
+    std::function<bool(const std::string &)> run_binding;
   };
   void setCommandSource(CommandSource source) { command_source_ = std::move(source); }
+
+  // Where keymap() is looked up for a key. AFTER_FOCUS (the default): when the
+  // focused widget left it. PROGRAM: only where the program offers it
+  // (offerKey()), for one whose bindings come ahead of the focused widget but
+  // after layers of its own (synth: an open editor, a prompt that takes every
+  // key). Either way the key after a prefix is the prefix's, whatever has the
+  // focus, and `message` says "C-x-" and what is undefined.
+  enum class KeymapOrder { AFTER_FOCUS, PROGRAM };
+  void setKeymapOrder(KeymapOrder order) { keymap_order_ = order; }
+  // keymap() for `e` now: runs what it is bound to or starts a prefix; false
+  // when it is neither.
+  bool offerKey(const KeyDown & e) { return keyBinding(e); }
   // Opens the command palette over the bottom of the screen with every command;
   // the chosen one runs once the palette has closed.
   void openCommandPalette();
@@ -271,6 +288,9 @@ class Application {
   // The prefix key (C-x) of a sequence, while it waits for the key after it.
   std::optional<uint64_t> pending_prefix_;
   CommandSource command_source_;
+  KeymapOrder keymap_order_ = KeymapOrder::AFTER_FOCUS;
+  // Runs what a key is bound to: commands(), then the source's.
+  bool runBinding(const std::string & name);
   std::vector<Connection> root_handlers_;
 };
 
