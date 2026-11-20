@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace cellui {
@@ -42,15 +43,15 @@ inline Color lineColorAt(const TraceLook & look, float t, bool hdr) {
 // (the highest), interpolated between neighbours. Values that are not finite
 // are left out first; a series with no value gives no points, one with a
 // single value (or all equal) a flat line in the middle.
-std::vector<float> resample(const std::vector<float> & values, size_t count);
+std::vector<float> resample(std::span<const float> values, size_t count);
 
 // The trace as pixels, `width` x `height`, at `scale`, the display scale
 // (line widths are in logical units). Drawn on a float canvas when
 // `prefer_float` and the backend has one, else on an 8-bit one that maps each
 // colour to sRGB.
-Picture renderPicture(const std::vector<float> & values, const TraceLook & look, unsigned width, unsigned height, float scale, bool prefer_float);
+Picture renderPicture(std::span<const float> values, const TraceLook & look, unsigned width, unsigned height, float scale, bool prefer_float);
 
-std::vector<uint32_t> render(const std::vector<float> & values, const TraceLook & look, unsigned width, unsigned height, float scale = 1.0f);
+std::vector<uint32_t> render(std::span<const float> values, const TraceLook & look, unsigned width, unsigned height, float scale = 1.0f);
 
 }  // namespace trace_image
 

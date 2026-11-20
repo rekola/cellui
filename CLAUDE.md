@@ -52,7 +52,12 @@ carries the app's object as an opaque `getAppContext()`.
   `UIMenu`, `Viewport.h`, the generic widgets (`ChoiceList`/`ChoiceDialog`,
   `InlineEditor`, `SpinBox`, `Checkbox` (a label and a flag, focusable; Space or Enter toggles), `Dial`, `Lamp`, `LineChart`, `HeatmapChart`, `InfoDialog`,
   `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`, `StatusLine`: the bottom row's message
-  and its Emacs-style prompt with Tab completion), `Gallery.h`.
+  and its Emacs-style prompt with Tab completion; `Label`: a line of text on a background of its
+  own, its colours fixed or theme roles (`&StyleProvider::info_line_fg_color`), drawn again on
+  every change and resize; `Table` with `TableModel`: a click on a heading sorts, no key does;
+  `trace()` is a `std::span` of the model's own values and `number()` what a cell sorts by,
+  read from its text by default), `Layout.h` (`layoutRows()`/`layoutColumns()`: `LayoutPart`s
+  of a fixed size or a share of what is left, with margins across), `Gallery.h`.
 
 ## Application
 

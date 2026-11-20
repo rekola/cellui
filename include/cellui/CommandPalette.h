@@ -26,6 +26,10 @@ struct PaletteEntry {
 // next/previous-line keys) move; Tab completes the query as far as every
 // command starting with it agrees, the way Emacs completes a command name; Enter or a
 // click chooses; Escape or a click outside cancels. The caller runs the chosen command.
+//
+// A program opens it with Application::openCommandPalette(), which routes the
+// events to it, lays it out and runs the choice; the calls below are what the
+// application uses, and what this widget's own tests drive.
 class CommandPalette {
  public:
   enum class Result { NONE,

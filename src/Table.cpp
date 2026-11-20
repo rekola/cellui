@@ -42,11 +42,16 @@ TextAlign textAlign(Align align) {
 
 }  // namespace
 
-int TableModel::compare(int column, int a, int b) const {
-  std::string ta = text(a, column), tb = text(b, column);
-  double na = 0, nb = 0;
-  if (asNumber(ta, na) && asNumber(tb, nb)) return na < nb ? -1 : na > nb ? 1 : 0;
-  return lower(ta).compare(lower(tb));
+std::optional<double> TableModel::number(int row, int column) const {
+  double value = 0;
+  if (asNumber(text(row, column), value)) return value;
+  return std::nullopt;
+}
+
+int TableModel::compare(int a, int b, int column) const {
+  std::optional<double> na = number(a, column), nb = number(b, column);
+  if (na && nb) return *na < *nb ? -1 : *na > *nb ? 1 : 0;
+  return lower(text(a, column)).compare(lower(text(b, column)));
 }
 
 Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(charts) {
@@ -155,7 +160,7 @@ void Table::resort() {
   if (model_ && sort_column_ >= 0 && sort_order_ != SortOrder::NONE) {
     const int column = sort_column_;
     const bool down = sort_order_ == SortOrder::DESCENDING;
-    std::stable_sort(order_.begin(), order_.end(), [&](int a, int b) { return down ? model_->compare(column, b, a) < 0 : model_->compare(column, a, b) < 0; });
+    std::stable_sort(order_.begin(), order_.end(), [&](int a, int b) { return down ? model_->compare(b, a, column) < 0 : model_->compare(a, b, column) < 0; });
   }
   rows_.setExtent(n, visibleRows());
 }
@@ -278,20 +283,6 @@ bool Table::key(const KeyDown & e) {
   else if (e.key == Key::End) selectPosition(static_cast<int>(order_.size()) - 1);
   else if (e.key == Key::Enter) {
     if (selected_ >= 0) activated.emit(selected_);
-  } else if (e.key == '<' || e.key == '>') {
-    // The previous or next sortable column, ascending.
-    int n = static_cast<int>(columns_.size());
-    int step = e.key == '>' ? 1 : -1;
-    int c = sort_column_;
-    for (int i = 0; i < n; i++) {
-      c = c < 0 ? (step > 0 ? 0 : n - 1) : ((c + step) % n + n) % n;
-      if (columns_[static_cast<size_t>(c)].sortable) {
-        sortBy(c, SortOrder::ASCENDING);
-        break;
-      }
-    }
-  } else if (e.key == 'r') {
-    if (sort_column_ >= 0) sortBy(sort_column_, sort_order_ == SortOrder::ASCENDING ? SortOrder::DESCENDING : SortOrder::ASCENDING);
   } else {
     return false;
   }

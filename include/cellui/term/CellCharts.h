@@ -25,7 +25,7 @@ void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vec
                      int clip_bottom);
 
 // A trace in braille dots, two points to a cell across and four levels to a cell down.
-void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, const std::vector<float> & values, const TraceLook & look, int clip_top,
+void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, std::span<const float> values, const TraceLook & look, int clip_top,
                    int clip_bottom);
 
 void drawCellWaveformRow(Plane & plane, int row, int col, int width, const std::vector<float> & slices, const WaveformLook & look,

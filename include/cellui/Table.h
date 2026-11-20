@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -40,23 +41,20 @@ class TableModel {
   virtual int rowCount() const = 0;
   // The text of a cell, for a column that is not a trace.
   virtual std::string text(int row, int column) const = 0;
-  // The values of a trace cell, oldest first (see TraceLook).
-  virtual std::vector<float> trace(int row, int column) const {
-    (void)row;
-    (void)column;
-    return {};
-  }
+  // The values of a trace cell, oldest first (see TraceLook): a view of the
+  // model's own values, read while the cell is drawn, so nothing is copied.
+  virtual std::span<const float> trace(int /*row*/, int /*column*/) const { return {}; }
   // The cell's colour: the text's, or a trace's line. Unset is the theme's.
-  virtual std::optional<Color> color(int row, int column) const {
-    (void)row;
-    (void)column;
-    return std::nullopt;
-  }
+  virtual std::optional<Color> color(int /*row*/, int /*column*/) const { return std::nullopt; }
+  // The cell's value, which it sorts by: a model with numbers gives them
+  // here, so a sort never reads them back from rounded text. The default
+  // reads the text as a number when it is one (a sign and a trailing % are
+  // allowed); unset for text.
+  virtual std::optional<double> number(int row, int column) const;
   // Negative if row `a` sorts before row `b` by `column`, positive if after,
-  // 0 if neither. The default reads both texts as numbers when they are one
-  // (a trailing % is ignored) and compares them as text, letters of either
-  // case alike, when they are not; a trace column sorts as equal.
-  virtual int compare(int column, int a, int b) const;
+  // 0 if neither: by number() when both have one, else by text, letters of
+  // either case alike. A trace column sorts as equal.
+  virtual int compare(int a, int b, int column) const;
 };
 
 // A scrollable table with a heading row, the rows of a TableModel and a
