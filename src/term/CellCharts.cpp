@@ -175,7 +175,7 @@ void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vec
   }
 }
 
-void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, const std::vector<float> & values, const TraceLook & look, int clip_top,
+void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, std::span<const float> values, const TraceLook & look, int clip_top,
                    int clip_bottom) {
   if (rows <= 0 || cols <= 0) return;
   // A dot column for each half cell, a level for each quarter of a row; level 0 is the bottom one.
@@ -334,7 +334,7 @@ class CellCharts : public Charts {
                      int clip_top, int clip_bottom, uint64_t) const override {
     drawCellSparkline(plane, row, col, rows, readings, look, clip_top, clip_bottom);
   }
-  void drawTrace(Plane & plane, int row, int col, int rows, int cols, const std::vector<float> & values, const TraceLook & look, int clip_top,
+  void drawTrace(Plane & plane, int row, int col, int rows, int cols, std::span<const float> values, const TraceLook & look, int clip_top,
                  int clip_bottom, uint64_t) const override {
     drawCellTrace(plane, row, col, rows, cols, values, look, clip_top, clip_bottom);
   }

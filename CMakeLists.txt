@@ -291,6 +291,7 @@ add_executable(cellui_tests
   tests/LineEditorTests.cpp
   tests/MenuBarTests.cpp
   tests/TableTests.cpp
+  tests/LayoutTests.cpp
   tests/StatusLineTests.cpp
   tests/ApplicationTests.cpp
   tests/MeterTests.cpp

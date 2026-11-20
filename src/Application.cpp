@@ -32,7 +32,7 @@ class Application::DisplayCharts : public Charts {
                      int clip_top, int clip_bottom, uint64_t id) const override {
     inner_->drawSparkline(plane, row, col, rows, readings, look, clip_top, clip_bottom, id);
   }
-  void drawTrace(Plane & plane, int row, int col, int rows, int cols, const std::vector<float> & values, const TraceLook & look, int clip_top,
+  void drawTrace(Plane & plane, int row, int col, int rows, int cols, std::span<const float> values, const TraceLook & look, int clip_top,
                  int clip_bottom, uint64_t id) const override {
     inner_->drawTrace(plane, row, col, rows, cols, values, look, clip_top, clip_bottom, id);
   }
