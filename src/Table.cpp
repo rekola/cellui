@@ -14,7 +14,7 @@ namespace {
 
 constexpr int kGap = 1;          // cells between columns
 constexpr int kMinFlexWidth = 4;
-constexpr int kWheelStep = 2;    // rows per wheel notch
+constexpr int kWheelStep = 1;    // rows per isolated wheel notch, more in a quick spin
 
 bool asNumber(const std::string & text, double & out) {
   std::string s = text;
@@ -90,7 +90,7 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
   connections_.push_back(on<Wheel>([this](const Wheel & e, EventContext &) {
     if (e.dy == 0) return Handled::no;
     rows_.setExtent(static_cast<int>(order_.size()), visibleRows());
-    rows_.scrollBy(-e.dy * kWheelStep);
+    rows_.scrollBy(-e.dy * wheel_pace_.step(kWheelStep));
     render();
     return Handled::yes;
   }));

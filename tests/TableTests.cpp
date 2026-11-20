@@ -109,7 +109,7 @@ TEST(table_scrolls_with_the_wheel_and_keeps_the_selection_in_view) {
   f.table.resize(3, 30);  // heading and two rows
   CHECK(f.table.visibleRows() == 2);
   f.table.post(Wheel{0, 0, 2, 3, 0, -1, {}});  // one notch down
-  CHECK(f.table.firstVisiblePosition() == 2);  // at most content - view
+  CHECK(f.table.firstVisiblePosition() == 1);  // one row for an isolated notch
   f.table.post(Wheel{0, 0, 2, 3, 0, 1, {}});
   CHECK(f.table.firstVisiblePosition() == 0);
   f.table.select(3);
@@ -337,23 +337,23 @@ TEST(table_eases_to_a_new_scroll_position_where_the_display_scrolls_smoothly) {
   SmoothFixture f(true);
   CHECK(!f.table.animating());
   f.wheelDown();
-  CHECK(f.table.firstVisiblePosition() == 2);  // where it is scrolled to (at most content - view)
+  CHECK(f.table.firstVisiblePosition() == 1);  // where it is scrolled to
   CHECK(f.table.animating());
   CHECK(f.table.scrollPosition() == 0.0);      // not there yet
   CHECK(f.table.tick(0.03));                   // still moving
-  CHECK(f.table.scrollPosition() > 0.0 && f.table.scrollPosition() < 2.0);
+  CHECK(f.table.scrollPosition() > 0.0 && f.table.scrollPosition() < 1.0);
   int ticks = 0;
   while (f.table.tick(0.03) && ticks < 200) ticks++;
   CHECK(ticks < 200);
   CHECK(!f.table.animating());
-  CHECK(f.table.scrollPosition() == 2.0);
+  CHECK(f.table.scrollPosition() == 1.0);
   f.root.refresh();  // and it draws without trouble in each state
 }
 
 TEST(table_jumps_where_the_display_does_not_scroll_smoothly_and_with_taller_rows) {
   SmoothFixture plain(false);
   plain.wheelDown();
-  CHECK(!plain.table.animating() && plain.table.scrollPosition() == 2.0);
+  CHECK(!plain.table.animating() && plain.table.scrollPosition() == 1.0);
   SmoothFixture tall(true);
   tall.table.setRowHeight(2);  // whole rows only: the plane would have to be shifted by parts of a table row
   tall.wheelDown();
