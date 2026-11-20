@@ -35,7 +35,7 @@ at configure time, GTK is optional). Headers are `cellui/X.h` in
   and `CommandRegistry` (Emacs-style named commands and prefix sequences, with
   per-display keymap profiles), `KeyReader` (Escape as Meta).
 - **Widgets.** `Widget` is the widget base; on top of it `ChoiceDialog`,
-  `CommandPalette`, `InfoDialog`, `InlineEditor`, `SpinBox`, `MenuBar`,
+  `CommandPalette`, `InfoDialog`, `InlineEditor`, `SpinBox`, `Checkbox`, `MenuBar`,
   and the line chart.
 - **Backends.** `Backend` is what an application needs of any display
   (`DisplayInfo`, `BackendEvent`s in, frames out). `cellui/term/` is the terminal
