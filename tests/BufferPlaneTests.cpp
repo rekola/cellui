@@ -1081,6 +1081,28 @@ TEST(bufferplane_lifted_cells_below_a_scroll_layer_are_still_reported) {
   CHECK(areas[0].layer == 0);
 }
 
+// The cells a picture covers in a scrolled plane keep the plane's background, so
+// the picture is not laid over a transparent cell.
+TEST(bufferplane_scroll_layer_picture_cells_keep_the_background) {
+  StyleProvider styles;
+  CellBuffer b(6, 10);
+  BufferPlane root(b, styles);
+  root.setSmoothScroll(true);
+  root.setCellPixelSize(4, 2);
+  auto list = root.createChild();
+  list->resize(3, 6);
+  list->move(1, 0);
+  list->setBgColor(Color(10, 20, 30));
+  list->putstr(1, 0, "      ");
+  list->setScrollOffset(0.25, 0);
+  list->drawImageAt(1, 2, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1 && layers[0].scroll);
+  const auto & cell = layers[0].scroll->cells.at(1, 2);
+  CHECK(cell.image > 0 && cell.bg);
+}
+
 // A display that cannot lay text out sets it as cells, cut to the box, with an
 // ellipsis when asked.
 TEST(bufferplane_put_text_without_text_layout_cuts_to_the_box) {
