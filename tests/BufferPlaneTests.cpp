@@ -1494,3 +1494,24 @@ TEST(plane_border_is_covered_over_all_of_a_raised_plane_that_overlaps_it) {
   CHECK(border && border->covers.size() == 1u);
   if (border && !border->covers.empty()) CHECK((border->covers[0] == std::array<int, 4>{2, 8, 3, 3}));  // columns 8..10 of the dialog's 8..11
 }
+
+// A widget on a raised plane is drawn over that plane's own cells only at its height or above.
+TEST(widget_elevation_puts_a_widget_over_the_raised_plane_it_sits_on) {
+  for (bool raised : {false, true}) {
+    StyleProvider styles;
+    CellBuffer b(1, 4);
+    BufferPlane root(b, styles);
+    root.setFlatChildren(true);
+    auto panel = root.createChild();
+    panel->resize(1, 4);
+    panel->setElevation(2);
+    panel->putstr(0, 0, "aaaa");
+    Widget widget(*panel);
+    widget.resize(1, 2);
+    widget.move(0, 0);
+    if (raised) widget.setElevation(2);
+    widget.putstr(0, 0, "bb");
+    root.refresh();
+    CHECK(b.toPlainText() == (raised ? "bbaa\n" : "aaaa\n"));
+  }
+}

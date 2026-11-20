@@ -180,6 +180,12 @@ class Widget {
     if (plane_) plane_->moveToTop();
     return *this;
   }
+  // The widget's plane height (Plane::setElevation()), in cell widths: a widget on a raised plane is
+  // drawn over that plane's own cells only at its height or above.
+  Widget & setElevation(float elevation) {
+    if (plane_) plane_->setElevation(elevation);
+    return *this;
+  }
   Widget & setVisible(bool visible) {
     if (plane_) plane_->setVisible(visible);
     return *this;
