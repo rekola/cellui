@@ -60,6 +60,8 @@ BufferPlane::BufferPlane(BufferPlane & parent)
 BufferPlane::~BufferPlane() {
   if (editor_ && root().active_reader_ == this) root().active_reader_ = nullptr;
   for (BufferPlane * child : children_) child->parent_ = nullptr;
+  for (BufferPlane * child : flat_children_) child->flat_parent_ = nullptr;
+  if (flat_parent_) flat_parent_->flat_children_.erase(std::remove(flat_parent_->flat_children_.begin(), flat_parent_->flat_children_.end(), this), flat_parent_->flat_children_.end());
   if (parent_) parent_->children_.erase(std::remove(parent_->children_.begin(), parent_->children_.end(), this), parent_->children_.end());
 }
 
@@ -191,6 +193,10 @@ int BufferPlane::frameRun(std::vector<int> & map, int mark) const {
 std::unique_ptr<Plane> BufferPlane::createChild() {
   BufferPlane & parent = root().flat_ ? root() : *this;
   auto child = std::unique_ptr<BufferPlane>(new BufferPlane(parent));
+  if (&parent != this) {
+    child->flat_parent_ = this;
+    flat_children_.push_back(child.get());
+  }
   if (root().themed_bases_) child->base_bg_ = getStyles().plane_base_bg_color;
   return child;
 }
@@ -326,7 +332,7 @@ void BufferPlane::collectLifts(const CellBuffer & out, size_t layer, int row0, i
 void BufferPlane::collect(std::vector<Paint> & paints, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols,
                           float base) const {
   if (!visible_) return;
-  float height = base + elevation_;
+  float height = base + elevation_ + flatLift();
   paints.push_back(Paint{ this, row, col, clip_row, clip_col, clip_rows, clip_cols, height });
   // Children are clipped to the plane's own rectangle.
   int plane_rows = std::min(local_.rows(), getDim().first), plane_cols = std::min(local_.cols(), getDim().second);
