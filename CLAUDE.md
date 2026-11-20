@@ -50,7 +50,7 @@ carries the app's object as an opaque `getAppContext()`.
 - Theme (`Theme`, `StyleProvider`), `Plane`, `Widget` (`Widget.h`: the plane,
   drawing, keymap and prefix-key dispatch),
   `UIMenu`, `Viewport.h`, the generic widgets (`ChoiceList`/`ChoiceDialog`,
-  `InlineEditor`, `SpinBox`, `Dial`, `Lamp`, `LineChart`, `HeatmapChart`, `InfoDialog`,
+  `InlineEditor`, `SpinBox`, `Checkbox` (a label and a flag, focusable; Space or Enter toggles), `Dial`, `Lamp`, `LineChart`, `HeatmapChart`, `InfoDialog`,
   `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`, `StatusLine`: the bottom row's message
   and its Emacs-style prompt with Tab completion), `Gallery.h`.
 
