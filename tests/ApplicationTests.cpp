@@ -306,3 +306,47 @@ TEST(application_loop_asks_no_frame_for_a_wake_with_nothing_from_the_display) {
   f.app->run();
   CHECK(frames == 2);  // the first one and the input's, not the wake's
 }
+
+TEST(application_keymap_where_the_program_offers_it_runs_ahead_of_the_focused_widget) {
+  Fixture f;
+  Widget w(f.app->root());
+  w.setFocusable(true);
+  w.attach(f.app->widgets());
+  f.app->input().setFocus(&w);
+  std::vector<std::string> ran;
+  int widget_keys = 0;
+  auto own = w.on<KeyDown>([&](const KeyDown &, EventContext &) {
+    widget_keys++;
+    return Handled::yes;
+  });
+  f.app->setKeymapOrder(Application::KeymapOrder::PROGRAM);
+  Application::CommandSource source;
+  source.execute = [&](const std::string & name) { return ran.push_back("palette " + name), true; };
+  source.run_binding = [&](const std::string & name) { return ran.push_back("key " + name), true; };
+  source.binding = [](const std::string & name) { return name == "save" ? std::string("F2") : std::string(); };
+  f.app->setCommandSource(std::move(source));
+  f.app->keymap().bind("C-s", "save");
+  f.app->keymap().bind("C-x C-c", "quit");
+  // The program's layer on the root, ahead of the focused widget.
+  bool layer_open = true;
+  auto layer = f.app->widgets().on<KeyDown>([&](const KeyDown & e, EventContext &) {
+    return layer_open && f.app->offerKey(e) ? Handled::yes : Handled::no;
+  }, Phase::capture);
+  press(*f.app, 's', kModCtrl);
+  CHECK(ran == std::vector<std::string>{"key save"} && widget_keys == 0);
+  // A prefix takes the key after it whatever has the focus, and says so.
+  std::vector<std::string> said;
+  auto m = f.app->message.connect([&](std::string s) { said.push_back(std::move(s)); });
+  press(*f.app, 'x', kModCtrl);
+  CHECK(!said.empty() && said.back() == "C-x-");
+  layer_open = false;
+  press(*f.app, 'c', kModCtrl);
+  CHECK(ran.back() == "key quit" && widget_keys == 0);
+  // Not offered: the application's own bubble handler leaves the keymap alone, even for a key nothing took.
+  own.disconnect();
+  press(*f.app, 's', kModCtrl);
+  CHECK(ran.size() == 2u);
+  // The palette runs a name through execute(); the source's binding comes before the keymap's.
+  CHECK(f.app->execute("save") && ran.back() == "palette save");
+  CHECK(f.app->bindingFor("save") == "F2" && f.app->bindingFor("quit") == "C-x C-c");
+}

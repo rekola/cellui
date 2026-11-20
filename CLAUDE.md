@@ -81,8 +81,12 @@ Escape waiting for its key) for the program's echo line. A program whose
 commands are not all in `commands()` (synth's are in several registries, run
 by what has the focus) gives an `Application::CommandSource` (names,
 description, binding, execute): the palette lists them with `commands()`'s,
-and `execute()`, `bindingFor()` and the keymap reach them for a name
-`commands()`/`keymap()` do not have. `run()` waits for the
+and `execute()` and the keymap reach them for a name `commands()` does not have
+(a bound key through `run_binding` where that differs; `bindingFor()` asks the
+source first, then `keymap()`). `setKeymapOrder(KeymapOrder::PROGRAM)` leaves the
+keymap to the program, which offers it a key with `offerKey()` where its own
+layers allow (synth: after an open editor or a prompt, ahead of the focused
+widget); the key after a prefix stays the prefix's either way. `run()` waits for the
 backend's `nextDeadline()` too, so a lone ESC byte the terminal's parser holds
 is settled and a frame the pacer held back starts without another input. It
 asks for a frame when the display reported something, never for a bare wake (a

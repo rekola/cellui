@@ -184,7 +184,8 @@ Application::Application(std::unique_ptr<Backend> backend, std::vector<std::stri
 
 // On the root of the widget tree: the palette ahead of everything while it is
 // open, then the key after a prefix (capture, ahead of the focused widget),
-// and the keymap for a key the focused widget left (bubble).
+// and the keymap for a key the focused widget left (bubble), unless the
+// program offers keys to it itself (KeymapOrder::PROGRAM).
 void Application::installRootHandlers() {
   root_handlers_.clear();
   Widget & root = *root_widget_;
@@ -212,7 +213,9 @@ void Application::installRootHandlers() {
     return Handled::yes;
   },
                                           Phase::capture));
-  root_handlers_.push_back(root.on<KeyDown>([this, yes](const KeyDown & e, EventContext &) { return yes(keyBinding(e)); }));
+  root_handlers_.push_back(root.on<KeyDown>([this, yes](const KeyDown & e, EventContext &) {
+    return yes(keymap_order_ == KeymapOrder::AFTER_FOCUS && keyBinding(e));
+  }));
 }
 
 namespace {
@@ -237,7 +240,7 @@ bool Application::prefixedKey(const KeyDown & e) {
   // A started sequence takes the key after it, bound or not, so a half-typed prefix never does something else.
   if (const std::string * name = keymap_.lookupPrefixed(prefix, stroke, profile())) {
     message.emit("");
-    execute(*name);
+    runBinding(*name);
   } else {
     message.emit(KeyStroke::describe({prefix, stroke}, profile()) + " is undefined");
   }
@@ -251,7 +254,7 @@ bool Application::keyBinding(const KeyDown & e) {
     message.emit(KeyStroke::describe({stroke}, profile()) + "-");
     return true;
   }
-  if (const std::string * name = keymap_.lookup(stroke, profile())) return execute(*name);
+  if (const std::string * name = keymap_.lookup(stroke, profile())) return runBinding(*name);
   return false;
 }
 
@@ -260,9 +263,15 @@ bool Application::execute(const std::string & name) {
   return command_source_.execute && command_source_.execute(name);
 }
 
+bool Application::runBinding(const std::string & name) {
+  if (commands_.execute(name)) return true;
+  if (command_source_.run_binding) return command_source_.run_binding(name);
+  return command_source_.execute && command_source_.execute(name);
+}
+
 std::string Application::bindingFor(const std::string & command) const {
-  std::string binding = keymap_.bindingFor(command, root_plane_.keymapProfile());
-  if (binding.empty() && command_source_.binding) binding = command_source_.binding(command);
+  std::string binding = command_source_.binding ? command_source_.binding(command) : std::string();
+  if (binding.empty()) binding = keymap_.bindingFor(command, root_plane_.keymapProfile());
   return binding;
 }
 
