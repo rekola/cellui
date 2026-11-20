@@ -237,7 +237,7 @@ bool Application::prefixedKey(const KeyDown & e) {
   // A started sequence takes the key after it, bound or not, so a half-typed prefix never does something else.
   if (const std::string * name = keymap_.lookupPrefixed(prefix, stroke, profile())) {
     message.emit("");
-    commands_.execute(*name);
+    execute(*name);
   } else {
     message.emit(KeyStroke::describe({prefix, stroke}, profile()) + " is undefined");
   }
@@ -251,16 +251,35 @@ bool Application::keyBinding(const KeyDown & e) {
     message.emit(KeyStroke::describe({stroke}, profile()) + "-");
     return true;
   }
-  if (const std::string * name = keymap_.lookup(stroke, profile())) return commands_.execute(*name);
+  if (const std::string * name = keymap_.lookup(stroke, profile())) return execute(*name);
   return false;
 }
 
-std::string Application::bindingFor(const std::string & command) const { return keymap_.bindingFor(command, root_plane_.keymapProfile()); }
+bool Application::execute(const std::string & name) {
+  if (commands_.execute(name)) return true;
+  return command_source_.execute && command_source_.execute(name);
+}
+
+std::string Application::bindingFor(const std::string & command) const {
+  std::string binding = keymap_.bindingFor(command, root_plane_.keymapProfile());
+  if (binding.empty() && command_source_.binding) binding = command_source_.binding(command);
+  return binding;
+}
 
 void Application::openCommandPalette() {
   pending_prefix_.reset();
+  std::vector<std::string> names = commands_.names();
+  if (command_source_.names) {
+    for (std::string & name : command_source_.names()) {
+      if (!commands_.has(name)) names.push_back(std::move(name));
+    }
+  }
   std::vector<PaletteEntry> entries;
-  for (const std::string & name : commands_.names()) entries.push_back({name, commands_.description(name), bindingFor(name)});
+  for (const std::string & name : names) {
+    std::string description = commands_.description(name);
+    if (description.empty() && command_source_.description) description = command_source_.description(name);
+    entries.push_back({name, std::move(description), bindingFor(name)});
+  }
   palette_.open(std::move(entries));
   layoutPalette();
 }
@@ -278,7 +297,7 @@ void Application::paletteResult(CommandPalette::Result result) {
   if (result == CommandPalette::Result::CHOSEN && palette_.chosen()) name = palette_.chosen()->name;
   // Closed before the command runs, which may open something of its own.
   palette_.close();
-  if (!name.empty() && !commands_.execute(name)) message.emit("No command " + name);
+  if (!name.empty() && !execute(name)) message.emit("No command " + name);
 }
 
 Application::~Application() = default;
@@ -423,10 +442,14 @@ void Application::present() {
 
 int Application::run() {
   EventLoop & loop = backend_->eventLoop();
-  backend_->setFrameHandler([this](int64_t) { present(); });
+  backend_->setFrameHandler([this](int64_t) {
+    if (!frame_hook_ || frame_hook_()) present();
+  });
+  // A wake with nothing from the display (another thread's post) asks for no frame by itself.
   auto pump = [this] {
-    for (const BackendEvent & event : backend_->poll()) handle(event);
-    backend_->requestFrame();
+    std::vector<BackendEvent> events = backend_->poll();
+    for (const BackendEvent & event : events) handle(event);
+    if (!events.empty()) backend_->requestFrame();
   };
   // A pending Escape that no key followed is held until the key reader says otherwise.
   loop.addSource({backend_->inputFd(), backend_->wakeFd()}, pump);
@@ -444,6 +467,9 @@ int Application::run() {
     auto sooner = [&](int ms) { wait = wait < 0 ? ms : std::min(wait, ms); };
     if (auto deadline = backend_->nextDeadline()) sooner(msUntil(*deadline));
     if (auto due = key_reader_.indicatorDue(); due && !escape_echoed_) sooner(msUntil(*due));
+    if (before_turn_) {
+      if (int own = before_turn_(); own >= 0) sooner(own);
+    }
     return wait;
   });
   loop.setAfter([this, pump](bool woken) {
@@ -451,6 +477,7 @@ int Application::run() {
       if (auto deadline = backend_->nextDeadline(); deadline && Clock::now() >= *deadline) pump();
     }
     echoEscape();
+    if (after_turn_) after_turn_(woken);
   });
   backend_->requestFrame();
   exit_status_ = 0;

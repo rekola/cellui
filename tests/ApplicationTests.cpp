@@ -233,3 +233,76 @@ TEST(application_reads_theme_in_both_spellings_and_wants_its_name) {
   char * argv2[] = {prog, bad};
   CHECK(!Application::open(2, argv2, &error) && error.find("unknown --theme 'nonesuch'") != std::string::npos);
 }
+
+TEST(application_palette_lists_runs_and_names_the_programs_own_commands) {
+  Fixture f(20, 60);
+  std::vector<std::string> ran;
+  Application::CommandSource source;
+  source.names = [] { return std::vector<std::string>{"play", "quit"}; };
+  source.description = [](const std::string & name) { return name == "play" ? "Start playing" : ""; };
+  source.binding = [](const std::string & name) { return name == "play" ? "SPC" : ""; };
+  source.execute = [&](const std::string & name) {
+    ran.push_back(name);
+    return name == "play";
+  };
+  f.app->setCommandSource(std::move(source));
+  f.app->commands().define("quit", "Leave", [&] { ran.push_back("own quit"); });
+  f.app->keymap().bind("C-q", "quit");
+  press(*f.app, 'x', kModAlt);
+  std::string text = f.backend->text();
+  CHECK(text.find("play") != std::string::npos && text.find("SPC") != std::string::npos);
+  CHECK(text.find("command-palette") != std::string::npos);
+  for (char c : std::string("play")) press(*f.app, c);
+  CHECK(text.find("Start playing") == std::string::npos);  // the description shows for the chosen one
+  CHECK(f.backend->text().find("Start playing") != std::string::npos);
+  press(*f.app, Key::Enter);
+  CHECK(ran == std::vector<std::string>{"play"});
+  // commands() and keymap() have it first: one name, its own command and binding.
+  CHECK(f.app->bindingFor("quit") == "C-q");
+  CHECK(f.app->execute("quit") && ran.back() == "own quit");
+  CHECK(!f.app->execute("nonesuch"));
+  CHECK(ran.back() == "nonesuch");
+}
+
+TEST(application_loop_runs_the_programs_turn_hooks_and_draws_only_what_its_frame_hook_shows) {
+  Fixture f;
+  int befores = 0, afters = 0, hooked_frames = 0;
+  bool show = false;
+  f.app->setBeforeTurn([&] {
+    befores++;
+    return 5;  // a short wait, so turns keep coming without input
+  });
+  f.app->setAfterTurn([&](bool) {
+    if (++afters == 3) {
+      show = true;
+      f.app->requestFrame();
+    }
+    if (afters == 6) f.app->quit(7);
+  });
+  f.app->setFrameHook([&] {
+    hooked_frames++;
+    return show;
+  });
+  CHECK(f.app->run() == 7);
+  CHECK(befores >= 6 && afters == 6);
+  CHECK(hooked_frames >= 2);  // the first frame, held back, and the one asked for after
+  CHECK(f.backend->frameCount() >= 1u && f.backend->frameCount() < static_cast<size_t>(hooked_frames));
+}
+
+TEST(application_loop_asks_no_frame_for_a_wake_with_nothing_from_the_display) {
+  Fixture f;
+  int frames = 0, turns = 0;
+  f.app->setFrameHook([&] {
+    frames++;
+    return true;
+  });
+  f.app->setBeforeTurn([] { return 5; });
+  f.app->setAfterTurn([&](bool) {
+    turns++;
+    if (turns == 2) f.backend->wake();         // another thread's post
+    if (turns == 4) f.backend->pushKey('a');  // an input
+    if (turns == 7) f.app->quit();
+  });
+  f.app->run();
+  CHECK(frames == 2);  // the first one and the input's, not the wake's
+}
