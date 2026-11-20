@@ -233,3 +233,33 @@ TEST(application_reads_theme_in_both_spellings_and_wants_its_name) {
   char * argv2[] = {prog, bad};
   CHECK(!Application::open(2, argv2, &error) && error.find("unknown --theme 'nonesuch'") != std::string::npos);
 }
+
+TEST(application_palette_lists_runs_and_names_the_programs_own_commands) {
+  Fixture f(20, 60);
+  std::vector<std::string> ran;
+  Application::CommandSource source;
+  source.names = [] { return std::vector<std::string>{"play", "quit"}; };
+  source.description = [](const std::string & name) { return name == "play" ? "Start playing" : ""; };
+  source.binding = [](const std::string & name) { return name == "play" ? "SPC" : ""; };
+  source.execute = [&](const std::string & name) {
+    ran.push_back(name);
+    return name == "play";
+  };
+  f.app->setCommandSource(std::move(source));
+  f.app->commands().define("quit", "Leave", [&] { ran.push_back("own quit"); });
+  f.app->keymap().bind("C-q", "quit");
+  press(*f.app, 'x', kModAlt);
+  std::string text = f.backend->text();
+  CHECK(text.find("play") != std::string::npos && text.find("SPC") != std::string::npos);
+  CHECK(text.find("command-palette") != std::string::npos);
+  for (char c : std::string("play")) press(*f.app, c);
+  CHECK(text.find("Start playing") == std::string::npos);  // the description shows for the chosen one
+  CHECK(f.backend->text().find("Start playing") != std::string::npos);
+  press(*f.app, Key::Enter);
+  CHECK(ran == std::vector<std::string>{"play"});
+  // commands() and keymap() have it first: one name, its own command and binding.
+  CHECK(f.app->bindingFor("quit") == "C-q");
+  CHECK(f.app->execute("quit") && ran.back() == "own quit");
+  CHECK(!f.app->execute("nonesuch"));
+  CHECK(ran.back() == "nonesuch");
+}

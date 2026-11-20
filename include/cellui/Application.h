@@ -150,10 +150,23 @@ class Application {
   // Define a command with a description, which the palette shows.
   CommandRegistry & commands() { return commands_; }
   Keymap & keymap() { return keymap_; }
-  // Runs a command by name; false when there is none.
-  bool execute(const std::string & name) { return commands_.execute(name); }
-  // How `command` is bound on this display ("C-x C-c", "Ctrl+Q"); "" if it is not.
+  // Runs a command by name (commands(), then the command source's); false when there is none.
+  bool execute(const std::string & name);
+  // How `command` is bound on this display ("C-x C-c", "Ctrl+Q"; keymap(), then the command source's); "" if it is not.
   std::string bindingFor(const std::string & command) const;
+
+  // Commands the program keeps itself, for one whose commands are not all in
+  // commands(): spread over several registries, or run differently by what
+  // has the focus. The palette lists them with commands()'s, and a name that
+  // commands() and keymap() do not have is run, described and bound by the
+  // source. A part left empty adds nothing.
+  struct CommandSource {
+    std::function<std::vector<std::string>()> names;
+    std::function<std::string(const std::string &)> description;
+    std::function<std::string(const std::string &)> binding;
+    std::function<bool(const std::string &)> execute;
+  };
+  void setCommandSource(CommandSource source) { command_source_ = std::move(source); }
   // Opens the command palette over the bottom of the screen with every command;
   // the chosen one runs once the palette has closed.
   void openCommandPalette();
@@ -238,6 +251,7 @@ class Application {
   CommandPalette palette_;
   // The prefix key (C-x) of a sequence, while it waits for the key after it.
   std::optional<uint64_t> pending_prefix_;
+  CommandSource command_source_;
   std::vector<Connection> root_handlers_;
 };
 

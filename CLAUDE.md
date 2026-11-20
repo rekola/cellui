@@ -77,7 +77,12 @@ prefix's whatever has the focus (a root capture handler). `command-palette` is
 defined and bound (M-x, Ctrl+Shift+P); the open palette takes every key and
 pointer event and a bare Escape at once, and the chosen command runs once it has
 closed. `message` says "C-x-", "C-x C-z is undefined" and "ESC-" (a bare
-Escape waiting for its key) for the program's echo line. `run()` waits for the
+Escape waiting for its key) for the program's echo line. A program whose
+commands are not all in `commands()` (synth's are in several registries, run
+by what has the focus) gives an `Application::CommandSource` (names,
+description, binding, execute): the palette lists them with `commands()`'s,
+and `execute()`, `bindingFor()` and the keymap reach them for a name
+`commands()`/`keymap()` do not have. `run()` waits for the
 backend's `nextDeadline()` too, so a lone ESC byte the terminal's parser holds
 is settled and a frame the pacer held back starts without another input. synth's `InteractiveUI` does the same and more by hand (modal dialogs, the
 command palette, link profiles); it can move onto `Application` as it needs.
