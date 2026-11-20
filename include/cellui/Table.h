@@ -3,6 +3,7 @@
 #include <cellui/Charts.h>
 #include <cellui/InputEvents.h>
 #include <cellui/Signal.h>
+#include <cellui/WheelAcceleration.h>
 #include <cellui/Viewport.h>
 #include <cellui/Widget.h>
 
@@ -167,6 +168,7 @@ class Table : public Widget {
   int row_height_ = 1;
   TextFont font_ = TextFont::PROPORTIONAL;
   ScrollAxis rows_;
+  WheelAcceleration wheel_pace_;
   // The rows' own plane over the table's, under the heading: the display shifts it by the part of a row the rows
   // are scrolled into while they ease.
   std::unique_ptr<Plane> body_;
