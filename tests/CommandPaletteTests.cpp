@@ -272,3 +272,22 @@ TEST(palette_shows_a_scrollbar_only_when_the_list_is_longer_than_its_rows) {
   CHECK(!thumb_at(6));
   CHECK(thumb_at(17));
 }
+
+TEST(palette_names_are_proportional_runs_with_the_matched_letters_emphasised_where_the_display_lays_text_out) {
+  StyleProvider styles;
+  CellBuffer buffer{20, 80};
+  BufferPlane root{buffer, styles};
+  root.setProportionalText(true);
+  CommandPalette palette;
+  palette.open(entries());
+  for (const char * c = "tgv"; *c; c++) offer(palette, type(c));
+  palette.show(root, 20, 80);
+  root.refresh();
+  bool found = false;
+  for (auto & run : root.takeTextRuns()) {
+    if (run.text != "toggle-view") continue;
+    found = true;
+    CHECK(run.font == TextFont::PROPORTIONAL && !run.emphasis.empty() && run.emphasis[0].first == 0);
+  }
+  CHECK(found);
+}

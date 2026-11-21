@@ -1537,3 +1537,26 @@ TEST(widget_elevation_puts_a_widget_over_the_raised_plane_it_sits_on) {
     CHECK(b.toPlainText() == (raised ? "bbaa\n" : "aaaa\n"));
   }
 }
+
+// Emphasised parts are bold in their colour: a run's byte ranges where the display lays text out, cells where it does not.
+TEST(bufferplane_emphasised_text_carries_its_ranges_as_a_run_and_as_bold_cells) {
+  StyleProvider styles;
+  CellBuffer b(1, 20);
+  BufferPlane root(b, styles);
+  root.setFgColor(Color(200, 200, 200));
+  TextEmphasis emphasis{{{1, 3}}, Color(255, 0, 0)};
+  TextStyle style{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::RIGHT};
+  // As cells, the characters at the right of the box (it is right aligned) are the ones marked.
+  root.putEmphasisedText(0, 0, 10, "abcd", style, emphasis);
+  root.refresh();
+  CHECK(b.at(0, 6).text == "a" && !b.at(0, 6).bold());
+  CHECK(b.at(0, 7).text == "b" && b.at(0, 7).bold() && b.at(0, 7).fg && b.at(0, 7).fg->getRed() > b.at(0, 7).fg->getGreen());
+  CHECK(b.at(0, 8).bold() && b.at(0, 9).text == "d" && !b.at(0, 9).bold());
+  // Where the display lays text out it is one run with the ranges, and the plane's colour is left alone.
+  root.setProportionalText(true);
+  root.putEmphasisedText(0, 10, 10, "abcd", style, emphasis);
+  root.refresh();
+  auto runs = root.takeTextRuns();
+  CHECK(runs.size() == 1u && runs[0].text == "abcd" && runs[0].emphasis.size() == 1u && runs[0].emphasis[0] == std::make_pair(1, 3));
+  CHECK(runs[0].emphasis_fg && runs[0].fg && runs[0].fg->getRed() == Color(200, 200, 200).getRed());
+}

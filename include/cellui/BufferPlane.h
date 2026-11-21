@@ -107,6 +107,7 @@ class BufferPlane : public Plane {
   }
   void putstr(int y, int x, const std::string & s, const TextFace & face = {}) override;
   void putText(int y, int x, int cols, const std::string & text, const TextStyle & style = {}) override;
+  void putEmphasisedText(int y, int x, int cols, const std::string & text, const TextStyle & style, const TextEmphasis & emphasis) override;
   // Whether the display lays proportional text out itself (root only).
   void setProportionalText(bool can) { proportional_text_ = can; }
   // The text runs the frame's marked cells refer to (root only).
@@ -282,6 +283,7 @@ class BufferPlane : public Plane {
   bool proportional_text_ = false;
   // The runs this plane's cells are marked with, by local index; the frame's,
   // in the order composed (root only).
+  void putRun(int y, int x, int cols, const std::string & text, const TextStyle & style, const TextEmphasis * emphasis);
   std::vector<TextRun> texts_;
   mutable std::vector<TextRun> text_runs_;
   // The frame's index + 1 of this plane's run `local` + 1.

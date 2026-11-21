@@ -259,6 +259,12 @@ class Plane {
     // The box is the plane's style across all `cols` cells, as on a display that lays text out.
     putstr(y, x, alignedInCells(cutToCells(text, cols, style.overflow), cols, style.align), style.face);
   }
+  // putText() with parts of the text emphasised (TextEmphasis): bold and in the emphasis colour. A plane that cannot
+  // draw them gives the plain text.
+  virtual void putEmphasisedText(int y, int x, int cols, const std::string & text, const TextStyle & style, const TextEmphasis & emphasis) {
+    (void)emphasis;
+    putText(y, x, cols, text, style);
+  }
   // `text`, already no wider than `cols` cells, padded with spaces to exactly `cols` with the text at `align`.
   static std::string alignedInCells(const std::string & text, int cols, TextAlign align) {
     int gap = std::max(0, cols - utf8::displayWidth(text));

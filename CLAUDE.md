@@ -261,6 +261,10 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   and the window never stacks the runs of rows below into one box, as it does
   for pictures. `Table` sets its headings and cells this way (`setFont()` for the
   cells' own face), so a window shows them proportional, numbers right-aligned.
+  `Plane::putEmphasisedText()` is `putText()` with byte ranges bold in a colour of their own
+  (`TextEmphasis`: the matched letters of a search): a `TextRun` carries them as Pango attributes in the GTK
+  window (the Win32 window does not draw them yet) and cells do it where text is cells; so
+  `CommandPalette` and `ChoiceDialog` set their lists in the proportional face too.
 - The pointer shape is a plane attribute (`Plane::setMouseCursor()`:
   `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`/`GRABBING`/`NOT_ALLOWED`); `refresh()` lists the requesting
   planes' rectangles in drawing order (`FrameInfo::mouse_cursors`) and the

@@ -4,6 +4,7 @@
 #include <cellui/ChoiceDialog.h>
 #include <cellui/InputDispatcher.h>
 
+#include <algorithm>
 #include <chrono>
 #include <thread>
 
@@ -167,4 +168,19 @@ TEST(choicedialog_smooth_list_scrolls_under_a_cursor_band_that_stays_at_the_edge
   CHECK(!dialog.animating());
   CHECK(edge == 2.0);  // the last of the three rows
   CHECK(dialog.selected() == 6);
+}
+
+TEST(choicedialog_labels_are_proportional_text_where_the_display_lays_text_out) {
+  StyleProvider styles;
+  CellBuffer buffer(10, 40);
+  BufferPlane root(buffer, styles);
+  root.setProportionalText(true);
+  ChoiceDialog dialog;
+  dialog.open("Pick", {"First", "Second"}, 1);
+  dialog.show(root, 10, 40);
+  root.refresh();
+  std::vector<std::string> texts;
+  for (auto & run : root.takeTextRuns()) texts.push_back(run.text);
+  CHECK(std::find(texts.begin(), texts.end(), "First") != texts.end() && std::find(texts.begin(), texts.end(), "Second") != texts.end());
+  CHECK(buffer.toPlainText().find("●") != std::string::npos);  // the marker stays in a cell
 }
