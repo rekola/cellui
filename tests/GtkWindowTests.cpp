@@ -876,6 +876,26 @@ TEST(gtk_window_draws_text_runs_in_its_own_face) {
   CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
 }
 
+// Emphasised parts of a text run (a search's matched letters) are bold in their own colour.
+TEST(gtk_window_draws_the_emphasised_parts_of_a_text_run) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setProportionalText(true);
+  root.setBgColor(40, 40, 60);
+  root.setFgColor(230, 230, 230);
+  root.putEmphasisedText(1, 2, 12, "toggle-view", TextStyle{ TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS }, TextEmphasis{ { { 0, 1 }, { 7, 8 } }, Color(255, 200, 0) });
+  root.refresh();
+  FrameInfo info;
+  info.text_runs = root.takeTextRuns();
+  CHECK(info.text_runs.size() == 1 && info.text_runs[0].emphasis.size() == 2);
+  size_t before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+}
+
 // A glyph is shaped once; another colour of it, and its glow in that colour, are made from that.
 TEST(gtk_window_makes_another_colour_of_a_glyph_without_shaping_it_again) {
   gtk::Window * w = theWindow();

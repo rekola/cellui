@@ -133,16 +133,12 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
   for (int i = 0; i < drawn; i++) {
     int index = list_.firstShown() + i;
     set_on(*list_plane_, fg, bg);
-    string text;
-    if (index < count) {
-      // A marker for the one in use, then the label, padded so the cursor
-      // covers the whole row.
-      text = string(index == current_ ? "●" : " ") + " " + labels_[static_cast<size_t>(index)];
-      // A label that doesn't fit ends in an ellipsis, so it is clear it goes on.
-      int room = inner - 2;
-      if (utf8::displayWidth(text) > room) text = utf8::truncateToWidth(text, room - 1) + "\u2026";
-    }
-    list_plane_->putstr(i, 0, " " + utf8::padToWidth(text, inner));
+    list_plane_->putstr(i, 0, string(static_cast<size_t>(width_ - 1), ' '));
+    if (index >= count) continue;
+    // A marker for the one in use, then the label in the display's proportional face; one that doesn't fit ends in
+    // an ellipsis, so it is clear it goes on.
+    if (index == current_) list_plane_->putstr(i, 1, "●");
+    list_plane_->putText(i, 3, inner - 4, labels_[static_cast<size_t>(index)], TextStyle{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::LEFT});
   }
   list_plane_->setBand(Band{ cursor_y_, 1.0, 0.0, static_cast<double>(width_ - 1), cursor_bg, 0.45f });
   list_plane_->moveToTop();

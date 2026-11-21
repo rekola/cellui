@@ -1137,9 +1137,22 @@ void Window::Impl::appendTextRuns(GtkSnapshot * snap, const CellBuffer & cells) 
         pango_layout_set_width(layout, static_cast<int>(w) * PANGO_SCALE);
         pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
       }
-      if (run.underline) {
+      if (run.underline || !run.emphasis.empty()) {
         PangoAttrList * attrs = pango_attr_list_new();
-        pango_attr_list_insert(attrs, pango_attr_underline_new(PANGO_UNDERLINE_SINGLE));
+        if (run.underline) pango_attr_list_insert(attrs, pango_attr_underline_new(PANGO_UNDERLINE_SINGLE));
+        // The emphasised parts, by byte, bold and in their colour.
+        auto mark = [&](PangoAttribute * attribute, int from, int to) {
+          attribute->start_index = static_cast<guint>(from);
+          attribute->end_index = static_cast<guint>(to);
+          pango_attr_list_insert(attrs, attribute);
+        };
+        for (auto & [from, to] : run.emphasis) {
+          mark(pango_attr_weight_new(PANGO_WEIGHT_BOLD), from, to);
+          if (run.emphasis_fg) {
+            auto e = run.emphasis_fg->toSrgb8();
+            mark(pango_attr_foreground_new(static_cast<guint16>(e[0] * 257), static_cast<guint16>(e[1] * 257), static_cast<guint16>(e[2] * 257)), from, to);
+          }
+        }
         pango_layout_set_attributes(layout, attrs);
         pango_attr_list_unref(attrs);
       }

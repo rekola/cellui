@@ -142,6 +142,12 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
     set(quiet, bg);
     plane_->putstr(0, 1, "No matching command");
   }
+  // The bindings share one column, as wide as the longest, so the names end where it starts.
+  int binding_col = 0;
+  for (auto & entry : entries_) binding_col = max(binding_col, utf8::displayWidth(entry.binding));
+  int name_room = inner - 1 - (binding_col > 0 ? binding_col + 2 : 0);
+  const TextStyle name_style{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::LEFT};
+  const TextStyle binding_style{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::RIGHT};
   for (int i = 0; i < visibleRows() && first + i < count; i++) {
     int index = first + i;
     bool selected = index == list_.selected();
@@ -152,18 +158,17 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
     auto binding_fg = selected ? cursor_fg : quiet;
     set(name_fg, row_bg);
     plane_->putstr(i, 0, string(static_cast<size_t>(width_ - 1), ' '));
-    int binding_width = utf8::displayWidth(entry.binding);
-    int name_room = inner - 1 - (binding_width > 0 ? binding_width + 2 : 0);
-    string name = utf8::truncateToWidth(entry.name, name_room);
-    plane_->putstr(i, 1, name);
-    // The characters the query matched.
-    set(selected ? cursor_fg : strong, row_bg);
+    // The characters the query matched are bold in a colour of their own, as byte ranges so that the text can be
+    // set in any face.
+    TextEmphasis emphasis{{}, selected ? cursor_fg : strong};
     for (int p : row.positions) {
-      if (p < utf8::displayWidth(name)) plane_->putstr(i, 1 + p, string(1, entry.name[static_cast<size_t>(p)]), kBoldFace);
+      if (!emphasis.ranges.empty() && emphasis.ranges.back().second == p) emphasis.ranges.back().second = p + 1;
+      else emphasis.ranges.emplace_back(p, p + 1);
     }
-    if (binding_width > 0) {
+    plane_->putEmphasisedText(i, 1, name_room, entry.name, name_style, emphasis);
+    if (binding_col > 0 && !entry.binding.empty()) {
       set(binding_fg, row_bg);
-      plane_->putstr(i, width_ - 1 - binding_width - 1, entry.binding);
+      plane_->putText(i, width_ - 2 - binding_col, binding_col, entry.binding, binding_style);
     }
   }
   // The scrollbar rides the right margin, beside the list.
@@ -173,8 +178,9 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   // Quiet and italic on the display's background, so it is not taken for a
   // command.
   plain(quiet);
-  if (!note_.empty()) plane_->putstr(rows_ - 2, 1, note_, kItalicFace);
-  else if (auto * entry = chosen()) plane_->putstr(rows_ - 2, 1, utf8::truncateToWidth(entry->description, inner), kItalicFace);
+  const TextStyle description_style{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kItalicFace, TextAlign::LEFT};
+  if (!note_.empty()) plane_->putText(rows_ - 2, 1, inner, note_, description_style);
+  else if (auto * entry = chosen()) plane_->putText(rows_ - 2, 1, inner, entry->description, description_style);
 
   // The query on the last row, with a block where the next character goes
   // and the keys that matter at the right when there is room.
