@@ -25,12 +25,35 @@ endif()
 # application pulls cellui in (cellui's own CI runs them).
 option(CELLUI_BUILD_TESTS "Build cellui's tests, gallery and tools" ${CELLUI_STANDALONE})
 
-# libunistring backs cellui/Utf8.h's grapheme-cluster-aware width and
-# truncation. No pkg-config file ships with libunistring-dev on Ubuntu.
-find_library(UNISTRING_LIBRARY unistring)
-find_path(UNISTRING_INCLUDE_DIR unigbrk.h)
-if(NOT (UNISTRING_LIBRARY AND UNISTRING_INCLUDE_DIR))
-  message(FATAL_ERROR "libunistring not found (install libunistring-dev)")
+# cellui/Utf8.h's grapheme-cluster-aware width and truncation come from
+# libunistring or from utf8proc (CELLUI_UNICODE=unistring|utf8proc; auto takes
+# libunistring where it is found, else utf8proc). Windows CI uses utf8proc,
+# which MSYS2 packages as a small static library. No pkg-config file ships
+# with libunistring-dev on Ubuntu.
+set(CELLUI_UNICODE "auto" CACHE STRING "Unicode backend: auto, unistring or utf8proc")
+set_property(CACHE CELLUI_UNICODE PROPERTY STRINGS auto unistring utf8proc)
+if(NOT CELLUI_UNICODE MATCHES "^(auto|unistring|utf8proc)$")
+  message(FATAL_ERROR "CELLUI_UNICODE must be auto, unistring or utf8proc")
+endif()
+set(CELLUI_USE_UTF8PROC OFF)
+if(NOT CELLUI_UNICODE STREQUAL "utf8proc")
+  find_library(UNISTRING_LIBRARY unistring)
+  find_path(UNISTRING_INCLUDE_DIR unigbrk.h)
+endif()
+if(CELLUI_UNICODE STREQUAL "utf8proc" OR (CELLUI_UNICODE STREQUAL "auto" AND NOT (UNISTRING_LIBRARY AND UNISTRING_INCLUDE_DIR)))
+  find_library(UTF8PROC_LIBRARY utf8proc)
+  find_path(UTF8PROC_INCLUDE_DIR utf8proc.h)
+  if(NOT (UTF8PROC_LIBRARY AND UTF8PROC_INCLUDE_DIR))
+    message(FATAL_ERROR "utf8proc not found (install libutf8proc-dev, or mingw-w64-ucrt-x86_64-utf8proc)")
+  endif()
+  set(CELLUI_USE_UTF8PROC ON)
+elseif(NOT (UNISTRING_LIBRARY AND UNISTRING_INCLUDE_DIR))
+  message(FATAL_ERROR "libunistring not found (install libunistring-dev, or use -DCELLUI_UNICODE=utf8proc)")
+endif()
+if(CELLUI_USE_UTF8PROC)
+  message(STATUS "cellui Unicode backend: utf8proc")
+else()
+  message(STATUS "cellui Unicode backend: libunistring")
 endif()
 
 # canvas draws the scopes' pixel versions. Its warnings are its own, so it is
@@ -106,9 +129,10 @@ add_library(cellui STATIC
   src/ImageScale.cpp
   src/term/KittyImages.cpp
   src/term/InputParser.cpp
-  src/term/TermEvent.cpp)
+  src/term/TermEvent.cpp
+  src/TestBackend.cpp)
 if(NOT WIN32)
-  target_sources(cellui PRIVATE src/PollEventLoop.cpp src/term/OutputQueue.cpp src/term/TerminalSession.cpp src/TestBackend.cpp)
+  target_sources(cellui PRIVATE src/PollEventLoop.cpp src/term/OutputQueue.cpp src/term/TerminalSession.cpp)
   find_package(Threads REQUIRED)
   target_link_libraries(cellui PUBLIC Threads::Threads)
 endif()
@@ -216,8 +240,19 @@ target_include_directories(cellui SYSTEM PUBLIC ${canvas_SOURCE_DIR}/include)
 target_include_directories(cellui SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 target_link_libraries(cellui PUBLIC canvas)
 target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_include_directories(cellui PRIVATE ${UNISTRING_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(cellui PUBLIC ${UNISTRING_LIBRARY})
+target_include_directories(cellui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+if(CELLUI_USE_UTF8PROC)
+  target_include_directories(cellui PRIVATE ${UTF8PROC_INCLUDE_DIR})
+  target_compile_definitions(cellui PRIVATE CELLUI_UTF8PROC=1)
+  target_link_libraries(cellui PUBLIC ${UTF8PROC_LIBRARY})
+  # utf8proc's header declares dllimport symbols unless told it is static.
+  if(WIN32 AND UTF8PROC_LIBRARY MATCHES "\\.a$" AND NOT UTF8PROC_LIBRARY MATCHES "\\.dll\\.a$")
+    target_compile_definitions(cellui PRIVATE UTF8PROC_STATIC=1)
+  endif()
+else()
+  target_include_directories(cellui PRIVATE ${UNISTRING_INCLUDE_DIR})
+  target_link_libraries(cellui PUBLIC ${UNISTRING_LIBRARY})
+endif()
 
 if(CELLUI_BUILD_TESTS)
 # Prints the gallery page (every style and widget the library has).
@@ -293,11 +328,13 @@ add_executable(cellui_tests
   tests/TableTests.cpp
   tests/LayoutTests.cpp
   tests/StatusLineTests.cpp
+  tests/TestBackendTests.cpp
+  tests/ApplicationTests.cpp
   tests/MeterTests.cpp
   tests/NumberParseTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
-  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/ApplicationTests.cpp tests/HeatmapImageTests.cpp tests/LineImageTests.cpp tests/HdrSplitTests.cpp tests/HdrBloomTests.cpp tests/LampTests.cpp
+  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/HeatmapImageTests.cpp tests/LineImageTests.cpp tests/HdrSplitTests.cpp tests/HdrBloomTests.cpp tests/LampTests.cpp
     tests/SparklineTests.cpp
   tests/StageStatsTests.cpp tests/DialTests.cpp)
 endif()

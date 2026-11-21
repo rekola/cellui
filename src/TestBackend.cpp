@@ -3,54 +3,19 @@
 #include <cellui/Utf8.h>
 
 #include <cstdio>
-#include <fcntl.h>
-#include <unistd.h>
 
 namespace cellui::test {
 
-namespace {
-
-void makePipe(int fds[2]) {
-  if (::pipe(fds) != 0) {
-    fds[0] = fds[1] = -1;
-    return;
-  }
-  for (int i = 0; i < 2; i++) {
-    int flags = ::fcntl(fds[i], F_GETFL);
-    ::fcntl(fds[i], F_SETFL, flags | O_NONBLOCK);
-    ::fcntl(fds[i], F_SETFD, FD_CLOEXEC);
-  }
-}
-
-void drain(int fd) {
-  char buf[256];
-  while (fd >= 0 && ::read(fd, buf, sizeof buf) > 0) { }
-}
-
-void closeFd(int & fd) {
-  if (fd >= 0) ::close(fd);
-  fd = -1;
-}
-
-}  // namespace
-
 TestBackend::TestBackend(int rows, int cols, DisplayInfo display)
   : display_(std::move(display)), rows_(rows), cols_(cols), frame_(rows, cols) {
-  makePipe(pipe_);
-  makePipe(wake_);
   frames_hook_ = loop_.onFrame([this] { gate_.run(FrameGate::Clock::now()); });
 }
 
-TestBackend::~TestBackend() {
-  for (int * fds : { pipe_, wake_ }) {
-    closeFd(fds[0]);
-    closeFd(fds[1]);
-  }
-}
+TestBackend::~TestBackend() = default;
 
 std::vector<BackendEvent> TestBackend::poll() {
-  drain(pipe_[0]);
-  drain(wake_[0]);
+  input_.drain();
+  wake_.drain();
   std::vector<BackendEvent> out(queue_.begin(), queue_.end());
   queue_.clear();
   return out;
@@ -58,9 +23,7 @@ std::vector<BackendEvent> TestBackend::poll() {
 
 void TestBackend::push(const BackendEvent & event) {
   queue_.push_back(event);
-  char c = 'e';
-  ssize_t n = ::write(pipe_[1], &c, 1);
-  (void)n;
+  input_.signal();
 }
 
 void TestBackend::pushText(const std::string & text) {
@@ -101,9 +64,7 @@ void TestBackend::pushEnd() {
 }
 
 void TestBackend::wake() {
-  char c = 'w';
-  ssize_t n = ::write(wake_[1], &c, 1);
-  (void)n;
+  wake_.signal();
 }
 
 void TestBackend::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,

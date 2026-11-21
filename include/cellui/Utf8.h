@@ -5,23 +5,28 @@
 #include <vector>
 
 // Grapheme-cluster-aware UTF-8 display-width measurement and truncation,
-// backed by libunistring (unigbrk.h/uniwidth.h - the header itself is only
-// included in Utf8.cpp, not leaked here). A plain byte-offset
-// std::string::erase() is wrong for display text: it can land
-// mid-codepoint (corrupting a multi-byte character) or, even cut at a
+// backed by libunistring (unigbrk.h/uniwidth.h) or by utf8proc, whichever
+// CELLUI_UNICODE chose at configure time; neither header is included here. A
+// plain byte-offset std::string::erase() is wrong for display text: it can
+// land mid-codepoint (corrupting a multi-byte character) or, even cut at a
 // codepoint boundary, split a grapheme cluster (e.g. a base character plus
 // a combining accent) that has to stay together.
 //
-// Known gap: libunistring's grapheme-break function is a plain pairwise
-// uc_is_grapheme_break(a, b) with no state beyond the two adjacent
-// codepoints, so it can't implement UAX #29 rules that need to look further
-// than one pair - regional-indicator (flag emoji) pairing and the
+// Known gap of the libunistring backend: its grapheme-break function is a
+// plain pairwise uc_is_grapheme_break(a, b) with no state beyond the two
+// adjacent codepoints, so it can't implement UAX #29 rules that need to look
+// further than one pair - regional-indicator (flag emoji) pairing and the
 // emoji-ZWJ-sequence lookback rule in particular. Truncation still never
 // splits any single codepoint, but a flag emoji or a multi-emoji ZWJ
 // sequence can end up truncated between its own codepoints rather than
 // treated as one unit. Ordinary text (accented characters, combining marks,
-// non-BMP characters such as 𝄪/𝄫/♮) is unaffected.
+// non-BMP characters such as 𝄪/𝄫/♮) is unaffected. The utf8proc backend
+// keeps state and has no such gap (followsUax29Clusters()).
 namespace cellui::utf8 {
+
+// Whether this build's clusters follow UAX #29 in full (flags and emoji ZWJ
+// sequences are one cluster): true with utf8proc, false with libunistring.
+bool followsUax29Clusters();
 
 // Terminal-column display width of the whole (well-formed) UTF-8 string.
 int displayWidth(const std::string & text);

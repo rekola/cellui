@@ -124,6 +124,21 @@ TEST(utf8_truncate_never_splits_the_emoji_plus_zwj_cluster_or_the_trailing_codep
   }
 }
 
+// Where the backend follows UAX #29 in full (utf8proc), a flag and an emoji
+// ZWJ sequence are each one cluster, so a cut never falls inside them and a
+// cluster list has them whole.
+TEST(utf8_stateful_backend_keeps_flags_and_zwj_sequences_whole) {
+  if (!utf8::followsUax29Clusters()) return;
+  const std::string flag = "\U0001F1EB\U0001F1EE";
+  const std::string family = "\U0001F600\u200D\U0001F600";
+  auto c = utf8::clusters("a" + flag + family + "b");
+  CHECK(c.size() == 4);
+  if (c.size() == 4) {
+    CHECK(c[1] == flag);
+    CHECK(c[2] == family);
+  }
+}
+
 TEST(utf8_pad_is_noop_when_already_at_or_above_target_width) {
   CHECK(utf8::padToWidth("hello", 5) == "hello");
   CHECK(utf8::padToWidth("hello", 3) == "hello");

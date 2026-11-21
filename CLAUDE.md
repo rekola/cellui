@@ -6,7 +6,9 @@ and tests alone (`cmake -B build && ctest --test-dir build`). It knows nothing
 of the application: a ctest (`cellui_includes_nothing_from_src`) fails on any
 include that leaves the repository. Headers are `cellui/X.h`, in `namespace
 cellui`. Tests in `tests/` use a copy of the tiny test framework. cellui owns
-the libunistring and canvas dependencies; fast_float is vendored in
+the Unicode (libunistring or utf8proc, `-DCELLUI_UNICODE=`; Windows and Linux
+ARM64 CI use utf8proc, which also keeps flags and emoji ZWJ sequences whole)
+and canvas dependencies; fast_float is vendored in
 `third_party/` (never reformat it).
 
 Tests, the gallery and the tools build only when cellui is the top-level
@@ -307,7 +309,9 @@ smooth scroll, proportional text), `BackendEvent`s (`cellui/BackendEvent.h`:
 input, resize, paste, close, display changed, focus), a frame to show, and
 `setNativeSelection()` (the user selects text with the mouse instead of the
 app getting clicks). `TerminalSession`, the GTK and Win32 `Window`s and
-`cellui::test::TestBackend` implement it; `InteractiveUI` and its tests use
+`cellui::test::TestBackend` implement it (`TestBackend` builds everywhere: its
+signals are `Wakeup`s and its loop `PlatformEventLoop`, so `inputFd()`/`wakeFd()`
+are descriptors on POSIX and `inputHandles()` events on Windows); `InteractiveUI` and its tests use
 only `Backend`, `BackendEvent` and `DisplayInfo`. The loop is the backend's
 too: `Backend::eventLoop()` gives an `EventLoop` (`run()`, `quit()`,
 `iterate(block)`, descriptor sources, a before hook returning how long the
