@@ -23,6 +23,7 @@ constexpr int kChromeRows = 2;
 void CommandPalette::open(vector<PaletteEntry> entries) {
   entries_ = std::move(entries);
   query_.clear();
+  pressing_ = false;
   open_ = true;
   refilter();
 }
@@ -151,16 +152,18 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   for (int i = 0; i < visibleRows() && first + i < count; i++) {
     int index = first + i;
     bool selected = index == list_.selected();
+    bool pressed = index == list_.pressed();
     auto & row = shown_[static_cast<size_t>(index)];
     auto & entry = entries_[row.entry];
-    auto name_fg = selected ? cursor_fg : fg;
-    auto row_bg = selected ? cursor_bg : bg;
-    auto binding_fg = selected ? cursor_fg : quiet;
+    // The pressed row takes the look of a pressed row, over the selection's.
+    auto name_fg = pressed ? strong : selected ? cursor_fg : fg;
+    auto row_bg = pressed ? styles.row_pressed_bg_color : selected ? cursor_bg : bg;
+    auto binding_fg = pressed ? strong : selected ? cursor_fg : quiet;
     set(name_fg, row_bg);
     plane_->putstr(i, 0, string(static_cast<size_t>(width_ - 1), ' '));
     // The characters the query matched are bold in a colour of their own, as byte ranges so that the text can be
     // set in any face.
-    TextEmphasis emphasis{{}, selected ? cursor_fg : strong};
+    TextEmphasis emphasis{{}, pressed || !selected ? strong : cursor_fg};
     for (int p : row.positions) {
       if (!emphasis.ranges.empty() && emphasis.ranges.back().second == p) emphasis.ranges.back().second = p + 1;
       else emphasis.ranges.emplace_back(p, p + 1);
@@ -206,17 +209,43 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   plane_->moveToTop();
 }
 
+int CommandPalette::indexAt(int y, int x) {
+  int row = y - y_, col = x - x_;
+  int index = list_.firstVisible(visibleRows()) + row;
+  bool on_list = row >= 0 && row < visibleRows() && col >= 0 && col < width_;
+  return on_list && index < static_cast<int>(shown_.size()) ? index : -1;
+}
+
+bool CommandPalette::inPanel(int y, int x) const { return y >= y_ && y < y_ + rows_ && x - x_ >= 0 && x - x_ < width_; }
+
+CommandPalette::Result CommandPalette::press(int y, int x) {
+  if (!open_) return Result::CANCELLED;
+  pressing_ = true;
+  int index = indexAt(y, x);
+  started_on_command_ = index >= 0;
+  started_outside_ = !inPanel(y, x);
+  list_.setPressed(index);
+  return Result::NONE;
+}
+
+CommandPalette::Result CommandPalette::drag(int y, int x) {
+  if (!open_ || !pressing_ || !started_on_command_) return Result::NONE;
+  list_.setPressed(indexAt(y, x));
+  return Result::NONE;
+}
+
 CommandPalette::Result CommandPalette::click(int y, int x) {
   if (!open_) return Result::CANCELLED;
-  int row = y - y_, col = x - x_;
-  int count = static_cast<int>(shown_.size());
-  int index = list_.firstVisible(visibleRows()) + row;
-  if (row >= 0 && row < visibleRows() && col >= 0 && col < width_ && index < count) {
+  int index = indexAt(y, x);
+  bool on_command = pressing_ ? started_on_command_ : index >= 0;
+  bool outside = pressing_ ? started_outside_ : !inPanel(y, x);
+  pressing_ = false;
+  list_.setPressed(-1);
+  if (on_command && index >= 0) {
     list_.select(index);
     return Result::CHOSEN;
   }
-  bool inside_box = y >= y_ && y < y_ + rows_ && col >= 0 && col < width_;
-  return inside_box ? Result::NONE : Result::CANCELLED;
+  return outside && !inPanel(y, x) ? Result::CANCELLED : Result::NONE;
 }
 
 CommandPalette::Result CommandPalette::wheel(bool up) {

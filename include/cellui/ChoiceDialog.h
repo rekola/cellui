@@ -49,8 +49,13 @@ class ChoiceDialog {
   void show(Plane & parent, int screen_rows, int screen_cols);
 
   // Feed one event; the dialog swallows everything, so the caller only needs
-  // the result. A click is resolved on release.
+  // the result. An entry is chosen by the release of the left button over it, after a press on an entry (shown
+  // pressed, following the pointer while the button is held); a press outside the box and a release outside it
+  // cancels. A release with no press seen before it is a whole click. The wheel scrolls the list and leaves the
+  // selection where it is, even out of view.
   Result key(const KeyDown & e);
+  Result press(int row, int col);
+  Result drag(int row, int col);
   Result click(int row, int col);
   Result wheel(bool up);
 
@@ -58,6 +63,9 @@ class ChoiceDialog {
 
  private:
   int visibleRows() const { return rows_ - 5; }  // see kChromeRows
+  // The entry shown under a screen cell, -1 for none; whether a cell is in the box.
+  int indexAt(int y, int x) const;
+  bool inBox(int y, int x) const;
 
   // The box with its title and hint; the entries are a plane of their own
   // over it, so they can scroll by parts of a row under a cursor band.
@@ -72,6 +80,8 @@ class ChoiceDialog {
   std::vector<std::string> labels_;
   int current_ = -1;
   ChoiceList list_;
+  // The left button is down: on an entry, or outside the box.
+  bool pressing_ = false, started_on_entry_ = false, started_outside_ = false;
   // Where the box sits and how big it is, as of the last show().
   int y_ = 0, x_ = 0, rows_ = 0, width_ = 0;
 };

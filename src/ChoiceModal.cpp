@@ -21,6 +21,12 @@ void ChoiceModal::handle(ChoiceDialog::Result result) {
 }
 
 void ChoiceModal::keyDown(const KeyDown & e) { handle(dialog_.key(e)); }
+void ChoiceModal::mouseDown(const MouseDown & e) {
+  if (e.button == 1) handle(dialog_.press(e.row, e.col));
+}
+void ChoiceModal::mouseMove(const MouseMove & e) {
+  if (e.buttons & 1u) handle(dialog_.drag(e.row, e.col));
+}
 void ChoiceModal::mouseUp(const MouseUp & e) {
   if (e.button == 1) handle(dialog_.click(e.row, e.col));
 }

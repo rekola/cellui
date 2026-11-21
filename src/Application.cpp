@@ -199,8 +199,18 @@ void Application::installRootHandlers() {
   },
                                             Phase::capture));
   root_handlers_.push_back(root.on<KeyUp>([this, yes](const KeyUp &, EventContext &) { return yes(palette_.isOpen()); }, Phase::capture));
-  root_handlers_.push_back(root.on<MouseDown>([this, yes](const MouseDown &, EventContext &) { return yes(palette_.isOpen()); }, Phase::capture));
-  root_handlers_.push_back(root.on<MouseMove>([this, yes](const MouseMove &, EventContext &) { return yes(palette_.isOpen()); }, Phase::capture));
+  root_handlers_.push_back(root.on<MouseDown>([this](const MouseDown & e, EventContext &) {
+    if (!palette_.isOpen()) return Handled::no;
+    if (e.button == 1) paletteResult(palette_.press(e.row, e.col));
+    return Handled::yes;
+  },
+                                              Phase::capture));
+  root_handlers_.push_back(root.on<MouseMove>([this](const MouseMove & e, EventContext &) {
+    if (!palette_.isOpen()) return Handled::no;
+    if (e.buttons & 1u) paletteResult(palette_.drag(e.row, e.col));
+    return Handled::yes;
+  },
+                                              Phase::capture));
   root_handlers_.push_back(root.on<MouseUp>([this](const MouseUp & e, EventContext &) {
     if (!palette_.isOpen()) return Handled::no;
     if (e.button == 1) paletteResult(palette_.click(e.row, e.col));
