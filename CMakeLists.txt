@@ -293,12 +293,11 @@ add_executable(cellui_tests
   tests/TableTests.cpp
   tests/LayoutTests.cpp
   tests/StatusLineTests.cpp
-  tests/ApplicationTests.cpp
   tests/MeterTests.cpp
   tests/NumberParseTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
-  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/LineImageTests.cpp tests/HdrSplitTests.cpp tests/HdrBloomTests.cpp tests/LampTests.cpp
+  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/ApplicationTests.cpp tests/HeatmapImageTests.cpp tests/LineImageTests.cpp tests/HdrSplitTests.cpp tests/HdrBloomTests.cpp tests/LampTests.cpp
     tests/SparklineTests.cpp
   tests/StageStatsTests.cpp tests/DialTests.cpp)
 endif()
