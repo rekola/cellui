@@ -249,3 +249,26 @@ TEST(palette_list_is_a_raised_panel_but_the_description_and_query_use_the_displa
   CHECK(!f.buffer.at(16, 3).italic);
   CHECK(f.buffer.at(16, 3).fg && !sameColor(*f.buffer.at(16, 3).fg, *description.fg));
 }
+
+TEST(palette_shows_a_scrollbar_only_when_the_list_is_longer_than_its_rows) {
+  Fixture few;
+  CHECK(few.buffer.toPlainText().find("┃") == std::string::npos);
+
+  StyleProvider styles;
+  CellBuffer buffer{20, 80};
+  BufferPlane root{buffer, styles};
+  CommandPalette palette;
+  std::vector<PaletteEntry> many;
+  for (int i = 0; i < 30; i++) many.push_back({"command-" + std::to_string(i), "", ""});
+  palette.open(many);
+  palette.show(root, 20, 80);
+  root.refresh();
+  // The thumb is at the top of the track in the last column, and moves down with the selection.
+  auto thumb_at = [&](int row) { return buffer.at(row, 79).text == "┃"; };
+  CHECK(thumb_at(6));
+  for (int i = 0; i < 29; i++) offer(palette, key(Key::Down));
+  palette.show(root, 20, 80);
+  root.refresh();
+  CHECK(!thumb_at(6));
+  CHECK(thumb_at(17));
+}

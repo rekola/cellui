@@ -80,3 +80,17 @@ TEST(choice_list_wheel_scroll_keeps_the_selection_in_view) {
   list.scroll(-100, 4);
   CHECK(list.firstVisible(4) == 0);
 }
+
+TEST(choice_list_thumb_is_unset_while_everything_fits_and_follows_the_window_otherwise) {
+  ChoiceList list;
+  list.reset(4, 0);
+  CHECK(!list.thumb(4, 4));
+  list.reset(20, 0);
+  list.firstVisible(5);
+  auto top = list.thumb(5, 5);
+  CHECK(top && top->top == 0 && top->size == 1);
+  list.end();
+  list.firstVisible(5);
+  auto bottom = list.thumb(5, 5);
+  CHECK(bottom && bottom->top == 4);
+}
