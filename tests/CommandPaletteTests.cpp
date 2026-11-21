@@ -344,3 +344,48 @@ TEST(palette_cancels_only_when_the_press_and_the_release_are_outside) {
   g.palette.press(14, 10);
   CHECK(g.palette.click(2, 10) == CommandPalette::Result::NONE);  // pressed on a command, let go outside
 }
+
+TEST(palette_list_eases_to_a_new_scroll_position_where_the_display_scrolls_smoothly) {
+  StyleProvider styles;
+  CellBuffer buffer{20, 80};
+  BufferPlane root{buffer, styles};
+  root.setSmoothScroll(true);
+  CommandPalette palette;
+  palette.open(manyEntries());
+  auto show = [&]() {
+    palette.show(root, 20, 80);
+    root.refresh();
+    return root.takeBackdropLayers();
+  };
+  show();
+  CHECK(!palette.animating());
+  // Down past the last of the twelve rows: the list scrolls, and takes frames to get there.
+  for (int i = 0; i < 14; i++) palette.key(InputDispatcher::keyDownFor(key(Key::Down)));
+  bool shifted = false;
+  CHECK(!palette.animating());  // nothing has been drawn for the new position yet
+  for (int i = 0; i < 100; i++) {
+    auto layers = show();
+    for (auto & layer : layers)
+      if (layer.scroll && layer.scroll->shift_rows > 0 && layer.scroll->shift_rows < 1) shifted = true;
+    if (!palette.animating()) break;
+    palette.tick(0.016);
+  }
+  CHECK(shifted);
+  CHECK(!palette.animating());
+  // The fifteenth of the names as they are listed (by name).
+  auto names = palette.shownNames();
+  CHECK(palette.chosen() && palette.chosen()->name == names[14]);
+  CHECK(buffer.toPlainText().find(names[14]) != std::string::npos);
+}
+
+TEST(palette_list_does_not_ease_where_the_display_does_not_scroll_smoothly) {
+  StyleProvider styles;
+  CellBuffer buffer{20, 80};
+  BufferPlane root{buffer, styles};
+  CommandPalette palette;
+  palette.open(manyEntries());
+  palette.show(root, 20, 80);
+  for (int i = 0; i < 14; i++) palette.key(InputDispatcher::keyDownFor(key(Key::Down)));
+  palette.show(root, 20, 80);
+  CHECK(!palette.animating());
+}

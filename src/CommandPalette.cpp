@@ -30,6 +30,7 @@ void CommandPalette::open(vector<PaletteEntry> entries) {
 
 void CommandPalette::close() {
   plane_.reset();
+  list_plane_.reset();
   entries_.clear();
   shown_.clear();
   query_.clear();
@@ -138,19 +139,40 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   for (int row = list_rows; row < rows_; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
   int inner = width_ - 2;
 
-  int first = list_.firstVisible(visibleRows());
+  // The list follows its scroll position with an animation where the display scrolls smoothly.
+  list_.setSmooth(parent.smoothScroll());
+  list_.firstVisible(visibleRows());
   if (count == 0) {
     set(quiet, bg);
     plane_->putstr(0, 1, "No matching command");
   }
+  y_ = screen_rows - rows_;
+  x_ = 0;
+  if (!list_plane_) {
+    list_plane_ = parent.createChild();
+    list_plane_->setMouseCursor(MouseCursor::POINTER);
+    // Over the panel, at its height.
+    list_plane_->setElevation(plane_->elevation());
+    list_plane_->setCastsShadow(false);
+  }
+  list_plane_->move(y_, x_);
+  list_plane_->resize(visibleRows(), width_ - 1);
+  list_plane_->setScrollOffset(list_.fraction(), 0);
+  list_plane_->erase();
+  Plane & body = *list_plane_;
+  auto set_body = [&](const Color & foreground, const Color & background) {
+    body.setFgColor(foreground);
+    body.setBgColor(background);
+  };
   // The bindings share one column, as wide as the longest, so the names end where it starts.
   int binding_col = 0;
   for (auto & entry : entries_) binding_col = max(binding_col, utf8::displayWidth(entry.binding));
   int name_room = inner - 1 - (binding_col > 0 ? binding_col + 2 : 0);
   const TextStyle name_style{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::LEFT};
   const TextStyle binding_style{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::RIGHT};
-  for (int i = 0; i < visibleRows() && first + i < count; i++) {
-    int index = first + i;
+  int drawn = visibleRows() + (list_.smooth() ? 1 : 0);
+  for (int i = 0; i < drawn && list_.firstShown() + i < count; i++) {
+    int index = list_.firstShown() + i;
     bool selected = index == list_.selected();
     bool pressed = index == list_.pressed();
     auto & row = shown_[static_cast<size_t>(index)];
@@ -159,8 +181,8 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
     auto name_fg = pressed ? strong : selected ? cursor_fg : fg;
     auto row_bg = pressed ? styles.row_pressed_bg_color : selected ? cursor_bg : bg;
     auto binding_fg = pressed ? strong : selected ? cursor_fg : quiet;
-    set(name_fg, row_bg);
-    plane_->putstr(i, 0, string(static_cast<size_t>(width_ - 1), ' '));
+    set_body(name_fg, row_bg);
+    body.putstr(i, 0, string(static_cast<size_t>(width_ - 1), ' '));
     // The characters the query matched are bold in a colour of their own, as byte ranges so that the text can be
     // set in any face.
     TextEmphasis emphasis{{}, pressed || !selected ? strong : cursor_fg};
@@ -168,10 +190,10 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
       if (!emphasis.ranges.empty() && emphasis.ranges.back().second == p) emphasis.ranges.back().second = p + 1;
       else emphasis.ranges.emplace_back(p, p + 1);
     }
-    plane_->putEmphasisedText(i, 1, name_room, entry.name, name_style, emphasis);
+    body.putEmphasisedText(i, 1, name_room, entry.name, name_style, emphasis);
     if (binding_col > 0 && !entry.binding.empty()) {
-      set(binding_fg, row_bg);
-      plane_->putText(i, width_ - 2 - binding_col, binding_col, entry.binding, binding_style);
+      set_body(binding_fg, row_bg);
+      body.putText(i, width_ - 2 - binding_col, binding_col, entry.binding, binding_style);
     }
   }
   // The scrollbar rides the right margin, beside the list.
@@ -203,15 +225,15 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
     plane_->putstr(rows_ - 1, width_ - 1 - hint_width, kHint);
   }
 
-  x_ = 0;
-  y_ = screen_rows - rows_;
   plane_->move(y_, x_);
   plane_->moveToTop();
+  list_plane_->moveToTop();
 }
 
 int CommandPalette::indexAt(int y, int x) {
   int row = y - y_, col = x - x_;
-  int index = list_.firstVisible(visibleRows()) + row;
+  list_.firstVisible(visibleRows());
+  int index = list_.indexAt(row);
   bool on_list = row >= 0 && row < visibleRows() && col >= 0 && col < width_;
   return on_list && index < static_cast<int>(shown_.size()) ? index : -1;
 }
