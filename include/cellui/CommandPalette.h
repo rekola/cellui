@@ -51,8 +51,13 @@ class CommandPalette {
 
   // Feeds one input event; the palette swallows everything, so the caller
   // only needs the result.
-  // Keys act on the press; a click is resolved on release.
+  // Keys act on the press. A command is chosen by the release of the left button over it, after a press on a
+  // command (shown pressed, following the pointer while the button is held); a press outside the panel and a
+  // release outside it cancels. A release with no press seen before it is a whole click.
+  // The wheel scrolls the list and leaves the selection where it is, even out of view.
   Result key(const KeyDown & e);
+  Result press(int screen_y, int screen_x);
+  Result drag(int screen_y, int screen_x);
   Result click(int screen_y, int screen_x);
   Result wheel(bool up);
 
@@ -72,6 +77,9 @@ class CommandPalette {
   void refilter();
   void complete();
   int visibleRows() const { return rows_ - 2; }
+  // The command shown under a screen cell, -1 for none; whether a cell is in the panel.
+  int indexAt(int screen_y, int screen_x);
+  bool inPanel(int screen_y, int screen_x) const;
 
   bool open_ = false;
   std::unique_ptr<Plane> plane_;
@@ -81,6 +89,8 @@ class CommandPalette {
   std::string note_;
   std::vector<Shown> shown_;
   ChoiceList list_;
+  // The left button is down: on a command, or outside the panel.
+  bool pressing_ = false, started_on_command_ = false, started_outside_ = false;
   int y_ = 0, x_ = 0, rows_ = 0, width_ = 0;
 };
 

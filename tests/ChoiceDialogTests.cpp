@@ -184,3 +184,42 @@ TEST(choicedialog_labels_are_proportional_text_where_the_display_lays_text_out) 
   CHECK(std::find(texts.begin(), texts.end(), "First") != texts.end() && std::find(texts.begin(), texts.end(), "Second") != texts.end());
   CHECK(buffer.toPlainText().find("●") != std::string::npos);  // the marker stays in a cell
 }
+
+TEST(choicedialog_wheel_scrolls_without_moving_the_selection) {
+  StyleProvider styles;
+  CellBuffer buffer(10, 40);
+  BufferPlane root(buffer, styles);
+  ChoiceDialog dialog;
+  std::vector<std::string> labels;
+  for (int i = 1; i <= 10; i++) labels.push_back("item " + std::to_string(i));
+  dialog.open("Many", labels, 0);
+  dialog.show(root, 10, 40);
+  for (int i = 0; i < 20; i++) dialog.wheel(false);
+  dialog.show(root, 10, 40);
+  root.refresh();
+  CHECK(dialog.selected() == 0);
+  CHECK(buffer.toPlainText().find("item 10") != std::string::npos);
+  CHECK(buffer.toPlainText().find("item 1\n") == std::string::npos);
+  dialog.key(key(cellui::Key::Down));
+  CHECK(dialog.selected() == 1);
+}
+
+TEST(choicedialog_chooses_the_entry_the_button_is_released_over_after_a_press_on_an_entry) {
+  Fixture f;
+  using R = ChoiceDialog::Result;
+  CHECK(f.dialog.press(3, 10) == R::NONE);  // alpha
+  CHECK(f.dialog.drag(5, 10) == R::NONE);
+  CHECK(f.dialog.click(5, 10) == R::CHOSEN);  // gamma
+  CHECK(f.dialog.selected() == 2);
+}
+
+TEST(choicedialog_press_on_an_entry_released_elsewhere_chooses_nothing) {
+  Fixture f;
+  using R = ChoiceDialog::Result;
+  f.dialog.press(3, 10);
+  CHECK(f.dialog.click(2, 10) == R::NONE);  // the title
+  CHECK(f.dialog.selected() == 0);
+  Fixture g;
+  g.dialog.press(0, 0);
+  CHECK(g.dialog.click(0, 0) == R::CANCELLED);
+}

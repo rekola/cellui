@@ -29,6 +29,7 @@ void ChoiceDialog::open(string title, vector<string> labels, int current) {
   labels_ = std::move(labels);
   current_ = current;
   list_.reset(static_cast<int>(labels_.size()), std::max(0, current));
+  pressing_ = false;
   fresh_ = true;
 }
 
@@ -132,7 +133,9 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
   int drawn = rows + (list_.smooth() ? 1 : 0);
   for (int i = 0; i < drawn; i++) {
     int index = list_.firstShown() + i;
-    set_on(*list_plane_, fg, bg);
+    // The entry the button is held down on is drawn pressed.
+    bool pressed = index == list_.pressed();
+    set_on(*list_plane_, pressed ? strong : fg, pressed ? styles.row_pressed_bg_color : bg);
     list_plane_->putstr(i, 0, string(static_cast<size_t>(width_ - 1), ' '));
     if (index >= count) continue;
     // A marker for the one in use, then the label in the display's proportional face; one that doesn't fit ends in
@@ -140,21 +143,53 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
     if (index == current_) list_plane_->putstr(i, 1, "●");
     list_plane_->putText(i, 3, inner - 4, labels_[static_cast<size_t>(index)], TextStyle{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::LEFT});
   }
-  list_plane_->setBand(Band{ cursor_y_, 1.0, 0.0, static_cast<double>(width_ - 1), cursor_bg, 0.45f });
+  // The cursor is not drawn while a scroll of the wheel has left the selection out of view.
+  if (target >= 0 && target <= rows - 1) list_plane_->setBand(Band{ cursor_y_, 1.0, 0.0, static_cast<double>(width_ - 1), cursor_bg, 0.45f });
+  else list_plane_->clearBand();
   list_plane_->moveToTop();
+}
+
+int ChoiceDialog::indexAt(int y, int x) const {
+  int row = y - y_ - kTopRows, col = x - x_;
+  if (row < 0 || row >= visibleRows() || col < 0 || col >= width_) return -1;
+  int index = list_.indexAt(row);
+  return index >= 0 && index < list_.count() ? index : -1;
+}
+
+// Outside the list the padding and title are inert, and the page behind dismisses.
+bool ChoiceDialog::inBox(int y, int x) const { return y >= y_ && y < y_ + rows_ && x - x_ >= 0 && x - x_ < width_; }
+
+ChoiceDialog::Result
+ChoiceDialog::press(int y, int x) {
+  if (labels_.empty()) return Result::CANCELLED;
+  pressing_ = true;
+  int index = indexAt(y, x);
+  started_on_entry_ = index >= 0;
+  started_outside_ = !inBox(y, x);
+  list_.setPressed(index);
+  return Result::NONE;
+}
+
+ChoiceDialog::Result
+ChoiceDialog::drag(int y, int x) {
+  if (labels_.empty() || !pressing_ || !started_on_entry_) return Result::NONE;
+  list_.setPressed(indexAt(y, x));
+  return Result::NONE;
 }
 
 ChoiceDialog::Result
 ChoiceDialog::click(int y, int x) {
   if (labels_.empty()) return Result::CANCELLED;
-  int row = y - y_ - kTopRows, col = x - x_;
-  if (row < 0 || row >= visibleRows() || col < 0 || col >= width_) {
-    // Outside the list: the padding and title are inert, the page behind dismisses.
-    bool inside_box = y >= y_ && y < y_ + rows_ && col >= 0 && col < width_;
-    return inside_box ? Result::NONE : Result::CANCELLED;
+  int index = indexAt(y, x);
+  bool on_entry = pressing_ ? started_on_entry_ : index >= 0;
+  bool outside = pressing_ ? started_outside_ : !inBox(y, x);
+  pressing_ = false;
+  list_.setPressed(-1);
+  if (on_entry && index >= 0) {
+    list_.select(index);
+    return Result::CHOSEN;
   }
-  list_.select(list_.indexAt(row));
-  return Result::CHOSEN;
+  return outside && !inBox(y, x) ? Result::CANCELLED : Result::NONE;
 }
 
 ChoiceDialog::Result

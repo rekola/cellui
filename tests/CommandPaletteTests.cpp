@@ -291,3 +291,56 @@ TEST(palette_names_are_proportional_runs_with_the_matched_letters_emphasised_whe
   }
   CHECK(found);
 }
+
+namespace {
+std::vector<PaletteEntry> manyEntries() {
+  std::vector<PaletteEntry> many;
+  for (int i = 0; i < 30; i++) many.push_back({"command-" + std::to_string(i), "", ""});
+  return many;
+}
+}  // namespace
+
+TEST(palette_wheel_scrolls_the_list_and_leaves_the_selection_where_it_is) {
+  StyleProvider styles;
+  CellBuffer buffer{20, 80};
+  BufferPlane root{buffer, styles};
+  CommandPalette palette;
+  palette.open(manyEntries());
+  palette.show(root, 20, 80);
+  for (int i = 0; i < 20; i++) palette.wheel(false);
+  palette.show(root, 20, 80);
+  root.refresh();
+  CHECK(palette.chosen() && palette.chosen()->name == "command-0");  // out of view, still the selection
+  CHECK(buffer.toPlainText().find("command-0\n") == std::string::npos);
+  // Moving the selection brings the list back to it.
+  palette.key(InputDispatcher::keyDownFor(key(Key::Down)));
+  palette.show(root, 20, 80);
+  root.refresh();
+  CHECK(palette.chosen()->name == "command-1");
+  CHECK(buffer.toPlainText().find("command-1") != std::string::npos);
+}
+
+TEST(palette_chooses_the_command_the_button_is_released_over_after_a_press_on_a_command) {
+  Fixture f;
+  // Rows 13-17 list the five commands.
+  CHECK(f.palette.press(14, 10) == CommandPalette::Result::NONE);
+  CHECK(f.palette.drag(16, 10) == CommandPalette::Result::NONE);  // the press follows the pointer
+  CHECK(f.palette.click(16, 10) == CommandPalette::Result::CHOSEN);
+  CHECK(f.palette.chosen()->name == "undo-redo" || f.palette.chosen()->name == "undo");
+}
+
+TEST(palette_release_off_the_commands_after_a_press_on_one_chooses_nothing) {
+  Fixture f;
+  f.palette.press(14, 10);
+  CHECK(f.palette.click(19, 10) == CommandPalette::Result::NONE);  // the query row, inside the panel
+  CHECK(f.palette.isOpen());
+}
+
+TEST(palette_cancels_only_when_the_press_and_the_release_are_outside) {
+  Fixture f;
+  f.palette.press(2, 10);
+  CHECK(f.palette.click(2, 10) == CommandPalette::Result::CANCELLED);
+  Fixture g;
+  g.palette.press(14, 10);
+  CHECK(g.palette.click(2, 10) == CommandPalette::Result::NONE);  // pressed on a command, let go outside
+}

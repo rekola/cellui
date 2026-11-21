@@ -268,6 +268,9 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   window and as a bold weight and a brush on the range of the DirectWrite layout in the Win32 one (compiled with
   mingw, never run), and cells do it where text is cells; so
   `CommandPalette` and `ChoiceDialog` set their lists in the proportional face too.
+  The wheel scrolls a `ChoiceList` without moving its selection (`scroll()` detaches the window until the selection
+  moves, so the selection may be out of view); a press on an entry draws it pressed (`setPressed()`, following the
+  pointer) and the release over it chooses it (`CommandPalette`/`ChoiceDialog` `press()`, `drag()`, `click()`).
 - The pointer shape is a plane attribute (`Plane::setMouseCursor()`:
   `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`/`GRABBING`/`NOT_ALLOWED`); `refresh()` lists the requesting
   planes' rectangles in drawing order (`FrameInfo::mouse_cursors`) and the

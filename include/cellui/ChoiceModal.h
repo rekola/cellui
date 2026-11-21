@@ -20,6 +20,8 @@ class ChoiceModal : public ModalDialog {
  protected:
   void layout(Plane & screen, int rows, int cols) override;
   void keyDown(const KeyDown & e) override;
+  void mouseDown(const MouseDown & e) override;
+  void mouseMove(const MouseMove & e) override;
   void mouseUp(const MouseUp & e) override;
   void wheel(const Wheel & e) override;
   void close() override { dialog_.close(); }
