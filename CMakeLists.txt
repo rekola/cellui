@@ -27,8 +27,8 @@ option(CELLUI_BUILD_TESTS "Build cellui's tests, gallery and tools" ${CELLUI_STA
 
 # cellui/Utf8.h's grapheme-cluster-aware width and truncation come from
 # libunistring or from utf8proc (CELLUI_UNICODE=unistring|utf8proc; auto takes
-# libunistring where it is found, else utf8proc). Windows CI uses utf8proc,
-# which MSYS2 packages as a small static library. No pkg-config file ships
+# libunistring where it is found, else utf8proc). utf8proc is the installed one
+# or, where there is none (MSYS2 has no package), a pinned release built here. No pkg-config file ships
 # with libunistring-dev on Ubuntu.
 set(CELLUI_UNICODE "auto" CACHE STRING "Unicode backend: auto, unistring or utf8proc")
 set_property(CACHE CELLUI_UNICODE PROPERTY STRINGS auto unistring utf8proc)
@@ -44,7 +44,16 @@ if(CELLUI_UNICODE STREQUAL "utf8proc" OR (CELLUI_UNICODE STREQUAL "auto" AND NOT
   find_library(UTF8PROC_LIBRARY utf8proc)
   find_path(UTF8PROC_INCLUDE_DIR utf8proc.h)
   if(NOT (UTF8PROC_LIBRARY AND UTF8PROC_INCLUDE_DIR))
-    message(FATAL_ERROR "utf8proc not found (install libutf8proc-dev, or mingw-w64-ucrt-x86_64-utf8proc)")
+    # Not installed (MSYS2 has no package): build a pinned release, static.
+    include(FetchContent)
+    FetchContent_Declare(utf8proc
+      GIT_REPOSITORY https://github.com/JuliaStrings/utf8proc
+      GIT_TAG v2.9.0)
+    set(BUILD_SHARED_LIBS_SAVED "${BUILD_SHARED_LIBS}")
+    set(BUILD_SHARED_LIBS OFF)
+    FetchContent_MakeAvailable(utf8proc)
+    set(BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS_SAVED}")
+    set(CELLUI_UTF8PROC_FETCHED ON)
   endif()
   set(CELLUI_USE_UTF8PROC ON)
 elseif(NOT (UNISTRING_LIBRARY AND UNISTRING_INCLUDE_DIR))
@@ -242,12 +251,17 @@ target_link_libraries(cellui PUBLIC canvas)
 target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(cellui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(CELLUI_USE_UTF8PROC)
-  target_include_directories(cellui PRIVATE ${UTF8PROC_INCLUDE_DIR})
   target_compile_definitions(cellui PRIVATE CELLUI_UTF8PROC=1)
-  target_link_libraries(cellui PUBLIC ${UTF8PROC_LIBRARY})
-  # utf8proc's header declares dllimport symbols unless told it is static.
-  if(WIN32 AND UTF8PROC_LIBRARY MATCHES "\\.a$" AND NOT UTF8PROC_LIBRARY MATCHES "\\.dll\\.a$")
-    target_compile_definitions(cellui PRIVATE UTF8PROC_STATIC=1)
+  if(CELLUI_UTF8PROC_FETCHED)
+    # The fetched target carries its include directory and UTF8PROC_STATIC.
+    target_link_libraries(cellui PUBLIC utf8proc)
+  else()
+    target_include_directories(cellui PRIVATE ${UTF8PROC_INCLUDE_DIR})
+    target_link_libraries(cellui PUBLIC ${UTF8PROC_LIBRARY})
+    # utf8proc's header declares dllimport symbols unless told it is static.
+    if(WIN32 AND UTF8PROC_LIBRARY MATCHES "\\.a$" AND NOT UTF8PROC_LIBRARY MATCHES "\\.dll\\.a$")
+      target_compile_definitions(cellui PRIVATE UTF8PROC_STATIC=1)
+    endif()
   endif()
 else()
   target_include_directories(cellui PRIVATE ${UNISTRING_INCLUDE_DIR})
