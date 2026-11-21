@@ -271,6 +271,9 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   The wheel scrolls a `ChoiceList` without moving its selection (`scroll()` detaches the window until the selection
   moves, so the selection may be out of view); a press on an entry draws it pressed (`setPressed()`, following the
   pointer) and the release over it chooses it (`CommandPalette`/`ChoiceDialog` `press()`, `drag()`, `click()`).
+  Where the display scrolls smoothly both lists ease: their rows are on a plane of their own that the display shifts
+  by the fraction of a row (`ChoiceList::firstShown()`/`fraction()`), `Application` ticks the open palette each frame
+  and `ChoiceModal` its dialog.
 - The pointer shape is a plane attribute (`Plane::setMouseCursor()`:
   `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`/`GRABBING`/`NOT_ALLOWED`); `refresh()` lists the requesting
   planes' rectangles in drawing order (`FrameInfo::mouse_cursors`) and the

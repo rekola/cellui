@@ -43,6 +43,15 @@ class CommandPalette {
   void close();
   void raise() {
     if (plane_) plane_->moveToTop();
+    if (list_plane_) list_plane_->moveToTop();
+  }
+  // Where the display scrolls smoothly (DisplayInfo::smooth_scroll) the list eases to a new scroll position
+  // instead of jumping to it. The application calls tick() for each frame with the seconds since the last
+  // (Application does) and draws again while it says it is still moving.
+  bool animating() const { return open_ && list_.animating(); }
+  bool tick(double seconds) {
+    list_.tick(seconds);
+    return list_.animating();
   }
 
   // (Re)draws the panel under `parent`, across the bottom of a screen of the
@@ -83,6 +92,9 @@ class CommandPalette {
 
   bool open_ = false;
   std::unique_ptr<Plane> plane_;
+  // The commands' rows, a plane of their own over the panel's, so the display can shift them by the part of a row
+  // the list is scrolled into while it eases.
+  std::unique_ptr<Plane> list_plane_;
   std::vector<PaletteEntry> entries_;
   std::string query_;
   // "[No match]" or "[Sole completion]" after a Tab, until the next edit.

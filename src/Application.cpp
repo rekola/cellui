@@ -441,6 +441,12 @@ void Application::present() {
   double seconds = last_frame_ ? std::min(0.1, std::chrono::duration<double>(now - *last_frame_).count()) : 0.0;
   last_frame_ = now;
   frame_started.emit(seconds);
+  // The open palette's list eases where the display scrolls smoothly: it moves with each frame and asks for the next.
+  if (palette_.isOpen() && palette_.animating()) {
+    palette_.tick(seconds);
+    layoutPalette();
+    if (palette_.animating()) backend_->requestFrame();
+  }
   if (before_refresh_) before_refresh_();
   root_plane_.refresh();
   dispatcher_->setHitAreas(root_plane_.takeHitAreas());
