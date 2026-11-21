@@ -263,7 +263,8 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   cells' own face), so a window shows them proportional, numbers right-aligned.
   `Plane::putEmphasisedText()` is `putText()` with byte ranges bold in a colour of their own
   (`TextEmphasis`: the matched letters of a search): a `TextRun` carries them as Pango attributes in the GTK
-  window (the Win32 window does not draw them yet) and cells do it where text is cells; so
+  window and as a bold weight and a brush on the range of the DirectWrite layout in the Win32 one (compiled with
+  mingw, never run), and cells do it where text is cells; so
   `CommandPalette` and `ChoiceDialog` set their lists in the proportional face too.
 - The pointer shape is a plane attribute (`Plane::setMouseCursor()`:
   `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`/`GRABBING`/`NOT_ALLOWED`); `refresh()` lists the requesting
