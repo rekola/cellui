@@ -2,7 +2,8 @@
 
 #include <cellui/Backend.h>
 #include <cellui/FrameGate.h>
-#include <cellui/PollEventLoop.h>
+#include <cellui/PlatformEventLoop.h>
+#include <cellui/Wakeup.h>
 #include <cellui/term/BackdropEmulation.h>
 
 #include <deque>
@@ -15,8 +16,8 @@ namespace cellui::test {
 // application presents are kept for the test to read (frame(), text(),
 // info()), and the input comes from the test, so what the UI shows can be
 // asserted on without a pty or an emulator. Input is queued with the push
-// functions and read with poll(), as a session's would be; inputFd() is
-// readable while events wait.
+// functions and read with poll(), as a session's would be; inputFd() (on
+// Windows the handle in inputHandles()) is ready while events wait.
 //
 // A window backend's features - a pointer, say - join it as that backend's
 // interface is defined, so the same tests can run on both.
@@ -32,8 +33,12 @@ class TestBackend : public Backend {
   int rows() const override { return rows_; }
   int cols() const override { return cols_; }
   EventLoop & eventLoop() override { return loop_; }
-  int inputFd() const override { return pipe_[0]; }
-  int wakeFd() const override { return wake_[0]; }
+  int inputFd() const override { return input_.fd(); }
+  int wakeFd() const override { return wake_.fd(); }
+  std::vector<void *> inputHandles() const override {
+    if (!input_.handle()) return {};
+    return { input_.handle(), wake_.handle() };
+  }
   std::optional<TimePoint> nextDeadline() const override { return std::nullopt; }
   std::vector<BackendEvent> poll() override;
   void present(const CellBuffer & frame, const CursorRequest & cursor = {},
@@ -78,7 +83,7 @@ class TestBackend : public Backend {
   void pushWindowFocus(bool focused);
   // The terminal goes away (the end of input).
   void pushEnd();
-  // Makes wakeFd() readable, as TerminalSession::wake().
+  // Makes wakeFd() (the wake handle on Windows) ready, as TerminalSession::wake().
   void wake();
 
   // Output.
@@ -95,14 +100,14 @@ class TestBackend : public Backend {
   const FrameInfo & info() const { return info_; }
 
  private:
-  PollEventLoop loop_;
+  PlatformEventLoop loop_;
   FrameGate gate_;
   LinkMonitor link_;
   Connection frames_hook_;
   DisplayInfo display_;
   int rows_, cols_;
-  int pipe_[2] = { -1, -1 };
-  int wake_[2] = { -1, -1 };
+  Wakeup input_;
+  Wakeup wake_;
   std::deque<BackendEvent> queue_;
   CellBuffer frame_;
   CursorRequest cursor_;

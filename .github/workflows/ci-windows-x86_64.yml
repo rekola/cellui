@@ -8,7 +8,8 @@ on:
 jobs:
   # MSYS2 UCRT64 (MinGW-w64 GCC), as synth builds it; canvas draws with
   # GDI+ here, and the Win32 window backend is compiled (its tests run
-  # without a window).
+  # without a window). Text width and clusters come from utf8proc, which CMake builds (MSYS2 has
+  # no package).
   build-and-test:
     runs-on: windows-2022
 
@@ -27,12 +28,11 @@ jobs:
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
-            mingw-w64-ucrt-x86_64-libunistring
             mingw-w64-ucrt-x86_64-python
             git
 
       - name: Configure
-        run: cmake -G Ninja -B build
+        run: cmake -G Ninja -B build -DCELLUI_UNICODE=utf8proc
 
       - name: Build
         run: cmake --build build

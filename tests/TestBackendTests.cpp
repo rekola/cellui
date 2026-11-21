@@ -3,16 +3,26 @@
 #include <cellui/BufferPlane.h>
 #include <cellui/TestBackend.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <poll.h>
+#endif
 
 using namespace cellui;
 using cellui::test::TestBackend;
 
 namespace {
 
-bool readable(int fd) {
-  struct pollfd p = { fd, POLLIN, 0 };
+// Whether the backend's input (or wake) signal is ready: a descriptor
+// polled, or on Windows a handle waited on.
+bool ready(const TestBackend & t, bool wake) {
+#ifdef _WIN32
+  return WaitForSingleObject(t.inputHandles()[wake ? 1 : 0], 0) == WAIT_OBJECT_0;
+#else
+  struct pollfd p = { wake ? t.wakeFd() : t.inputFd(), POLLIN, 0 };
   return ::poll(&p, 1, 0) > 0;
+#endif
 }
 
 // What an application does with a terminal: draw on a root plane, present.
@@ -36,27 +46,27 @@ TEST(testbackend_reports_its_size_and_wants_frame_info) {
 
 TEST(testbackend_input_is_readable_until_polled) {
   TestBackend t;
-  CHECK(!readable(t.inputFd()));
+  CHECK(!ready(t, false));
   t.pushKey('a');
   t.pushKey(Key::Up, kModCtrl);
-  CHECK(readable(t.inputFd()));
+  CHECK(ready(t, false));
   auto events = t.poll();
   CHECK(events.size() == 2);
   CHECK(events[0].input.getId() == 'a');
   CHECK(events[1].input.getId() == Key::Up);
   CHECK(events[1].input.hasCtrl() && !events[1].input.hasShift());
-  CHECK(!readable(t.inputFd()));
+  CHECK(!ready(t, false));
   CHECK(t.poll().empty());
 }
 
 TEST(testbackend_wake_is_its_own_fd) {
   TestBackend t;
-  CHECK(!readable(t.wakeFd()));
+  CHECK(!ready(t, true));
   t.wake();
-  CHECK(readable(t.wakeFd()));
-  CHECK(!readable(t.inputFd()));
+  CHECK(ready(t, true));
+  CHECK(!ready(t, false));
   t.poll();
-  CHECK(!readable(t.wakeFd()));
+  CHECK(!ready(t, true));
 }
 
 TEST(testbackend_text_mouse_paste_resize_and_end) {

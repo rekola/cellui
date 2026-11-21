@@ -14,11 +14,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake pkg-config libunistring-dev \
+          sudo apt-get install -y cmake pkg-config libutf8proc-dev \
             libcairo2-dev libfontconfig1-dev libgtk-4-dev xvfb xdotool
 
       - name: Configure
-        run: cmake -B build
+        # utf8proc here, libunistring on x86-64: both Unicode backends are tested.
+        run: cmake -B build -DCELLUI_UNICODE=utf8proc
 
       - name: Build
         run: cmake --build build -j"$(nproc)"
