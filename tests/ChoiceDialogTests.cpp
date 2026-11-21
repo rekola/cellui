@@ -79,7 +79,7 @@ TEST(choicedialog_click_on_an_entry_chooses_it_outside_cancels_padding_is_inert)
   CHECK(f.dialog.click(2, 10) == R::NONE);  // the title
 }
 
-TEST(choicedialog_long_lists_scroll_and_show_it_on_the_edge) {
+TEST(choicedialog_long_lists_scroll_and_show_a_scrollbar_on_the_edge) {
   StyleProvider styles;
   CellBuffer buffer(10, 40);
   BufferPlane root(buffer, styles);
@@ -91,12 +91,23 @@ TEST(choicedialog_long_lists_scroll_and_show_it_on_the_edge) {
   root.refresh();
   CHECK(buffer.toPlainText().find("item 3") != std::string::npos);
   CHECK(buffer.toPlainText().find("item 4") == std::string::npos);
-  CHECK(buffer.toPlainText().find("▼") != std::string::npos);
+  auto thumb_row = [&] {
+    auto text = buffer.toPlainText();
+    int row = 0;
+    for (size_t start = 0, end; (end = text.find('\n', start)) != std::string::npos || start < text.size(); start = end + 1, row++) {
+      if (text.substr(start, end == std::string::npos ? end : end - start).find("┃") != std::string::npos) return row;
+      if (end == std::string::npos) break;
+    }
+    return -1;
+  };
+  CHECK(buffer.toPlainText().find("│") != std::string::npos);
+  int top = thumb_row();
+  CHECK(top >= 0);
   dialog.key(key(cellui::Key::End));
   dialog.show(root, 10, 40);
   root.refresh();
   CHECK(buffer.toPlainText().find("item 10") != std::string::npos);
-  CHECK(buffer.toPlainText().find("▲") != std::string::npos);
+  CHECK(thumb_row() > top);  // the thumb has moved to the end of the track
 }
 
 TEST(choicedialog_long_label_ends_in_an_ellipsis) {

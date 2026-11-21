@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cellui/Scrollbar.h>
 #include <cellui/Viewport.h>
 
 #include <algorithm>
+#include <optional>
 
 // The selection and scroll position of a list a person picks one entry from -
 // the part of a choice dialog that doesn't depend on any toolkit. Movement
@@ -60,7 +62,12 @@ class ChoiceList {
   bool animating() const { return window_.animating(); }
   int offset() const { return window_.offset(); }
   int firstShown() const { return window_.firstShown(); }
+  // Where the window is now, in entries (fractional while it eases).
+  double shown() const { return window_.shown(); }
   double fraction() const { return window_.fraction(); }
+  // Where the scrollbar's thumb is in a track of `track` cells beside a window of `rows` rows: unset when every
+  // entry fits. Draw it with drawScrollbar() (Scrollbar.h), over the rows' own column.
+  std::optional<ScrollbarThumb> thumb(int rows, int track) const { return scrollbarThumb(track, count_, rows, window_.shown()); }
   // The entry under row `row` of the window, as drawn now.
   int indexAt(int row) const { return window_.indexAt(row); }
 

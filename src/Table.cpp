@@ -1,6 +1,7 @@
 #include <cellui/Table.h>
 
 #include <cellui/NumberParse.h>
+#include <cellui/Scrollbar.h>
 #include <cellui/Utf8.h>
 
 #include <algorithm>
@@ -403,16 +404,8 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
 }
 
 void Table::drawScrollbar(const Layout & l, const StyleProvider & styles) {
-  const int body = std::max(0, getDim().first - 1);
-  const int content = static_cast<int>(order_.size()), view = visibleRows();
-  if (body <= 0 || content <= view) return;
-  setBgColor(styles.window_bg_color);
-  setFgColor(styles.theme.surface_overlay);
-  for (int y = 0; y < body; y++) putstr(1 + y, l.scrollbar_x, "│");
-  int thumb = std::max(1, body * view / content);
-  int top = static_cast<int>(std::lround((body - thumb) * rows_.shown() / std::max(1, content - view)));
-  setFgColor(styles.window_accent_fg_color);
-  for (int y = 0; y < thumb; y++) putstr(1 + top + y, l.scrollbar_x, "┃");
+  cellui::drawScrollbar(getPlane(), 1, l.scrollbar_x, std::max(0, getDim().first - 1), static_cast<int>(order_.size()), visibleRows(), rows_.shown(),
+                        styles.window_bg_color, styles.theme.surface_overlay, styles.window_accent_fg_color);
 }
 
 }  // namespace cellui

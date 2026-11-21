@@ -49,7 +49,8 @@ carries the app's object as an opaque `getAppContext()`.
   ESC-as-Meta; no timing window) and know when the "ESC-" indicator is due.
 - Theme (`Theme`, `StyleProvider`), `Plane`, `Widget` (`Widget.h`: the plane,
   drawing, keymap and prefix-key dispatch),
-  `UIMenu`, `Viewport.h`, the generic widgets (`ChoiceList`/`ChoiceDialog`,
+  `UIMenu`, `Viewport.h`, `Scrollbar.h` (`drawScrollbar()` and `scrollbarThumb()`: the one scrollbar `Table`,
+  `ChoiceDialog` and `CommandPalette` share, `ChoiceList::thumb()` its geometry), the generic widgets (`ChoiceList`/`ChoiceDialog`,
   `InlineEditor`, `SpinBox`, `Checkbox` (a label and a flag, focusable; Space or Enter toggles), `Dial`, `Lamp`, `LineChart`, `HeatmapChart`, `InfoDialog`,
   `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`, `StatusLine`: the bottom row's message
   and its Emacs-style prompt with Tab completion; `Label`: a line of text on a background of its

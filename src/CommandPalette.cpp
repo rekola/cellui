@@ -1,6 +1,7 @@
 #include <cellui/CommandPalette.h>
 
 #include <cellui/FuzzyMatch.h>
+#include <cellui/Scrollbar.h>
 #include <cellui/Utf8.h>
 
 #include <algorithm>
@@ -164,15 +165,9 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
       set(binding_fg, row_bg);
       plane_->putstr(i, width_ - 1 - binding_width - 1, entry.binding);
     }
-    // The arrows ride the right margin.
-    const char * arrow = nullptr;
-    if (i == 0 && first > 0) arrow = "▲";
-    else if (i == visibleRows() - 1 && first + visibleRows() < count) arrow = "▼";
-    if (arrow) {
-      set(quiet, bg);
-      plane_->putstr(i, width_ - 1, arrow);
-    }
   }
+  // The scrollbar rides the right margin, beside the list.
+  drawScrollbar(*plane_, 0, width_ - 1, visibleRows(), count, visibleRows(), list_.shown(), bg, quiet, strong);
 
   // The selected command's description, or what the last Tab had to say.
   // Quiet and italic on the display's background, so it is not taken for a

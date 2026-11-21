@@ -1,6 +1,7 @@
 #include <cellui/ChoiceDialog.h>
 
 #include <cellui/Input.h>
+#include <cellui/Scrollbar.h>
 #include <cellui/Utf8.h>
 
 #include <algorithm>
@@ -107,14 +108,9 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
   cursor_y_ = std::clamp(cursor_y_, 0.0, static_cast<double>(std::max(0, rows - 1)));
 
   int count = static_cast<int>(labels_.size());
-  int first = list_.offset();
-  // The arrows ride the right margin of the box, beside the list.
-  for (int i = 0; i < rows; i++) {
-    const char * arrow = nullptr;
-    if (i == 0 && first > 0) arrow = "▲";
-    else if (i == rows - 1 && first + rows < count) arrow = "▼";
-    plane_->putstr(kTopRows + i, width_ - 1, arrow ? arrow : " ");
-  }
+  // The scrollbar rides the right margin of the box, beside the list.
+  for (int i = 0; i < rows; i++) plane_->putstr(kTopRows + i, width_ - 1, " ");
+  drawScrollbar(*plane_, kTopRows, width_ - 1, rows, count, rows, list_.shown(), bg, styles.theme.text_secondary, strong);
 
   x_ = (screen_cols - width_) / 2;
   y_ = (screen_rows - rows_) / 2;
