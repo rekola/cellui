@@ -58,6 +58,7 @@ carries the app's object as an opaque `getAppContext()`.
   and its Emacs-style prompt with Tab completion; `Label`: a line of text on a background of its
   own, its colours fixed or theme roles (`&StyleProvider::info_line_fg_color`), drawn again on
   every change and resize; `Table` with `TableModel`: a click on a heading sorts, no key does;
+  `ScrollBody` (the body of a dialog that draws plain lines: smooth scrolling, a draggable scrollbar and the wheel, on a plane of its own over the box; the dialog draws `drawnRows()` lines from `firstLine()` with `putText()` and passes it keys and pointer events; stocks' attribute dialog);
   `Button` (a `ButtonFace` on one row, `clicked`; `ButtonFace::info()` is 🛈 U+1F6C8, and a picture will be one more member of the face);
   a buttons column (`TableColumn::buttons`, `ButtonFace`s the same in every row, as wide as they are) says `button_clicked(row, column, button)` and leaves the selection alone;
   an icon column (`TableColumn::icon`, `TableModel::icon()`: RGBA pixels under an id) is drawn with `drawSharedImageFitted()`, one picture per id, and takes no room where the display has no pictures;

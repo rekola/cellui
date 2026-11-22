@@ -108,6 +108,7 @@ add_library(cellui STATIC
   src/Color.cpp
   src/ChoiceDialog.cpp
   src/ChoiceModal.cpp
+  src/ScrollBody.cpp
   src/ModalDialog.cpp
   src/CommandPalette.cpp
   src/FuzzyMatch.cpp
@@ -311,6 +312,7 @@ add_executable(cellui_tests
   tests/ChoiceDialogTests.cpp
   tests/ModalDialogTests.cpp
   tests/ChoiceListTests.cpp
+  tests/ScrollBodyTests.cpp
   tests/CommandPaletteTests.cpp
   tests/ColorTests.cpp
   tests/DiscoveryTests.cpp
