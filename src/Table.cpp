@@ -1,7 +1,6 @@
 #include <cellui/Table.h>
 
 #include <cellui/NumberParse.h>
-#include <cellui/ImageScale.h>
 #include <cellui/Scrollbar.h>
 #include <cellui/Utf8.h>
 
@@ -424,22 +423,11 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
   }
 }
 
-// The picture fills the cell's height, or its width where that is less, as one scaled copy that every row showing the
-// same id shares.
+// The display fits the picture into the cell's box, as large as it goes with its proportions kept.
 void Table::drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon) {
-  int cell_h = 0, cell_w = 0;
-  if (!icon || !icon->pixels || icon->width <= 0 || icon->height <= 0 || !getPlane().cellPixelSize(cell_h, cell_w)) return;
-  const int side = std::max(1, std::min(row_height_ * cell_h, width * cell_w));
-  const uint64_t id = icon->id * 4096 + static_cast<uint64_t>(side);
-  getPlane().drawSharedImageAt(y, x, ImageKey{"icon", id}, side, side,
-                               [icon, side] {
-                                 Image source;
-                                 source.width = icon->width;
-                                 source.height = icon->height;
-                                 source.pixels = *icon->pixels;
-                                 return scaleImage(source, side, side).pixels;
-                               },
-                               0, getDim().first + 1);
+  if (!icon || !icon->pixels || icon->width <= 0 || icon->height <= 0) return;
+  getPlane().drawSharedImageFitted(y, x, row_height_, width, ImageKey{"icon", icon->id}, icon->width, icon->height, [icon] { return *icon->pixels; }, 0,
+                                   getDim().first + 1);
 }
 
 void Table::drawScrollbar(const Layout & l, const StyleProvider & styles) {
