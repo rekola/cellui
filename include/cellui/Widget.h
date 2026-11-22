@@ -186,6 +186,12 @@ class Widget {
     if (plane_) plane_->setElevation(elevation);
     return *this;
   }
+  // See Plane::setElevationArea(): false keeps a raised widget from casting a shadow or lighting an edge of its own, for
+  // one that is part of the surface it sits on.
+  Widget & setElevationArea(bool area) {
+    if (plane_) plane_->setElevationArea(area);
+    return *this;
+  }
   Widget & setVisible(bool visible) {
     if (plane_) plane_->setVisible(visible);
     return *this;

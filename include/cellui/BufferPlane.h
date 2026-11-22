@@ -168,7 +168,8 @@ class BufferPlane : public Plane {
   // of the root's, placed in screen coordinates and stacked by creation
   // order, not one nested in (and clipped to) the plane it was asked of -
   // the model the terminal application's widgets were written for, where a
-  // widget's popup can rise above any other widget (root only).
+  // widget's popup can rise above any other widget (root only). A plane's
+  // height still adds to that of the plane it was made from.
   void setFlatChildren(bool flat) { flat_ = flat; }
   // With themed bases, a plane made by createChild() shows the theme's
   // plane base background (under the glyph below) wherever it writes
@@ -241,6 +242,12 @@ class BufferPlane : public Plane {
   CellBuffer * target_ = nullptr;  // the root's output
   BufferPlane * parent_ = nullptr;
   std::vector<BufferPlane *> children_;  // bottom to top
+  // With flat children, the plane createChild() was called on: the planes sit under the root, but a plane's height
+  // adds to this one's, so it is never lower than the plane it was made from. Null for any other plane.
+  BufferPlane * flat_parent_ = nullptr;
+  std::vector<BufferPlane *> flat_children_;
+  // What the flat parents add to this plane's height.
+  float flatLift() const { return flat_parent_ ? flat_parent_->elevation_ + flat_parent_->flatLift() : 0.0f; }
   CellBuffer::Style style_;
   // A plane that scrolls by fractions of a cell holds a row and a column
   // more than its size (overscan_), and composes as a scroll layer while

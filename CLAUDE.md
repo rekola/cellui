@@ -164,7 +164,9 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   raising and hiding work on the plane, and `refresh()` composes the tree
   into a cell grid. A plane's elevation (`Plane::setElevation()`) adds to its
   parent's; the tree is drawn lowest first, equal heights in tree order, so a
-  popup floats over everything below wherever it sits. `Theme::elevation`
+  popup floats over everything below wherever it sits (in a flat tree too: a plane
+  made by `createChild()` on another adds its height to that plane's, so it is never
+  lower than the plane it was made from). `Theme::elevation`
   steps, in cell widths: panel, raised, card, overlay (menus, pickers,
   popups), modal (dialog + scrim). Cells can stand above their plane
   (`Plane::setLift()`, a cell attribute, so a partial redraw keeps it). Every

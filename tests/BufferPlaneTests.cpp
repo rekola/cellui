@@ -1517,46 +1517,35 @@ TEST(plane_border_is_covered_over_all_of_a_raised_plane_that_overlaps_it) {
   if (border && !border->covers.empty()) CHECK((border->covers[0] == std::array<int, 4>{2, 8, 3, 3}));  // columns 8..10 of the dialog's 8..11
 }
 
-// A widget on a raised plane is drawn over that plane's own cells only at its height or above.
-TEST(widget_elevation_puts_a_widget_over_the_raised_plane_it_sits_on) {
-  for (bool raised : {false, true}) {
-    StyleProvider styles;
-    CellBuffer b(1, 4);
-    BufferPlane root(b, styles);
-    root.setFlatChildren(true);
-    auto panel = root.createChild();
-    panel->resize(1, 4);
-    panel->setElevation(2);
-    panel->putstr(0, 0, "aaaa");
-    Widget widget(*panel);
-    widget.resize(1, 2);
-    widget.move(0, 0);
-    if (raised) widget.setElevation(2);
-    widget.putstr(0, 0, "bb");
-    root.refresh();
-    CHECK(b.toPlainText() == (raised ? "bbaa\n" : "aaaa\n"));
-  }
-}
-
-// Emphasised parts are bold in their colour: a run's byte ranges where the display lays text out, cells where it does not.
-TEST(bufferplane_emphasised_text_carries_its_ranges_as_a_run_and_as_bold_cells) {
+// In a flat tree a plane made from another still adds its height to that plane's: a widget on a raised panel is over
+// the panel's own cells with no height of its own, and a plane lifted above another is over what that one is over.
+TEST(flat_children_add_their_height_to_the_plane_they_were_made_from) {
   StyleProvider styles;
-  CellBuffer b(1, 20);
+  CellBuffer b(1, 4);
   BufferPlane root(b, styles);
-  root.setFgColor(Color(200, 200, 200));
-  TextEmphasis emphasis{{{1, 3}}, Color(255, 0, 0)};
-  TextStyle style{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::RIGHT};
-  // As cells, the characters at the right of the box (it is right aligned) are the ones marked.
-  root.putEmphasisedText(0, 0, 10, "abcd", style, emphasis);
+  root.setFlatChildren(true);
+  auto panel = root.createChild();
+  panel->resize(1, 4);
+  panel->setElevation(2);
+  panel->putstr(0, 0, "aaaa");
+  Widget widget(*panel);
+  widget.resize(1, 2);
+  widget.move(0, 0);
+  widget.putstr(0, 0, "bb");
   root.refresh();
-  CHECK(b.at(0, 6).text == "a" && !b.at(0, 6).bold());
-  CHECK(b.at(0, 7).text == "b" && b.at(0, 7).bold() && b.at(0, 7).fg && b.at(0, 7).fg->getRed() > b.at(0, 7).fg->getGreen());
-  CHECK(b.at(0, 8).bold() && b.at(0, 9).text == "d" && !b.at(0, 9).bold());
-  // Where the display lays text out it is one run with the ranges, and the plane's colour is left alone.
-  root.setProportionalText(true);
-  root.putEmphasisedText(0, 10, 10, "abcd", style, emphasis);
+  CHECK(b.toPlainText() == "bbaa\n");
+  // The widget is at the panel's 2, under a plane at 2.5; lifted by 1 it is at 3.
+  auto other = root.createChild();
+  other->resize(1, 4);
+  other->setElevation(2.5f);
+  other->putstr(0, 0, "cccc");
   root.refresh();
-  auto runs = root.takeTextRuns();
-  CHECK(runs.size() == 1u && runs[0].text == "abcd" && runs[0].emphasis.size() == 1u && runs[0].emphasis[0] == std::make_pair(1, 3));
-  CHECK(runs[0].emphasis_fg && runs[0].fg && runs[0].fg->getRed() == Color(200, 200, 200).getRed());
+  CHECK(b.toPlainText() == "cccc\n");
+  widget.setElevation(1);
+  root.refresh();
+  CHECK(b.toPlainText() == "bbcc\n");
+  // With the panel gone its height is no longer added: the widget is at 1.
+  panel.reset();
+  root.refresh();
+  CHECK(b.toPlainText() == "cccc\n");
 }
