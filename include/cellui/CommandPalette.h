@@ -102,6 +102,7 @@ class CommandPalette {
   std::vector<Shown> shown_;
   ChoiceList list_;
   // The left button is down: on a command, or outside the panel.
+  bool onScrollbar(int row, int col) const;
   bool pressing_ = false, started_on_command_ = false, started_outside_ = false;
   int y_ = 0, x_ = 0, rows_ = 0, width_ = 0;
 };

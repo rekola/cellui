@@ -156,6 +156,12 @@ int ChoiceDialog::indexAt(int y, int x) const {
   return index >= 0 && index < list_.count() ? index : -1;
 }
 
+// The scrollbar's column, beside the list (nothing where every entry fits).
+bool ChoiceDialog::onScrollbar(int y, int x) const {
+  int row = y - y_ - kTopRows;
+  return x - x_ == width_ - 1 && row >= 0 && row < visibleRows() && list_.count() > visibleRows();
+}
+
 // Outside the list the padding and title are inert, and the page behind dismisses.
 bool ChoiceDialog::inBox(int y, int x) const { return y >= y_ && y < y_ + rows_ && x - x_ >= 0 && x - x_ < width_; }
 
@@ -163,6 +169,10 @@ ChoiceDialog::Result
 ChoiceDialog::press(int y, int x) {
   if (labels_.empty()) return Result::CANCELLED;
   pressing_ = true;
+  if (onScrollbar(y, x) && list_.beginThumbDrag(visibleRows(), y - y_ - kTopRows)) {
+    started_on_entry_ = started_outside_ = false;
+    return Result::NONE;
+  }
   int index = indexAt(y, x);
   started_on_entry_ = index >= 0;
   started_outside_ = !inBox(y, x);
@@ -172,6 +182,10 @@ ChoiceDialog::press(int y, int x) {
 
 ChoiceDialog::Result
 ChoiceDialog::drag(int y, int x) {
+  if (list_.thumbDragging()) {
+    list_.dragThumb(visibleRows(), y - y_ - kTopRows);
+    return Result::NONE;
+  }
   if (labels_.empty() || !pressing_ || !started_on_entry_) return Result::NONE;
   list_.setPressed(indexAt(y, x));
   return Result::NONE;
@@ -180,6 +194,12 @@ ChoiceDialog::drag(int y, int x) {
 ChoiceDialog::Result
 ChoiceDialog::click(int y, int x) {
   if (labels_.empty()) return Result::CANCELLED;
+  if (list_.thumbDragging()) {
+    list_.dragThumb(visibleRows(), y - y_ - kTopRows);
+    list_.endThumbDrag();
+    pressing_ = false;
+    return Result::NONE;
+  }
   int index = indexAt(y, x);
   bool on_entry = pressing_ ? started_on_entry_ : index >= 0;
   bool outside = pressing_ ? started_outside_ : !inBox(y, x);
