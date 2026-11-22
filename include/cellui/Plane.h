@@ -192,6 +192,23 @@ class Plane {
     (void)clip_top;
     (void)clip_bottom;
   }
+  // A shared picture shown inside `rows` x `cols` cells from cell (row, col): as large as fits with its proportions
+  // kept, centred, the display doing the scaling (its pixel size, scale factor and filter), so the caller knows
+  // nothing of pixels. `width` x `height` are the pixels `render` makes, whatever size the caller has them in;
+  // the picture is the same for every box. Without pixel pictures it draws nothing.
+  virtual void drawSharedImageFitted(int row, int col, int rows, int cols, ImageKey key, int width, int height,
+                                     const std::function<std::vector<uint32_t>()> & render, int clip_top = INT_MIN, int clip_bottom = INT_MAX) {
+    (void)row;
+    (void)col;
+    (void)rows;
+    (void)cols;
+    (void)key;
+    (void)width;
+    (void)height;
+    (void)render;
+    (void)clip_top;
+    (void)clip_bottom;
+  }
   // Forget the shared pictures: what they show no longer holds (a new theme).
   virtual void invalidateSharedImages() { }
   // The colours of what is drawn from now on. A colour may be wide (outside

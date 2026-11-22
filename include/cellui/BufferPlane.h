@@ -154,6 +154,8 @@ class BufferPlane : public Plane {
                    int clip_bottom = INT_MAX) override;
   void drawSharedImageAt(int row, int col, ImageKey key, int width, int height, const std::function<std::vector<uint32_t>()> & render,
                          int clip_top = INT_MIN, int clip_bottom = INT_MAX) override;
+  void drawSharedImageFitted(int row, int col, int rows, int cols, ImageKey key, int width, int height,
+                             const std::function<std::vector<uint32_t>()> & render, int clip_top = INT_MIN, int clip_bottom = INT_MAX) override;
   void invalidateSharedImages() override { root().shared_images_.clear(); }
   // The cell size in pixels, 0 when pixels cannot be shown (root only). A new size empties the shared
   // pictures: they were drawn for the old one.
@@ -321,7 +323,10 @@ class BufferPlane : public Plane {
     ImageKey shared;  // set for a picture of Plane::drawSharedImageAt()
   };
   // The pictures of drawSharedImageAt(), by key and size (root only).
-  std::map<std::tuple<std::string, uint64_t, int, int>, std::shared_ptr<Image>> shared_images_;
+  std::map<std::tuple<std::string, uint64_t, int, int, int, int>, std::shared_ptr<Image>> shared_images_;
+  // drawSharedImageAt() and drawSharedImageFitted(): `fit_rows` x `fit_cols` cells to fit the picture in, 0 for none.
+  void placeShared(int row, int col, int fit_rows, int fit_cols, ImageKey key, int width, int height,
+                   const std::function<std::vector<uint32_t>()> & render, int clip_top, int clip_bottom);
   void placeImage(int row, int col, uint64_t identity, bool explicit_id, int clip_top, int clip_bottom,
                   const std::function<bool(const PlacedImage &)> & equal, const std::function<std::shared_ptr<Image>()> & fresh);
   std::vector<PlacedImage> images_;

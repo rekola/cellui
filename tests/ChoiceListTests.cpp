@@ -137,3 +137,14 @@ TEST(choicelist_dragging_the_thumb_scrolls_without_moving_the_selection) {
   list.reset(5, 0);
   CHECK(!list.beginThumbDrag(10, 0));
 }
+
+TEST(choicelist_thumb_drag_does_not_ease) {
+  ChoiceList list;
+  list.setSmooth(true);
+  list.reset(100, 0);
+  list.firstVisible(10);
+  CHECK(list.beginThumbDrag(10, 0));
+  list.dragThumb(10, 5);
+  CHECK(!list.animating());
+  CHECK(list.shown() == static_cast<double>(list.offset()));
+}
