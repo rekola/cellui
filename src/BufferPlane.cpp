@@ -735,11 +735,23 @@ void BufferPlane::drawHdrImageAt(int row, int col, const std::vector<float> & rg
 
 void BufferPlane::drawSharedImageAt(int row, int col, ImageKey key, int width, int height, const std::function<std::vector<uint32_t>()> & render,
                                     int clip_top, int clip_bottom) {
+  placeShared(row, col, 0, 0, key, width, height, render, clip_top, clip_bottom);
+}
+
+void BufferPlane::drawSharedImageFitted(int row, int col, int rows, int cols, ImageKey key, int width, int height,
+                                        const std::function<std::vector<uint32_t>()> & render, int clip_top, int clip_bottom) {
+  if (rows <= 0 || cols <= 0 || root().cell_px_h_ <= 0 || root().cell_px_w_ <= 0) return;  // no pictures here
+  placeShared(row, col, rows, cols, key, width, height, render, clip_top, clip_bottom);
+}
+
+void BufferPlane::placeShared(int row, int col, int fit_rows, int fit_cols, ImageKey key, int width, int height,
+                              const std::function<std::vector<uint32_t>()> & render, int clip_top, int clip_bottom) {
   if (!key.valid() || width <= 0 || height <= 0) return;
+  const bool fitted = fit_rows > 0 && fit_cols > 0;
   // The picture of this key, made once for the whole tree.
   auto picture = [&]() {
     auto & registry = root().shared_images_;
-    auto id = std::make_tuple(std::string(key.kind), key.id, width, height);
+    auto id = std::make_tuple(std::string(key.kind), key.id, width, height, fit_rows, fit_cols);
     auto it = registry.find(id);
     if (it != registry.end()) return it->second;
     // Bounded: a dial dragged through every value makes a picture for each. The places showing one keep it.
@@ -750,6 +762,25 @@ void BufferPlane::drawSharedImageAt(int row, int col, ImageKey key, int width, i
     image->width = width;
     image->height = height;
     image->pixels = std::move(pixels);
+    if (fitted) {
+      // The display stretches a picture over its cells, so the box's proportions are given to the picture: it is
+      // centred in transparent margins, and nothing is resampled here.
+      const long long box_w = static_cast<long long>(fit_cols) * root().cell_px_w_, box_h = static_cast<long long>(fit_rows) * root().cell_px_h_;
+      int w = width, h = height;
+      if (static_cast<long long>(width) * box_h > static_cast<long long>(height) * box_w) h = static_cast<int>((static_cast<long long>(width) * box_h + box_w - 1) / box_w);
+      else w = static_cast<int>((static_cast<long long>(height) * box_w + box_h - 1) / box_h);
+      if (w != width || h != height) {
+        std::vector<uint32_t> padded(static_cast<size_t>(w) * static_cast<size_t>(h), 0);
+        const int x0 = (w - width) / 2, y0 = (h - height) / 2;
+        for (int y = 0; y < height; y++)
+          std::copy_n(image->pixels.begin() + static_cast<long>(y) * width, width, padded.begin() + static_cast<long>(y0 + y) * w + x0);
+        image->pixels = std::move(padded);
+        image->width = w;
+        image->height = h;
+      }
+      image->rows = fit_rows;
+      image->cols = fit_cols;
+    }
     image->version = nextImageVersion();
     registry.emplace(id, image);
     return image;
@@ -761,8 +792,12 @@ void BufferPlane::drawSharedImageAt(int row, int col, ImageKey key, int width, i
   mix(key.id);
   mix(static_cast<uint64_t>(width));
   mix(static_cast<uint64_t>(height));
+  mix(static_cast<uint64_t>(fit_rows));
+  mix(static_cast<uint64_t>(fit_cols));
   auto same = [&](const PlacedImage & placed) {
-    return placed.shared == key && placed.image && placed.image->width == width && placed.image->height == height;
+    if (!placed.shared.valid() || !(placed.shared == key) || !placed.image) return false;
+    if (fitted) return placed.image->rows == fit_rows && placed.image->cols == fit_cols && placed.image->stretched();
+    return placed.image->width == width && placed.image->height == height && !placed.image->stretched();
   };
   for (PlacedImage & placed : images_) {
     if (placed.row != row || placed.col != col) continue;

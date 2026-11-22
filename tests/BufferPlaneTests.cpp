@@ -1549,3 +1549,33 @@ TEST(flat_children_add_their_height_to_the_plane_they_were_made_from) {
   root.refresh();
   CHECK(b.toPlainText() == "cccc\n");
 }
+
+TEST(a_fitted_picture_keeps_its_proportions_inside_its_cells_and_is_one_picture_for_every_place) {
+  StyleProvider styles;
+  CellBuffer buffer(4, 10);
+  BufferPlane root(buffer, styles);
+  root.setCellPixelSize(16, 8);
+  auto render = [] { return std::vector<uint32_t>(40 * 10, Image::pack(200, 30, 30)); };  // wide: 40 x 10
+  root.drawSharedImageFitted(0, 0, 1, 2, {"logo", 1}, 40, 10, render);
+  root.drawSharedImageFitted(2, 4, 1, 2, {"logo", 1}, 40, 10, render);
+  root.refresh();
+  if (root.images().empty()) return;  // no pixel backend in this build
+  CHECK(root.images().size() == 2);
+  const Image & image = *root.images()[0].image;
+  CHECK(root.images()[1].image == root.images()[0].image);
+  // The two cells are 16 x 16 pixels, so the picture is made square and shown over them, the display scaling it.
+  CHECK(image.stretched() && image.cols == 2 && image.rows == 1);
+  CHECK(image.width == image.height && image.width >= 40);
+  // Its own pixels sit in the middle, with transparent margins above and below.
+  CHECK(Image::alpha(image.pixels[static_cast<size_t>(image.height / 2 * image.width + image.width / 2)]) == 255);
+  CHECK(Image::alpha(image.pixels[0]) == 0);
+}
+
+TEST(a_fitted_picture_draws_nothing_where_the_display_has_no_pictures) {
+  StyleProvider styles;
+  CellBuffer buffer(4, 10);
+  BufferPlane root(buffer, styles);
+  root.drawSharedImageFitted(0, 0, 1, 2, {"logo", 1}, 4, 4, [] { return std::vector<uint32_t>(16, 0xffffffffu); });
+  root.refresh();
+  CHECK(root.images().empty());
+}

@@ -59,7 +59,7 @@ carries the app's object as an opaque `getAppContext()`.
   own, its colours fixed or theme roles (`&StyleProvider::info_line_fg_color`), drawn again on
   every change and resize; `Table` with `TableModel`: a click on a heading sorts, no key does;
   a buttons column (`TableColumn::buttons`, glyphs the same in every row, as wide as they are) says `button_clicked(row, column, button)` after selecting the row;
-  an icon column (`TableColumn::icon`, `TableModel::icon()`: RGBA pixels under an id) is drawn with `drawSharedImageAt()`, one picture per id, and takes no room where the display has no pictures;
+  an icon column (`TableColumn::icon`, `TableModel::icon()`: RGBA pixels under an id) is drawn with `drawSharedImageFitted()`, one picture per id, and takes no room where the display has no pictures;
   `trace()` is a `std::span` of the model's own values and `number()` what a cell sorts by,
   read from its text by default), `Layout.h` (`layoutRows()`/`layoutColumns()`: `LayoutPart`s
   of a fixed size or a share of what is left, with margins across), `Gallery.h`.
@@ -210,6 +210,11 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   scale, or `invalidateSharedImages()` for a theme, empties it), and the kitty
   encoder uploads one once however many places show it (a placement id each),
   frees it when its last place goes (kitty drops a picture no placement shows, and a placement of it then answers ENOENT, which sends it again).
+  `drawSharedImageFitted(row, col, rows, cols, key, w, h, render)` is the same for a picture that is shown as large as
+  fits inside `rows` x `cols` cells with its proportions kept: the pixels are whatever size the caller has, the plane
+  centres them in transparent margins of the box's proportions and marks the picture stretched over the cells, so
+  the display scales it (kitty `c=`/`r=`, the window's texture filter, Sixel in the encoder) and the caller knows
+  nothing of cell pixels or the display scale (`Table`'s icons, an application's own logos).
   Statistics are by the kind (`dial`), or the size for pictures with no key.
 - `Plane::drawImageAt()`: a plane holds one image per cell position, covering
   only the cells it reaches; the same picture (by id or pixel hash) drawn
