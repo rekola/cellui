@@ -2,6 +2,7 @@
 
 #include <cellui/Charts.h>
 #include <cellui/InputEvents.h>
+#include <cellui/Scrollbar.h>
 #include <cellui/Signal.h>
 #include <cellui/WheelAcceleration.h>
 #include <cellui/Viewport.h>
@@ -164,6 +165,9 @@ class Table : public Widget {
   // What is under a screen cell: the heading's column (sortable ones only) or the position of a row, -1 for none.
   void hitAt(int screen_row, int screen_col, int & heading, int & position) const;
   void setPressed(int heading, int position);
+  // Dragging the scrollbar's thumb (the pointer is grabbed from the press to the release).
+  bool beginThumbDrag(int screen_row, int screen_col);
+  void dragThumb(int screen_row);
   // The row a drag that began on a row is over, by the pointer's screen row alone: above the rows (the heading
   // included) the first one in view, below them the last, and with `scroll` the view moves one row that way, so a
   // drag past an edge reaches the rows beyond it. -1 when there are no rows.
@@ -195,6 +199,7 @@ class Table : public Widget {
   int pressed_heading_ = -1, pressed_position_ = -1;
   bool press_on_heading_ = false;
   bool pressing_ = false;
+  ScrollbarDrag thumb_drag_;
   std::vector<Connection> connections_;
 };
 

@@ -60,6 +60,7 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
   setFocusable(true);
   connections_.push_back(on<MouseDown>([this](const MouseDown & e, EventContext &) {
     if (e.button != 1) return Handled::no;
+    if (beginThumbDrag(e.row, e.col)) return Handled::yes;
     int heading = -1, position = -1;
     hitAt(e.row, e.col, heading, position);
     pressing_ = true;
@@ -69,6 +70,10 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
   }));
   // The pointer is grabbed from the press to the release, so a drag is still ours: the pressed look moves with it.
   connections_.push_back(on<MouseMove>([this](const MouseMove & e, EventContext &) {
+    if (thumb_drag_.active()) {
+      if (e.buttons & 1) dragThumb(e.row);
+      return Handled::yes;
+    }
     if (!pressing_ || !(e.buttons & 1)) return Handled::no;
     if (press_on_heading_) {
       int heading = -1, position = -1;
@@ -81,6 +86,11 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
     return Handled::yes;
   }));
   connections_.push_back(on<MouseUp>([this](const MouseUp & e, EventContext &) {
+    if (e.button == 1 && thumb_drag_.active()) {
+      dragThumb(e.row);
+      thumb_drag_.end();
+      return Handled::yes;
+    }
     if (e.button != 1 || !pressing_) return Handled::no;
     int heading = -1, position = -1;
     hitAt(e.row, e.col, heading, position);
@@ -226,6 +236,29 @@ void Table::hitAt(int screen_row, int screen_col, int & heading, int & position)
   // The row under the middle of the cell, as the view moves.
   int at = rows_.indexAt((y - 1) / row_height_);
   if ((y - 1) / row_height_ < visibleRows() && at >= 0 && at < static_cast<int>(order_.size())) position = at;
+}
+
+// A press on the scrollbar's column below the heading takes the thumb (or jumps it to the pointer).
+bool Table::beginThumbDrag(int screen_row, int screen_col) {
+  auto [py, px] = getPosition();
+  int y = screen_row - py, x = screen_col - px;
+  const int track = std::max(0, getDim().first - 1), count = static_cast<int>(order_.size());
+  if (x != getDim().second - 1 || y < 1 || y > track) return false;
+  rows_.setExtent(count, visibleRows());
+  auto jump = thumb_drag_.begin(track, count, visibleRows(), rows_.shown(), y - 1);
+  if (!thumb_drag_.active()) return false;
+  if (jump) {
+    rows_.scrollTo(*jump);
+    render();
+  }
+  return true;
+}
+
+void Table::dragThumb(int screen_row) {
+  const int track = std::max(0, getDim().first - 1), count = static_cast<int>(order_.size());
+  rows_.setExtent(count, visibleRows());
+  rows_.scrollTo(thumb_drag_.offset(track, count, visibleRows(), screen_row - getPosition().first - 1));
+  render();
 }
 
 int Table::dragPosition(int screen_row, bool scroll) {

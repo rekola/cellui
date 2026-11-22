@@ -18,6 +18,7 @@ class ChoiceList {
     count_ = std::max(0, count);
     window_ = ScrollAxis();
     pressed_ = -1;
+    drag_.end();
     selected_ = 0;
     select(selected);
   }
@@ -54,6 +55,19 @@ class ChoiceList {
   }
   bool detached() const { return detached_; }
 
+  // Dragging the scrollbar's thumb, in a track of `rows` cells beside a window of `rows` rows; `pos` is how far down
+  // the track the pointer is. Like the wheel it scrolls without moving the selection.
+  bool beginThumbDrag(int rows, int pos) {
+    auto jump = drag_.begin(rows, count_, rows, window_.shown(), pos);
+    if (jump) scrollTo(*jump, rows);
+    return drag_.active();
+  }
+  bool thumbDragging() const { return drag_.active(); }
+  void dragThumb(int rows, int pos) {
+    if (drag_.active()) scrollTo(drag_.offset(rows, count_, rows, pos), rows);
+  }
+  void endThumbDrag() { drag_.end(); }
+
   // The entry the pointer is held down on (-1 for none), drawn pressed. Choosing it is for the release.
   int pressed() const { return pressed_; }
   void setPressed(int index) { pressed_ = index >= 0 && index < count_ ? index : -1; }
@@ -87,6 +101,13 @@ class ChoiceList {
   int pressed_ = -1;
   bool detached_ = false;
   ScrollAxis window_;
+  ScrollbarDrag drag_;
+
+  void scrollTo(int offset, int rows) {
+    window_.setExtent(count_, std::max(1, rows));
+    window_.scrollTo(offset);
+    detached_ = true;
+  }
 };
 
 }  // namespace cellui

@@ -81,6 +81,7 @@ class ChoiceDialog {
   int current_ = -1;
   ChoiceList list_;
   // The left button is down: on an entry, or outside the box.
+  bool onScrollbar(int row, int col) const;
   bool pressing_ = false, started_on_entry_ = false, started_outside_ = false;
   // Where the box sits and how big it is, as of the last show().
   int y_ = 0, x_ = 0, rows_ = 0, width_ = 0;
