@@ -26,6 +26,15 @@ std::string linkClassLabel(LinkClass cls) {
   return "";
 }
 
+std::string linkStatusText(const LinkStatus & status) {
+  std::string text = "Link: ";
+  if (!status.available && !status.pinned) return text + "n/a";
+  text += linkClassLabel(status.cls);
+  if (!status.description.empty()) text += ", " + status.description;
+  if (status.pinned) text += " (pinned)";
+  return text;
+}
+
 bool parseLinkClass(const std::string & name, std::optional<LinkClass> & pin) {
   if (name == "auto") {
     pin.reset();
