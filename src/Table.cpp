@@ -471,7 +471,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
     const int col = static_cast<int>(c);
     if (l.width[c] == 0) continue;
     if (columns_[c].icon) {
-      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col));
+      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col), selected && focused_, styles.highlight_fg_color);
       continue;
     }
     if (!columns_[c].buttons.empty()) {
@@ -496,10 +496,26 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
   }
 }
 
-// The display fits the picture into the cell's box, as large as it goes with its proportions kept.
-void Table::drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon) {
+// The display fits the picture into the cell's box, as large as it goes with its proportions kept. On the focused
+// selection the picture is desaturated, inverted and coloured with `tint` (the highlight's foreground, as the text is),
+// alpha kept: whatever colours a provider's logo has, it reads as light on the highlight. It has a key of its own, so the
+// plain picture stays shared.
+void Table::drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon, bool inverted, const Color & tint) {
   if (!icon || !icon->pixels || icon->width <= 0 || icon->height <= 0) return;
-  getPlane().drawSharedImageFitted(y, x, row_height_, width, ImageKey{"icon", icon->id}, icon->width, icon->height, [icon] { return *icon->pixels; }, 0,
+  const std::array<uint8_t, 3> t = tint.toSrgb8();
+  auto render = [icon, inverted, t] {
+    std::vector<uint32_t> pixels = *icon->pixels;
+    if (inverted) {
+      for (uint32_t & p : pixels) {
+        auto * b = reinterpret_cast<unsigned char *>(&p);  // bytes R, G, B, A in memory
+        const float gray = (0.2126f * static_cast<float>(b[0]) + 0.7152f * static_cast<float>(b[1]) + 0.0722f * static_cast<float>(b[2])) / 255.0f;
+        const float v = 1.0f - gray;
+        for (int k = 0; k < 3; k++) b[k] = static_cast<unsigned char>(std::lround(v * static_cast<float>(t[static_cast<size_t>(k)])));
+      }
+    }
+    return pixels;
+  };
+  getPlane().drawSharedImageFitted(y, x, row_height_, width, ImageKey{inverted ? "icon-inverted" : "icon", icon->id}, icon->width, icon->height, render, 0,
                                    getDim().first + 1);
 }
 
