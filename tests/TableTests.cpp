@@ -16,7 +16,7 @@ struct Quotes : TableModel {
   std::vector<Row> rows = {{"Nokia", "4.20", {1, 2, 3}}, {"Fortum", "15.50", {3, 2, 1}}, {"Sampo", "9.00", {1, 3, 2}}, {"Kone", "52.10", {1, 1, 4}}};
   int rowCount() const override { return static_cast<int>(rows.size()); }
   std::string text(int r, int c) const override { return c == 0 ? rows[static_cast<size_t>(r)].name : rows[static_cast<size_t>(r)].price; }
-  std::vector<float> trace(int r, int) const override { return rows[static_cast<size_t>(r)].history; }
+  std::span<const float> trace(int r, int) const override { return rows[static_cast<size_t>(r)].history; }
 };
 
 struct Fixture {
@@ -109,7 +109,7 @@ TEST(table_scrolls_with_the_wheel_and_keeps_the_selection_in_view) {
   f.table.resize(3, 30);  // heading and two rows
   CHECK(f.table.visibleRows() == 2);
   f.table.post(Wheel{0, 0, 2, 3, 0, -1, {}});  // one notch down
-  CHECK(f.table.firstVisiblePosition() == 2);  // at most content - view
+  CHECK(f.table.firstVisiblePosition() == 1);  // one row for an isolated notch
   f.table.post(Wheel{0, 0, 2, 3, 0, 1, {}});
   CHECK(f.table.firstVisiblePosition() == 0);
   f.table.select(3);
@@ -123,19 +123,37 @@ TEST(table_trace_column_draws_braille_dots) {
   CHECK(t.find("\xe2\xa0") != std::string::npos || t.find("\xe2\xa1") != std::string::npos || t.find("\xe2\xa3") != std::string::npos);
 }
 
-TEST(table_keys_cycle_the_sort_column_and_reverse) {
+TEST(table_sorts_by_its_headings_and_leaves_letter_keys_to_others) {
   Fixture f;
-  KeyDown k;
-  k.key = '>';
-  f.table.post(k);
-  CHECK(f.table.sortColumn() == 0);
-  f.table.post(k);
-  CHECK(f.table.sortColumn() == 1);
-  f.table.post(k);  // the trace column is skipped
-  CHECK(f.table.sortColumn() == 0);
-  k.key = 'r';
-  f.table.post(k);
-  CHECK(f.table.sortOrder() == SortOrder::DESCENDING);
+  for (int key : {'<', '>', 'r'}) {
+    KeyDown k;
+    k.key = key;
+    CHECK(f.table.post(k) == Handled::no);
+  }
+  CHECK(f.table.sortColumn() == -1);
+}
+
+namespace {
+// Prices shown rounded to whole euros, and their real values.
+struct Rounded : TableModel {
+  std::vector<double> prices = {9.6, 9.4, 10.2};
+  int rowCount() const override { return static_cast<int>(prices.size()); }
+  std::string text(int r, int) const override { return std::to_string(static_cast<int>(prices[static_cast<size_t>(r)] + 0.5)); }
+  std::optional<double> number(int r, int) const override { return prices[static_cast<size_t>(r)]; }
+};
+}  // namespace
+
+TEST(table_sorts_by_the_models_numbers_not_its_rounded_text) {
+  Fixture f;
+  f.table.setColumns({{"Price", 8, Align::RIGHT, true, false}});
+  f.table.setModel(std::make_shared<Rounded>());
+  f.table.sortBy(0, SortOrder::ASCENDING);
+  CHECK(f.table.rowAt(0) == 1 && f.table.rowAt(1) == 0 && f.table.rowAt(2) == 2);  // 9.4, 9.6, 10.2 although two read "10"
+  // The default reads a number from the text: "15.50" after "9.00", not before it.
+  f.table.setColumns({{"Name", 10, Align::LEFT, true, false}, {"Price", 8, Align::RIGHT, true, false}});
+  f.table.setModel(f.model);
+  f.table.sortBy(1, SortOrder::ASCENDING);
+  CHECK(f.model->text(f.table.rowAt(1), 1) == "9.00" && f.model->text(f.table.rowAt(2), 1) == "15.50");
 }
 
 TEST(tagbar_click_and_arrows_choose) {
@@ -163,12 +181,12 @@ TEST(tagbar_click_and_arrows_choose) {
 }
 
 TEST(trace_resample_scales_lowest_to_highest) {
-  auto v = trace_image::resample({10, 20, 30}, 5);
+  auto v = trace_image::resample(std::vector<float>{10, 20, 30}, 5);
   CHECK(v.size() == 5u);
   CHECK(v.front() == 0.0f && v.back() == 1.0f);
   CHECK(v[2] == 0.5f);
   CHECK(trace_image::resample({}, 4).empty());
-  auto flat = trace_image::resample({7, 7}, 3);
+  auto flat = trace_image::resample(std::vector<float>{7, 7}, 3);
   CHECK(flat[0] == 0.5f);
 }
 
@@ -337,23 +355,23 @@ TEST(table_eases_to_a_new_scroll_position_where_the_display_scrolls_smoothly) {
   SmoothFixture f(true);
   CHECK(!f.table.animating());
   f.wheelDown();
-  CHECK(f.table.firstVisiblePosition() == 2);  // where it is scrolled to (at most content - view)
+  CHECK(f.table.firstVisiblePosition() == 1);  // where it is scrolled to
   CHECK(f.table.animating());
   CHECK(f.table.scrollPosition() == 0.0);      // not there yet
   CHECK(f.table.tick(0.03));                   // still moving
-  CHECK(f.table.scrollPosition() > 0.0 && f.table.scrollPosition() < 2.0);
+  CHECK(f.table.scrollPosition() > 0.0 && f.table.scrollPosition() < 1.0);
   int ticks = 0;
   while (f.table.tick(0.03) && ticks < 200) ticks++;
   CHECK(ticks < 200);
   CHECK(!f.table.animating());
-  CHECK(f.table.scrollPosition() == 2.0);
+  CHECK(f.table.scrollPosition() == 1.0);
   f.root.refresh();  // and it draws without trouble in each state
 }
 
 TEST(table_jumps_where_the_display_does_not_scroll_smoothly_and_with_taller_rows) {
   SmoothFixture plain(false);
   plain.wheelDown();
-  CHECK(!plain.table.animating() && plain.table.scrollPosition() == 2.0);
+  CHECK(!plain.table.animating() && plain.table.scrollPosition() == 1.0);
   SmoothFixture tall(true);
   tall.table.setRowHeight(2);  // whole rows only: the plane would have to be shifted by parts of a table row
   tall.wheelDown();

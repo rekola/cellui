@@ -101,9 +101,36 @@ void BufferPlane::putstr(int y, int x, const std::string & s, const TextFace & f
   local_.write(y, x, s, style);
 }
 
-void BufferPlane::putText(int y, int x, int cols, const std::string & text, const TextStyle & style) {
+void BufferPlane::putText(int y, int x, int cols, const std::string & text, const TextStyle & style) { putRun(y, x, cols, text, style, nullptr); }
+
+void BufferPlane::putEmphasisedText(int y, int x, int cols, const std::string & text, const TextStyle & style, const TextEmphasis & emphasis) {
+  putRun(y, x, cols, text, style, emphasis.ranges.empty() ? nullptr : &emphasis);
+}
+
+void BufferPlane::putRun(int y, int x, int cols, const std::string & text, const TextStyle & style, const TextEmphasis * emphasis) {
   if (!root().proportional_text_ || style.font != TextFont::PROPORTIONAL) {
     Plane::putText(y, x, cols, text, style);
+    if (!emphasis) return;
+    // As cells: the emphasised characters again, bold and in their colour, where the cut and aligned text put them.
+    if (cols < 0) cols = std::max(0, getDim().second - x);
+    std::string cut = cutToCells(text, cols, style.overflow);
+    int gap = std::max(0, cols - utf8::displayWidth(cut));
+    int column = style.align == TextAlign::RIGHT ? gap : style.align == TextAlign::CENTER ? gap / 2 : 0;
+    std::optional<Color> saved = style_.fg;
+    style_.fg = emphasis->fg;
+    TextFace bold = style.face;
+    bold.weight = kWeightBold;
+    for (size_t at = 0; at < cut.size();) {
+      size_t next = at + 1;
+      while (next < cut.size() && (static_cast<unsigned char>(cut[next]) & 0xC0) == 0x80) next++;
+      bool marked = false;
+      for (auto & [from, to] : emphasis->ranges) marked = marked || (static_cast<int>(at) >= from && static_cast<int>(at) < to);
+      std::string glyph = cut.substr(at, next - at);
+      if (marked) putstr(y, x + column, glyph, bold);
+      column += utf8::displayWidth(glyph);
+      at = next;
+    }
+    style_.fg = saved;
     return;
   }
   if (cols < 0) cols = std::max(0, getDim().second - x);
@@ -121,10 +148,14 @@ void BufferPlane::putText(int y, int x, int cols, const std::string & text, cons
   run.font = style.font;
   run.overflow = style.overflow;
   run.align = style.align;
+  if (emphasis) {
+    run.emphasis = emphasis->ranges;
+    run.emphasis_fg = emphasis->fg;
+  }
   // The same run again (a widget redrawing without an erase) is the same one.
   auto same = [&](const TextRun & o) {
     return o.text == run.text && o.fg == run.fg && o.weight == run.weight && o.italic == run.italic && o.underline == run.underline &&
-           o.font == run.font && o.overflow == run.overflow && o.align == run.align;
+           o.font == run.font && o.overflow == run.overflow && o.align == run.align && o.emphasis == run.emphasis && o.emphasis_fg == run.emphasis_fg;
   };
   int mark = 0;
   for (size_t i = texts_.size(); i-- > 0 && texts_.size() - i <= 64;) {
@@ -375,6 +406,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
           for (int c = c_lo; c < c_hi; c++) {
             CellBuffer::Cell marked;
             marked.image = placement.index + 1;
+            marked.bg = content.cells.at(r, c).bg;
             marked.lift = content.cells.at(r, c).lift;
             marked.lift_joined = content.cells.at(r, c).lift_joined;
             marked.lift_shadow = content.cells.at(r, c).lift_shadow;

@@ -51,6 +51,8 @@ class ModalDialog {
   // Take the events; every event is the dialog's, whether it uses it or not.
   virtual void keyDown(const KeyDown &) {}
   virtual void keyUp(const KeyUp &) {}
+  virtual void mouseDown(const MouseDown &) {}
+  virtual void mouseMove(const MouseMove &) {}
   virtual void mouseUp(const MouseUp &) {}
   virtual void wheel(const Wheel &) {}
   // Removes the dialog's planes.

@@ -393,6 +393,20 @@ void Window::Impl::drawTextRun(const TextRun & run, float x, float y, int box_co
   Com<IDWriteTextLayout> layout;
   if (FAILED(dwrite->CreateTextLayout(text.c_str(), static_cast<UINT32>(text.size()), format, w, h, layout.put()))) return;
   if (run.underline) layout->SetUnderline(TRUE, DWRITE_TEXT_RANGE{ 0, static_cast<UINT32>(text.size()) });
+  // The emphasised parts (byte ranges of the UTF-8 text, so their places in the UTF-16 one are counted), bold and in
+  // their own colour: a brush as the drawing effect of the range.
+  if (!run.emphasis.empty()) {
+    Com<ID2D1SolidColorBrush> emphasis_brush;
+    if (run.emphasis_fg) rt_->CreateSolidColorBrush(colorOf(tinted(*run.emphasis_fg, x, y, w, h)), emphasis_brush.put());
+    auto utf16_at = [&](int byte) { return static_cast<UINT32>(widen(run.text.substr(0, static_cast<size_t>(std::max(0, byte)))).size()); };
+    for (const auto & [from, to] : run.emphasis) {
+      UINT32 start = utf16_at(from), end = utf16_at(to);
+      if (end <= start) continue;
+      DWRITE_TEXT_RANGE range{ start, end - start };
+      layout->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, range);
+      if (emphasis_brush) layout->SetDrawingEffect(emphasis_brush.get(), range);
+    }
+  }
   if (run.align == TextAlign::RIGHT) layout->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
   else if (run.align == TextAlign::CENTER) layout->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
   if (run.overflow == TextOverflow::ELLIPSIS) {

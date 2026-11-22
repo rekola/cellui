@@ -6,7 +6,9 @@ and tests alone (`cmake -B build && ctest --test-dir build`). It knows nothing
 of the application: a ctest (`cellui_includes_nothing_from_src`) fails on any
 include that leaves the repository. Headers are `cellui/X.h`, in `namespace
 cellui`. Tests in `tests/` use a copy of the tiny test framework. cellui owns
-the libunistring and canvas dependencies; fast_float is vendored in
+the Unicode (libunistring or utf8proc, `-DCELLUI_UNICODE=`; Windows and Linux
+ARM64 CI use utf8proc, which also keeps flags and emoji ZWJ sequences whole)
+and canvas dependencies; fast_float is vendored in
 `third_party/` (never reformat it).
 
 Tests, the gallery and the tools build only when cellui is the top-level
@@ -49,10 +51,16 @@ carries the app's object as an opaque `getAppContext()`.
   ESC-as-Meta; no timing window) and know when the "ESC-" indicator is due.
 - Theme (`Theme`, `StyleProvider`), `Plane`, `Widget` (`Widget.h`: the plane,
   drawing, keymap and prefix-key dispatch),
-  `UIMenu`, `Viewport.h`, the generic widgets (`ChoiceList`/`ChoiceDialog`,
+  `UIMenu`, `Viewport.h`, `Scrollbar.h` (`drawScrollbar()` and `scrollbarThumb()`: the one scrollbar `Table`,
+  `ChoiceDialog` and `CommandPalette` share, `ChoiceList::thumb()` its geometry), the generic widgets (`ChoiceList`/`ChoiceDialog`,
   `InlineEditor`, `SpinBox`, `Checkbox` (a label and a flag, focusable; Space or Enter toggles), `Dial`, `Lamp`, `LineChart`, `HeatmapChart`, `InfoDialog`,
   `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`, `StatusLine`: the bottom row's message
-  and its Emacs-style prompt with Tab completion), `Gallery.h`.
+  and its Emacs-style prompt with Tab completion; `Label`: a line of text on a background of its
+  own, its colours fixed or theme roles (`&StyleProvider::info_line_fg_color`), drawn again on
+  every change and resize; `Table` with `TableModel`: a click on a heading sorts, no key does;
+  `trace()` is a `std::span` of the model's own values and `number()` what a cell sorts by,
+  read from its text by default), `Layout.h` (`layoutRows()`/`layoutColumns()`: `LayoutPart`s
+  of a fixed size or a share of what is left, with margins across), `Gallery.h`.
 
 ## Application
 
@@ -81,8 +89,12 @@ Escape waiting for its key) for the program's echo line. A program whose
 commands are not all in `commands()` (synth's are in several registries, run
 by what has the focus) gives an `Application::CommandSource` (names,
 description, binding, execute): the palette lists them with `commands()`'s,
-and `execute()`, `bindingFor()` and the keymap reach them for a name
-`commands()`/`keymap()` do not have. `run()` waits for the
+and `execute()` and the keymap reach them for a name `commands()` does not have
+(a bound key through `run_binding` where that differs; `bindingFor()` asks the
+source first, then `keymap()`). `setKeymapOrder(KeymapOrder::PROGRAM)` leaves the
+keymap to the program, which offers it a key with `offerKey()` where its own
+layers allow (synth: after an open editor or a prompt, ahead of the focused
+widget); the key after a prefix stays the prefix's either way. `run()` waits for the
 backend's `nextDeadline()` too, so a lone ESC byte the terminal's parser holds
 is settled and a frame the pacer held back starts without another input. It
 asks for a frame when the display reported something, never for a bare wake (a
@@ -251,6 +263,17 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   and the window never stacks the runs of rows below into one box, as it does
   for pictures. `Table` sets its headings and cells this way (`setFont()` for the
   cells' own face), so a window shows them proportional, numbers right-aligned.
+  `Plane::putEmphasisedText()` is `putText()` with byte ranges bold in a colour of their own
+  (`TextEmphasis`: the matched letters of a search): a `TextRun` carries them as Pango attributes in the GTK
+  window and as a bold weight and a brush on the range of the DirectWrite layout in the Win32 one (compiled with
+  mingw, never run), and cells do it where text is cells; so
+  `CommandPalette` and `ChoiceDialog` set their lists in the proportional face too.
+  The wheel scrolls a `ChoiceList` without moving its selection (`scroll()` detaches the window until the selection
+  moves, so the selection may be out of view); a press on an entry draws it pressed (`setPressed()`, following the
+  pointer) and the release over it chooses it (`CommandPalette`/`ChoiceDialog` `press()`, `drag()`, `click()`).
+  Where the display scrolls smoothly both lists ease: their rows are on a plane of their own that the display shifts
+  by the fraction of a row (`ChoiceList::firstShown()`/`fraction()`), `Application` ticks the open palette each frame
+  and `ChoiceModal` its dialog.
 - The pointer shape is a plane attribute (`Plane::setMouseCursor()`:
   `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`/`GRABBING`/`NOT_ALLOWED`); `refresh()` lists the requesting
   planes' rectangles in drawing order (`FrameInfo::mouse_cursors`) and the
@@ -297,7 +320,9 @@ smooth scroll, proportional text), `BackendEvent`s (`cellui/BackendEvent.h`:
 input, resize, paste, close, display changed, focus), a frame to show, and
 `setNativeSelection()` (the user selects text with the mouse instead of the
 app getting clicks). `TerminalSession`, the GTK and Win32 `Window`s and
-`cellui::test::TestBackend` implement it; `InteractiveUI` and its tests use
+`cellui::test::TestBackend` implement it (`TestBackend` builds everywhere: its
+signals are `Wakeup`s and its loop `PlatformEventLoop`, so `inputFd()`/`wakeFd()`
+are descriptors on POSIX and `inputHandles()` events on Windows); `InteractiveUI` and its tests use
 only `Backend`, `BackendEvent` and `DisplayInfo`. The loop is the backend's
 too: `Backend::eventLoop()` gives an `EventLoop` (`run()`, `quit()`,
 `iterate(block)`, descriptor sources, a before hook returning how long the

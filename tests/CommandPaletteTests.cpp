@@ -249,3 +249,143 @@ TEST(palette_list_is_a_raised_panel_but_the_description_and_query_use_the_displa
   CHECK(!f.buffer.at(16, 3).italic);
   CHECK(f.buffer.at(16, 3).fg && !sameColor(*f.buffer.at(16, 3).fg, *description.fg));
 }
+
+TEST(palette_shows_a_scrollbar_only_when_the_list_is_longer_than_its_rows) {
+  Fixture few;
+  CHECK(few.buffer.toPlainText().find("┃") == std::string::npos);
+
+  StyleProvider styles;
+  CellBuffer buffer{20, 80};
+  BufferPlane root{buffer, styles};
+  CommandPalette palette;
+  std::vector<PaletteEntry> many;
+  for (int i = 0; i < 30; i++) many.push_back({"command-" + std::to_string(i), "", ""});
+  palette.open(many);
+  palette.show(root, 20, 80);
+  root.refresh();
+  // The thumb is at the top of the track in the last column, and moves down with the selection.
+  auto thumb_at = [&](int row) { return buffer.at(row, 79).text == "┃"; };
+  CHECK(thumb_at(6));
+  for (int i = 0; i < 29; i++) offer(palette, key(Key::Down));
+  palette.show(root, 20, 80);
+  root.refresh();
+  CHECK(!thumb_at(6));
+  CHECK(thumb_at(17));
+}
+
+TEST(palette_names_are_proportional_runs_with_the_matched_letters_emphasised_where_the_display_lays_text_out) {
+  StyleProvider styles;
+  CellBuffer buffer{20, 80};
+  BufferPlane root{buffer, styles};
+  root.setProportionalText(true);
+  CommandPalette palette;
+  palette.open(entries());
+  for (const char * c = "tgv"; *c; c++) offer(palette, type(c));
+  palette.show(root, 20, 80);
+  root.refresh();
+  bool found = false;
+  for (auto & run : root.takeTextRuns()) {
+    if (run.text != "toggle-view") continue;
+    found = true;
+    CHECK(run.font == TextFont::PROPORTIONAL && !run.emphasis.empty() && run.emphasis[0].first == 0);
+  }
+  CHECK(found);
+}
+
+namespace {
+std::vector<PaletteEntry> manyEntries() {
+  std::vector<PaletteEntry> many;
+  for (int i = 0; i < 30; i++) many.push_back({"command-" + std::to_string(i), "", ""});
+  return many;
+}
+}  // namespace
+
+TEST(palette_wheel_scrolls_the_list_and_leaves_the_selection_where_it_is) {
+  StyleProvider styles;
+  CellBuffer buffer{20, 80};
+  BufferPlane root{buffer, styles};
+  CommandPalette palette;
+  palette.open(manyEntries());
+  palette.show(root, 20, 80);
+  for (int i = 0; i < 20; i++) palette.wheel(false);
+  palette.show(root, 20, 80);
+  root.refresh();
+  CHECK(palette.chosen() && palette.chosen()->name == "command-0");  // out of view, still the selection
+  CHECK(buffer.toPlainText().find("command-0\n") == std::string::npos);
+  // Moving the selection brings the list back to it.
+  palette.key(InputDispatcher::keyDownFor(key(Key::Down)));
+  palette.show(root, 20, 80);
+  root.refresh();
+  CHECK(palette.chosen()->name == "command-1");
+  CHECK(buffer.toPlainText().find("command-1") != std::string::npos);
+}
+
+TEST(palette_chooses_the_command_the_button_is_released_over_after_a_press_on_a_command) {
+  Fixture f;
+  // Rows 13-17 list the five commands.
+  CHECK(f.palette.press(14, 10) == CommandPalette::Result::NONE);
+  CHECK(f.palette.drag(16, 10) == CommandPalette::Result::NONE);  // the press follows the pointer
+  CHECK(f.palette.click(16, 10) == CommandPalette::Result::CHOSEN);
+  CHECK(f.palette.chosen()->name == "undo-redo" || f.palette.chosen()->name == "undo");
+}
+
+TEST(palette_release_off_the_commands_after_a_press_on_one_chooses_nothing) {
+  Fixture f;
+  f.palette.press(14, 10);
+  CHECK(f.palette.click(19, 10) == CommandPalette::Result::NONE);  // the query row, inside the panel
+  CHECK(f.palette.isOpen());
+}
+
+TEST(palette_cancels_only_when_the_press_and_the_release_are_outside) {
+  Fixture f;
+  f.palette.press(2, 10);
+  CHECK(f.palette.click(2, 10) == CommandPalette::Result::CANCELLED);
+  Fixture g;
+  g.palette.press(14, 10);
+  CHECK(g.palette.click(2, 10) == CommandPalette::Result::NONE);  // pressed on a command, let go outside
+}
+
+TEST(palette_list_eases_to_a_new_scroll_position_where_the_display_scrolls_smoothly) {
+  StyleProvider styles;
+  CellBuffer buffer{20, 80};
+  BufferPlane root{buffer, styles};
+  root.setSmoothScroll(true);
+  CommandPalette palette;
+  palette.open(manyEntries());
+  auto show = [&]() {
+    palette.show(root, 20, 80);
+    root.refresh();
+    return root.takeBackdropLayers();
+  };
+  show();
+  CHECK(!palette.animating());
+  // Down past the last of the twelve rows: the list scrolls, and takes frames to get there.
+  for (int i = 0; i < 14; i++) palette.key(InputDispatcher::keyDownFor(key(Key::Down)));
+  bool shifted = false;
+  CHECK(!palette.animating());  // nothing has been drawn for the new position yet
+  for (int i = 0; i < 100; i++) {
+    auto layers = show();
+    for (auto & layer : layers)
+      if (layer.scroll && layer.scroll->shift_rows > 0 && layer.scroll->shift_rows < 1) shifted = true;
+    if (!palette.animating()) break;
+    palette.tick(0.016);
+  }
+  CHECK(shifted);
+  CHECK(!palette.animating());
+  // The fifteenth of the names as they are listed (by name).
+  auto names = palette.shownNames();
+  CHECK(palette.chosen() && palette.chosen()->name == names[14]);
+  CHECK(buffer.toPlainText().find(names[14]) != std::string::npos);
+}
+
+TEST(palette_list_does_not_ease_where_the_display_does_not_scroll_smoothly) {
+  StyleProvider styles;
+  CellBuffer buffer{20, 80};
+  BufferPlane root{buffer, styles};
+  CommandPalette palette;
+  palette.open(manyEntries());
+  palette.show(root, 20, 80);
+  for (int i = 0; i < 14; i++) palette.key(InputDispatcher::keyDownFor(key(Key::Down)));
+  palette.show(root, 20, 80);
+  CHECK(!palette.animating());
+}

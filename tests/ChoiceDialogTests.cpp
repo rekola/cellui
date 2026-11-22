@@ -4,6 +4,7 @@
 #include <cellui/ChoiceDialog.h>
 #include <cellui/InputDispatcher.h>
 
+#include <algorithm>
 #include <chrono>
 #include <thread>
 
@@ -79,7 +80,7 @@ TEST(choicedialog_click_on_an_entry_chooses_it_outside_cancels_padding_is_inert)
   CHECK(f.dialog.click(2, 10) == R::NONE);  // the title
 }
 
-TEST(choicedialog_long_lists_scroll_and_show_it_on_the_edge) {
+TEST(choicedialog_long_lists_scroll_and_show_a_scrollbar_on_the_edge) {
   StyleProvider styles;
   CellBuffer buffer(10, 40);
   BufferPlane root(buffer, styles);
@@ -91,12 +92,23 @@ TEST(choicedialog_long_lists_scroll_and_show_it_on_the_edge) {
   root.refresh();
   CHECK(buffer.toPlainText().find("item 3") != std::string::npos);
   CHECK(buffer.toPlainText().find("item 4") == std::string::npos);
-  CHECK(buffer.toPlainText().find("▼") != std::string::npos);
+  auto thumb_row = [&] {
+    auto text = buffer.toPlainText();
+    int row = 0;
+    for (size_t start = 0, end; (end = text.find('\n', start)) != std::string::npos || start < text.size(); start = end + 1, row++) {
+      if (text.substr(start, end == std::string::npos ? end : end - start).find("┃") != std::string::npos) return row;
+      if (end == std::string::npos) break;
+    }
+    return -1;
+  };
+  CHECK(buffer.toPlainText().find("│") != std::string::npos);
+  int top = thumb_row();
+  CHECK(top >= 0);
   dialog.key(key(cellui::Key::End));
   dialog.show(root, 10, 40);
   root.refresh();
   CHECK(buffer.toPlainText().find("item 10") != std::string::npos);
-  CHECK(buffer.toPlainText().find("▲") != std::string::npos);
+  CHECK(thumb_row() > top);  // the thumb has moved to the end of the track
 }
 
 TEST(choicedialog_long_label_ends_in_an_ellipsis) {
@@ -156,4 +168,58 @@ TEST(choicedialog_smooth_list_scrolls_under_a_cursor_band_that_stays_at_the_edge
   CHECK(!dialog.animating());
   CHECK(edge == 2.0);  // the last of the three rows
   CHECK(dialog.selected() == 6);
+}
+
+TEST(choicedialog_labels_are_proportional_text_where_the_display_lays_text_out) {
+  StyleProvider styles;
+  CellBuffer buffer(10, 40);
+  BufferPlane root(buffer, styles);
+  root.setProportionalText(true);
+  ChoiceDialog dialog;
+  dialog.open("Pick", {"First", "Second"}, 1);
+  dialog.show(root, 10, 40);
+  root.refresh();
+  std::vector<std::string> texts;
+  for (auto & run : root.takeTextRuns()) texts.push_back(run.text);
+  CHECK(std::find(texts.begin(), texts.end(), "First") != texts.end() && std::find(texts.begin(), texts.end(), "Second") != texts.end());
+  CHECK(buffer.toPlainText().find("●") != std::string::npos);  // the marker stays in a cell
+}
+
+TEST(choicedialog_wheel_scrolls_without_moving_the_selection) {
+  StyleProvider styles;
+  CellBuffer buffer(10, 40);
+  BufferPlane root(buffer, styles);
+  ChoiceDialog dialog;
+  std::vector<std::string> labels;
+  for (int i = 1; i <= 10; i++) labels.push_back("item " + std::to_string(i));
+  dialog.open("Many", labels, 0);
+  dialog.show(root, 10, 40);
+  for (int i = 0; i < 20; i++) dialog.wheel(false);
+  dialog.show(root, 10, 40);
+  root.refresh();
+  CHECK(dialog.selected() == 0);
+  CHECK(buffer.toPlainText().find("item 10") != std::string::npos);
+  CHECK(buffer.toPlainText().find("item 1\n") == std::string::npos);
+  dialog.key(key(cellui::Key::Down));
+  CHECK(dialog.selected() == 1);
+}
+
+TEST(choicedialog_chooses_the_entry_the_button_is_released_over_after_a_press_on_an_entry) {
+  Fixture f;
+  using R = ChoiceDialog::Result;
+  CHECK(f.dialog.press(3, 10) == R::NONE);  // alpha
+  CHECK(f.dialog.drag(5, 10) == R::NONE);
+  CHECK(f.dialog.click(5, 10) == R::CHOSEN);  // gamma
+  CHECK(f.dialog.selected() == 2);
+}
+
+TEST(choicedialog_press_on_an_entry_released_elsewhere_chooses_nothing) {
+  Fixture f;
+  using R = ChoiceDialog::Result;
+  f.dialog.press(3, 10);
+  CHECK(f.dialog.click(2, 10) == R::NONE);  // the title
+  CHECK(f.dialog.selected() == 0);
+  Fixture g;
+  g.dialog.press(0, 0);
+  CHECK(g.dialog.click(0, 0) == R::CANCELLED);
 }

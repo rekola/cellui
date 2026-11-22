@@ -1,10 +1,18 @@
 #include <cellui/Utf8.h>
 
+#include <cstdint>
+
+// Two backends give the same three primitives (the end of the grapheme
+// cluster at a position, the columns of a cluster, the columns of a string):
+// libunistring, or utf8proc (CELLUI_UNICODE in CMakeLists.txt, which sets
+// CELLUI_UTF8PROC).
+#ifdef CELLUI_UTF8PROC
+#include <utf8proc.h>
+#else
 #include <unigbrk.h>
 #include <uniwidth.h>
 #include <unistring/localcharset.h>
-
-#include <cstdint>
+#endif
 
 namespace cellui::utf8 {
 
@@ -14,13 +22,92 @@ const uint8_t * asBytes(const std::string & text) {
   return reinterpret_cast<const uint8_t *>(text.data());
 }
 
+#ifdef CELLUI_UTF8PROC
+
+// The columns of one codepoint: 0 for a control or combining one, 2 for a
+// wide one.
+int codepointWidth(utf8proc_int32_t cp) {
+  int w = utf8proc_charwidth(cp);
+  return w < 0 ? 0 : w;
+}
+
+// Where the cluster starting at `p` ends. A byte that does not decode is a
+// cluster of its own, so the caller always advances.
+const uint8_t * clusterEnd(const uint8_t * p, const uint8_t * end) {
+  utf8proc_int32_t prev = 0;
+  utf8proc_ssize_t n = utf8proc_iterate(p, end - p, &prev);
+  if (n < 0) return p + 1;
+  const uint8_t * q = p + n;
+  // The state carries what UAX #29 needs beyond two codepoints: the parity
+  // of regional indicators and the emoji + ZWJ lookback.
+  utf8proc_int32_t state = 0;
+  while (q < end) {
+    utf8proc_int32_t next = 0;
+    utf8proc_ssize_t m = utf8proc_iterate(q, end - q, &next);
+    if (m < 0 || utf8proc_grapheme_break_stateful(prev, next, &state)) break;
+    q += m;
+    prev = next;
+  }
+  return q;
+}
+
+// The columns of the cluster [p, q): its codepoints' widths added, as
+// libunistring's u8_width does, so a base with a combining mark is the
+// base's.
+int clusterWidth(const uint8_t * p, const uint8_t * q) {
+  int w = 0;
+  while (p < q) {
+    utf8proc_int32_t cp = 0;
+    utf8proc_ssize_t n = utf8proc_iterate(p, q - p, &cp);
+    if (n < 0) return 0;  // not text: as libunistring, no width at all
+    w += codepointWidth(cp);
+    p += n;
+  }
+  return w;
+}
+
+#else
+
+const uint8_t * clusterEnd(const uint8_t * p, const uint8_t * end) {
+  return u8_grapheme_next(p, end);
+}
+
+int clusterWidth(const uint8_t * p, const uint8_t * q) {
+  int w = u8_width(p, static_cast<size_t>(q - p), locale_charset());
+  return w < 0 ? 0 : w;
+}
+
+#endif
+
 }  // namespace
+
+bool
+followsUax29Clusters() {
+#ifdef CELLUI_UTF8PROC
+  return true;
+#else
+  return false;
+#endif
+}
 
 int
 displayWidth(const std::string & text) {
   if (text.empty()) return 0;
+#ifdef CELLUI_UTF8PROC
+  const uint8_t * start = asBytes(text);
+  const uint8_t * end = start + text.size();
+  int w = 0;
+  for (const uint8_t * p = start; p < end;) {
+    const uint8_t * q = clusterEnd(p, end);
+    if (q <= p) q = p + 1;
+    w += clusterWidth(p, q);
+    p = q;
+  }
+  return w;
+#else
   int w = u8_strwidth(reinterpret_cast<const uint8_t *>(text.c_str()), locale_charset());
   return w < 0 ? 0 : w;
+#endif
 }
 
 std::string
@@ -29,18 +116,16 @@ truncateToWidth(const std::string & text, int max_columns) {
 
   const uint8_t * start = asBytes(text);
   const uint8_t * end = start + text.size();
-  const char * encoding = locale_charset();
 
   size_t committed_offset = 0;
   int accumulated = 0;
   const uint8_t * cluster_start = start;
 
   while (cluster_start < end) {
-    const uint8_t * cluster_end = u8_grapheme_next(cluster_start, end);
+    const uint8_t * cluster_end = clusterEnd(cluster_start, end);
     if (!cluster_end || cluster_end <= cluster_start) cluster_end = cluster_start + 1;  // defensive: never spin on malformed input
 
-    int w = u8_width(cluster_start, static_cast<size_t>(cluster_end - cluster_start), encoding);
-    if (w < 0) w = 0;
+    int w = clusterWidth(cluster_start, cluster_end);
 
     if (accumulated + w > max_columns) break;
 
@@ -59,7 +144,7 @@ clusters(const std::string & text) {
   const uint8_t * end = start + text.size();
   const uint8_t * cluster_start = start;
   while (cluster_start < end) {
-    const uint8_t * cluster_end = u8_grapheme_next(cluster_start, end);
+    const uint8_t * cluster_end = clusterEnd(cluster_start, end);
     if (!cluster_end || cluster_end <= cluster_start) cluster_end = cluster_start + 1;
     out.emplace_back(reinterpret_cast<const char *>(cluster_start), static_cast<size_t>(cluster_end - cluster_start));
     cluster_start = cluster_end;
@@ -73,16 +158,14 @@ dropLeadingColumns(const std::string & text, int columns) {
 
   const uint8_t * start = asBytes(text);
   const uint8_t * end = start + text.size();
-  const char * encoding = locale_charset();
 
   int accumulated = 0;
   const uint8_t * cluster_start = start;
   while (cluster_start < end && accumulated < columns) {
-    const uint8_t * cluster_end = u8_grapheme_next(cluster_start, end);
+    const uint8_t * cluster_end = clusterEnd(cluster_start, end);
     if (!cluster_end || cluster_end <= cluster_start) cluster_end = cluster_start + 1;  // defensive: never spin on malformed input
 
-    int w = u8_width(cluster_start, static_cast<size_t>(cluster_end - cluster_start), encoding);
-    if (w < 0) w = 0;
+    int w = clusterWidth(cluster_start, cluster_end);
 
     accumulated += w;
     cluster_start = cluster_end;

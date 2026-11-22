@@ -39,6 +39,9 @@ struct TextRun {
   TextFont font = TextFont::PROPORTIONAL;
   TextOverflow overflow = TextOverflow::CLIP;
   TextAlign align = TextAlign::LEFT;
+  // Bold parts in a colour of their own (TextEmphasis); unset colour = the run's.
+  std::vector<std::pair<int, int>> emphasis;
+  std::optional<Color> emphasis_fg;
 };
 
 // The part of the screen a plane above the base covers, at its height above

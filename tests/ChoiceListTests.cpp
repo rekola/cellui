@@ -68,15 +68,48 @@ TEST(choice_list_a_window_taller_than_the_list_never_scrolls) {
   CHECK(list.firstVisible(8) == 0);
 }
 
-TEST(choice_list_wheel_scroll_keeps_the_selection_in_view) {
+TEST(choice_list_wheel_scroll_leaves_the_selection_where_it_is_even_out_of_view) {
   ChoiceList list;
   list.reset(10, 0);
-  list.scroll(3, 4); // window now 3..6; the selection was at 0
+  list.scroll(3, 4); // window now 3..6; the selection stays at 0, out of view
   CHECK(list.firstVisible(4) == 3);
-  CHECK(list.selected() == 3);
+  CHECK(list.selected() == 0 && list.detached());
   list.scroll(100, 4); // can't scroll past the end
   CHECK(list.firstVisible(4) == 6);
-  CHECK(list.selected() == 6);
   list.scroll(-100, 4);
   CHECK(list.firstVisible(4) == 0);
+  CHECK(list.selected() == 0);
+}
+
+TEST(choice_list_window_returns_to_the_selection_when_it_moves) {
+  ChoiceList list;
+  list.reset(10, 0);
+  list.scroll(5, 4);
+  CHECK(list.firstVisible(4) == 5);
+  list.move(1);  // the selection is at 1, far above the window
+  CHECK(!list.detached());
+  CHECK(list.firstVisible(4) == 1);
+}
+
+TEST(choice_list_pressed_entry_is_one_that_exists) {
+  ChoiceList list;
+  list.reset(3, 0);
+  list.setPressed(2);
+  CHECK(list.pressed() == 2);
+  list.setPressed(7);
+  CHECK(list.pressed() == -1);
+}
+
+TEST(choice_list_thumb_is_unset_while_everything_fits_and_follows_the_window_otherwise) {
+  ChoiceList list;
+  list.reset(4, 0);
+  CHECK(!list.thumb(4, 4));
+  list.reset(20, 0);
+  list.firstVisible(5);
+  auto top = list.thumb(5, 5);
+  CHECK(top && top->top == 0 && top->size == 1);
+  list.end();
+  list.firstVisible(5);
+  auto bottom = list.thumb(5, 5);
+  CHECK(bottom && bottom->top == 4);
 }

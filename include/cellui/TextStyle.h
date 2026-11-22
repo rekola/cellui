@@ -1,5 +1,11 @@
 #pragma once
 
+#include <cellui/Color.h>
+
+#include <cstdint>
+#include <utility>
+#include <vector>
+
 namespace cellui {
 
 // The face text is drawn in: the cells' own fixed-advance one, or the
@@ -40,6 +46,14 @@ struct TextStyle {
   TextOverflow overflow = TextOverflow::CLIP;
   TextFace face;
   TextAlign align = TextAlign::LEFT;
+};
+
+// Parts of a text drawn bold in a colour of their own: byte ranges [start, end) of its UTF-8, as the matched letters
+// of a search. Where text is laid out by the display it is set in the same proportional face, so no position is
+// measured; where it is cells the ranges are the cells of those characters.
+struct TextEmphasis {
+  std::vector<std::pair<int, int>> ranges;
+  Color fg;
 };
 
 }  // namespace cellui

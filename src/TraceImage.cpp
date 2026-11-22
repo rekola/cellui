@@ -18,7 +18,7 @@ canvas::Color toCanvas(const Color & c, float alpha = 1.0f) { return canvas::Col
 
 }  // namespace
 
-std::vector<float> resample(const std::vector<float> & values, size_t count) {
+std::vector<float> resample(std::span<const float> values, size_t count) {
   std::vector<float> finite;
   finite.reserve(values.size());
   for (float v : values) {
@@ -41,7 +41,7 @@ std::vector<float> resample(const std::vector<float> & values, size_t count) {
   return out;
 }
 
-Picture renderPicture(const std::vector<float> & values, const TraceLook & look, unsigned width, unsigned height, float scale, bool prefer_float) {
+Picture renderPicture(std::span<const float> values, const TraceLook & look, unsigned width, unsigned height, float scale, bool prefer_float) {
   StageTimer timer(Stage::PICTURE_RENDER);
   Picture blank;
   blank.width = static_cast<int>(width);
@@ -92,7 +92,7 @@ Picture renderPicture(const std::vector<float> & values, const TraceLook & look,
   return out.width ? out : blank;
 }
 
-std::vector<uint32_t> render(const std::vector<float> & values, const TraceLook & look, unsigned width, unsigned height, float scale) {
+std::vector<uint32_t> render(std::span<const float> values, const TraceLook & look, unsigned width, unsigned height, float scale) {
   return renderPicture(values, look, width, height, scale, false).pixels;
 }
 

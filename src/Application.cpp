@@ -32,7 +32,7 @@ class Application::DisplayCharts : public Charts {
                      int clip_top, int clip_bottom, uint64_t id) const override {
     inner_->drawSparkline(plane, row, col, rows, readings, look, clip_top, clip_bottom, id);
   }
-  void drawTrace(Plane & plane, int row, int col, int rows, int cols, const std::vector<float> & values, const TraceLook & look, int clip_top,
+  void drawTrace(Plane & plane, int row, int col, int rows, int cols, std::span<const float> values, const TraceLook & look, int clip_top,
                  int clip_bottom, uint64_t id) const override {
     inner_->drawTrace(plane, row, col, rows, cols, values, look, clip_top, clip_bottom, id);
   }
@@ -184,7 +184,8 @@ Application::Application(std::unique_ptr<Backend> backend, std::vector<std::stri
 
 // On the root of the widget tree: the palette ahead of everything while it is
 // open, then the key after a prefix (capture, ahead of the focused widget),
-// and the keymap for a key the focused widget left (bubble).
+// and the keymap for a key the focused widget left (bubble), unless the
+// program offers keys to it itself (KeymapOrder::PROGRAM).
 void Application::installRootHandlers() {
   root_handlers_.clear();
   Widget & root = *root_widget_;
@@ -198,8 +199,18 @@ void Application::installRootHandlers() {
   },
                                             Phase::capture));
   root_handlers_.push_back(root.on<KeyUp>([this, yes](const KeyUp &, EventContext &) { return yes(palette_.isOpen()); }, Phase::capture));
-  root_handlers_.push_back(root.on<MouseDown>([this, yes](const MouseDown &, EventContext &) { return yes(palette_.isOpen()); }, Phase::capture));
-  root_handlers_.push_back(root.on<MouseMove>([this, yes](const MouseMove &, EventContext &) { return yes(palette_.isOpen()); }, Phase::capture));
+  root_handlers_.push_back(root.on<MouseDown>([this](const MouseDown & e, EventContext &) {
+    if (!palette_.isOpen()) return Handled::no;
+    if (e.button == 1) paletteResult(palette_.press(e.row, e.col));
+    return Handled::yes;
+  },
+                                              Phase::capture));
+  root_handlers_.push_back(root.on<MouseMove>([this](const MouseMove & e, EventContext &) {
+    if (!palette_.isOpen()) return Handled::no;
+    if (e.buttons & 1u) paletteResult(palette_.drag(e.row, e.col));
+    return Handled::yes;
+  },
+                                              Phase::capture));
   root_handlers_.push_back(root.on<MouseUp>([this](const MouseUp & e, EventContext &) {
     if (!palette_.isOpen()) return Handled::no;
     if (e.button == 1) paletteResult(palette_.click(e.row, e.col));
@@ -212,7 +223,9 @@ void Application::installRootHandlers() {
     return Handled::yes;
   },
                                           Phase::capture));
-  root_handlers_.push_back(root.on<KeyDown>([this, yes](const KeyDown & e, EventContext &) { return yes(keyBinding(e)); }));
+  root_handlers_.push_back(root.on<KeyDown>([this, yes](const KeyDown & e, EventContext &) {
+    return yes(keymap_order_ == KeymapOrder::AFTER_FOCUS && keyBinding(e));
+  }));
 }
 
 namespace {
@@ -237,7 +250,7 @@ bool Application::prefixedKey(const KeyDown & e) {
   // A started sequence takes the key after it, bound or not, so a half-typed prefix never does something else.
   if (const std::string * name = keymap_.lookupPrefixed(prefix, stroke, profile())) {
     message.emit("");
-    execute(*name);
+    runBinding(*name);
   } else {
     message.emit(KeyStroke::describe({prefix, stroke}, profile()) + " is undefined");
   }
@@ -251,7 +264,7 @@ bool Application::keyBinding(const KeyDown & e) {
     message.emit(KeyStroke::describe({stroke}, profile()) + "-");
     return true;
   }
-  if (const std::string * name = keymap_.lookup(stroke, profile())) return execute(*name);
+  if (const std::string * name = keymap_.lookup(stroke, profile())) return runBinding(*name);
   return false;
 }
 
@@ -260,9 +273,15 @@ bool Application::execute(const std::string & name) {
   return command_source_.execute && command_source_.execute(name);
 }
 
+bool Application::runBinding(const std::string & name) {
+  if (commands_.execute(name)) return true;
+  if (command_source_.run_binding) return command_source_.run_binding(name);
+  return command_source_.execute && command_source_.execute(name);
+}
+
 std::string Application::bindingFor(const std::string & command) const {
-  std::string binding = keymap_.bindingFor(command, root_plane_.keymapProfile());
-  if (binding.empty() && command_source_.binding) binding = command_source_.binding(command);
+  std::string binding = command_source_.binding ? command_source_.binding(command) : std::string();
+  if (binding.empty()) binding = keymap_.bindingFor(command, root_plane_.keymapProfile());
   return binding;
 }
 
@@ -422,6 +441,12 @@ void Application::present() {
   double seconds = last_frame_ ? std::min(0.1, std::chrono::duration<double>(now - *last_frame_).count()) : 0.0;
   last_frame_ = now;
   frame_started.emit(seconds);
+  // The open palette's list eases where the display scrolls smoothly: it moves with each frame and asks for the next.
+  if (palette_.isOpen() && palette_.animating()) {
+    palette_.tick(seconds);
+    layoutPalette();
+    if (palette_.animating()) backend_->requestFrame();
+  }
   if (before_refresh_) before_refresh_();
   root_plane_.refresh();
   dispatcher_->setHitAreas(root_plane_.takeHitAreas());

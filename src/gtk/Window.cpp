@@ -206,6 +206,7 @@ struct Window::Impl {
   std::vector<TextRun> text_runs;
   // The proportional face: the system's own UI font, sized to a cell's height.
   PangoFontDescription * proportional = nullptr;
+  float proportional_baseline = 0.0f;  // from the row's top
   // The areas planes asked a pointer shape for, and the one now set.
   std::vector<CursorArea> mouse_cursors;
   MouseCursor shown_cursor = MouseCursor::DEFAULT;
@@ -500,6 +501,11 @@ void Window::Impl::measure(const WindowOptions & options) {
       if (h <= cell_h) break;
       px *= 0.97;
     }
+    // Where the face's own baseline lies in a row, so text keeps it whatever fallback font a glyph needs.
+    int ref_h = 0;
+    pango_layout_get_pixel_size(probe, nullptr, &ref_h);
+    double ref_baseline = static_cast<double>(pango_layout_get_baseline(probe)) / PANGO_SCALE;
+    proportional_baseline = static_cast<float>(std::max(0.0, (cell_h - ref_h) / 2.0) + ref_baseline);
     g_object_unref(probe);
   }
 
@@ -1079,11 +1085,16 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, co
     // The bottom of the blend is drawn on its own, so it holds the backgrounds under the picture too: a
     // picture with transparent pixels would otherwise leave the light to be laid over the cells, not added.
     gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
-    gtk_snapshot_push_clip(snap, &wide);
-    for (const Painted::Band & band : layer_bands.bands) {
-      if (band.bg) gtk_snapshot_append_node(snap, band.bg);
+    // Only under the picture's own cells: the backgrounds of the cells around it would cover the pictures
+    // drawn before this one.
+    for (const MarkedRun & run : list) {
+      graphene_rect_t under = cutTo(run);
+      gtk_snapshot_push_clip(snap, &under);
+      for (const Painted::Band & band : layer_bands.bands) {
+        if (band.bg) gtk_snapshot_append_node(snap, band.bg);
+      }
+      gtk_snapshot_pop(snap);
     }
-    gtk_snapshot_pop(snap);
     for (const MarkedRun & run : list) {
       graphene_rect_t clip = cutTo(run);
       gtk_snapshot_push_clip(snap, &clip);
@@ -1126,9 +1137,22 @@ void Window::Impl::appendTextRuns(GtkSnapshot * snap, const CellBuffer & cells) 
         pango_layout_set_width(layout, static_cast<int>(w) * PANGO_SCALE);
         pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
       }
-      if (run.underline) {
+      if (run.underline || !run.emphasis.empty()) {
         PangoAttrList * attrs = pango_attr_list_new();
-        pango_attr_list_insert(attrs, pango_attr_underline_new(PANGO_UNDERLINE_SINGLE));
+        if (run.underline) pango_attr_list_insert(attrs, pango_attr_underline_new(PANGO_UNDERLINE_SINGLE));
+        // The emphasised parts, by byte, bold and in their colour.
+        auto mark = [&](PangoAttribute * attribute, int from, int to) {
+          attribute->start_index = static_cast<guint>(from);
+          attribute->end_index = static_cast<guint>(to);
+          pango_attr_list_insert(attrs, attribute);
+        };
+        for (auto & [from, to] : run.emphasis) {
+          mark(pango_attr_weight_new(PANGO_WEIGHT_BOLD), from, to);
+          if (run.emphasis_fg) {
+            auto e = run.emphasis_fg->toSrgb8();
+            mark(pango_attr_foreground_new(static_cast<guint16>(e[0] * 257), static_cast<guint16>(e[1] * 257), static_cast<guint16>(e[2] * 257)), from, to);
+          }
+        }
         pango_layout_set_attributes(layout, attrs);
         pango_attr_list_unref(attrs);
       }
@@ -1138,7 +1162,10 @@ void Window::Impl::appendTextRuns(GtkSnapshot * snap, const CellBuffer & cells) 
       // Shorter text sits in its box as asked; longer is cut where the box ends.
       float slack = std::max(0.0f, w - static_cast<float>(text_w));
       float dx = run.align == TextAlign::RIGHT ? slack : run.align == TextAlign::CENTER ? slack / 2.0f : 0.0f;
-      graphene_point_t at = GRAPHENE_POINT_INIT(x + dx, y + std::max(0.0f, (h - static_cast<float>(text_h)) / 2.0f));
+      // The baseline stays where the face puts it; a fallback font's taller line must not move it.
+      float baseline = static_cast<float>(pango_layout_get_baseline(layout)) / PANGO_SCALE;
+      float row_top = box.rows == 1 ? proportional_baseline - baseline : std::max(0.0f, (h - static_cast<float>(text_h)) / 2.0f);
+      graphene_point_t at = GRAPHENE_POINT_INIT(x + dx, y + row_top);
       gtk_snapshot_push_clip(snap, &clip);
       gtk_snapshot_save(snap);
       gtk_snapshot_translate(snap, &at);
@@ -1684,7 +1711,7 @@ void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
 }
 
 // Cells of finger travel that make one wheel notch, for devices that report surface units.
-constexpr double kSurfaceCellsPerNotch = 2.0;
+constexpr double kSurfaceCellsPerNotch = 1.0;
 
 bool Window::Impl::scrollEvent(double dx, double dy, bool surface_units, GdkModifierType state) {
   // A wheel reports notches; a touchpad or a high-resolution wheel reports surface units
@@ -1695,6 +1722,7 @@ bool Window::Impl::scrollEvent(double dx, double dy, bool surface_units, GdkModi
     dx /= per_notch;
     dy /= per_notch;
   }
+  // A notch is reported once half of it has come, so the first movement is not held back.
   scroll_x += dx;
   scroll_y += dy;
   unsigned mods = modsFrom(state);
@@ -1703,10 +1731,10 @@ bool Window::Impl::scrollEvent(double dx, double dy, bool surface_units, GdkModi
     push(BackendEvent::makeInput(Input(button, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper), Input::Kind::PRESS)
                                      .withPosition(std::max(last_fy, 0.0f), std::max(last_fx, 0.0f))));
   };
-  while (scroll_y >= 1.0) { emit(Key::Button5); scroll_y -= 1.0; }
-  while (scroll_y <= -1.0) { emit(Key::Button4); scroll_y += 1.0; }
-  while (scroll_x >= 1.0) { emit(Key::Button7); scroll_x -= 1.0; }
-  while (scroll_x <= -1.0) { emit(Key::Button6); scroll_x += 1.0; }
+  while (scroll_y >= 0.5) { emit(Key::Button5); scroll_y -= 1.0; }
+  while (scroll_y <= -0.5) { emit(Key::Button4); scroll_y += 1.0; }
+  while (scroll_x >= 0.5) { emit(Key::Button7); scroll_x -= 1.0; }
+  while (scroll_x <= -0.5) { emit(Key::Button6); scroll_x += 1.0; }
   return true;
 }
 
