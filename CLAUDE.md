@@ -59,7 +59,7 @@ carries the app's object as an opaque `getAppContext()`.
   own, its colours fixed or theme roles (`&StyleProvider::info_line_fg_color`), drawn again on
   every change and resize; `Table` with `TableModel`: a click on a heading sorts, no key does;
   `Button` (a `ButtonFace` on one row, `clicked`; `ButtonFace::info()` is 🛈 U+1F6C8, and a picture will be one more member of the face);
-  a buttons column (`TableColumn::buttons`, `ButtonFace`s the same in every row, as wide as they are) says `button_clicked(row, column, button)` after selecting the row;
+  a buttons column (`TableColumn::buttons`, `ButtonFace`s the same in every row, as wide as they are) says `button_clicked(row, column, button)` and leaves the selection alone;
   an icon column (`TableColumn::icon`, `TableModel::icon()`: RGBA pixels under an id) is drawn with `drawSharedImageFitted()`, one picture per id, and takes no room where the display has no pictures;
   `trace()` is a `std::span` of the model's own values and `number()` what a cell sorts by,
   read from its text by default), `Layout.h` (`layoutRows()`/`layoutColumns()`: `LayoutPart`s

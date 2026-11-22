@@ -37,8 +37,8 @@ struct TableColumn {
   // pictures. Where it does not, the column takes no room and no gap.
   bool icon = false;
   // The cells are a row of small buttons, one for each glyph (the same in every row): "[i]", an icon, a word. The
-  // column is as wide as its buttons (one cell between them), not `width`, and is never sorted. A click on one selects
-  // its row and emits Table::button_clicked with the button's index.
+  // column is as wide as its buttons (one cell between them), not `width`, and is never sorted. A click on one emits
+  // Table::button_clicked with its row and the button's index, and leaves the selection where it is.
   std::vector<ButtonFace> buttons = {};
 };
 
@@ -150,7 +150,7 @@ class Table : public Widget {
   Signal<int> activated;
   Signal<int, SortOrder> sort_changed;
   // A click on a button of a buttons column (TableColumn::buttons): the model row, the column and the button's index.
-  // The row is selected first (selection_changed), then this is emitted.
+  // The selection does not move: the click is about that row, not a choice of it.
   Signal<int, int, int> button_clicked;
 
   // Draws the table; every change above does it already.

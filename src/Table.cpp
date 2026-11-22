@@ -105,7 +105,6 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
       int under = -1, over = -1;
       hitAt(e.row, e.col, under, over);
       if (over >= 0 && over == pressed && buttonAt(e.col - getPosition().second) == press_button_) {
-        selectPosition(over);
         button_clicked.emit(order_[static_cast<size_t>(over)], press_button_.first, press_button_.second);
       }
     } else if (position >= 0) {
