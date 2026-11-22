@@ -64,6 +64,7 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
     hitAt(e.row, e.col, heading, position);
     pressing_ = true;
     press_on_heading_ = heading >= 0;
+    press_button_ = position >= 0 ? buttonAt(e.col - getPosition().second) : std::pair<int, int>{-1, -1};
     setPressed(heading, position);
     return Handled::yes;
   }));
@@ -85,10 +86,19 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
     int heading = -1, position = -1;
     hitAt(e.row, e.col, heading, position);
     if (!press_on_heading_) position = dragPosition(e.row, false);
+    const int pressed = pressed_position_;
     pressing_ = false;
     setPressed(-1, -1);
     if (press_on_heading_) {
       if (heading >= 0) toggleSort(heading);
+    } else if (press_button_.first >= 0) {
+      // A press on a button acts only if it is released on the same button of the same row.
+      int under = -1, over = -1;
+      hitAt(e.row, e.col, under, over);
+      if (over >= 0 && over == pressed && buttonAt(e.col - getPosition().second) == press_button_) {
+        selectPosition(over);
+        button_clicked.emit(order_[static_cast<size_t>(over)], press_button_.first, press_button_.second);
+      }
     } else if (position >= 0) {
       selectPosition(position);
     }
@@ -116,6 +126,8 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
 
 void Table::setColumns(std::vector<TableColumn> columns) {
   columns_ = std::move(columns);
+  for (TableColumn & column : columns_)
+    if (!column.buttons.empty()) column.sortable = false;
   if (sort_column_ >= static_cast<int>(columns_.size())) {
     sort_column_ = -1;
     sort_order_ = SortOrder::NONE;
@@ -258,6 +270,26 @@ void Table::setPressed(int heading, int position) {
   render();
 }
 
+int Table::columnWidth(size_t c) const {
+  const TableColumn & column = columns_[c];
+  if (column.buttons.empty()) return column.width;
+  int w = static_cast<int>(column.buttons.size()) - 1;  // one cell between buttons
+  for (const std::string & glyph : column.buttons) w += utf8::displayWidth(glyph);
+  return w;
+}
+
+std::pair<int, int> Table::buttonAt(int local_col) const {
+  const int c = columnAt(local_col);
+  if (c < 0 || columns_[static_cast<size_t>(c)].buttons.empty()) return {-1, -1};
+  int x = layout().x[static_cast<size_t>(c)];
+  for (size_t i = 0; i < columns_[static_cast<size_t>(c)].buttons.size(); i++) {
+    const int w = utf8::displayWidth(columns_[static_cast<size_t>(c)].buttons[i]);
+    if (local_col >= x && local_col < x + w) return {c, static_cast<int>(i)};
+    x += w + 1;
+  }
+  return {-1, -1};
+}
+
 int Table::columnAt(int local_col) const {
   Layout l = layout();
   int found = -1;
@@ -300,7 +332,7 @@ Table::Layout Table::layout() const {
   for (size_t i = 0; i < columns_.size(); i++) {
     if (!shown(i)) continue;
     count++;
-    if (columns_[i].width > 0) fixed += columns_[i].width;
+    if (columnWidth(i) > 0) fixed += columnWidth(i);
     else flex++;
   }
   int gaps = count == 0 ? 0 : kGap * (count - 1);
@@ -313,7 +345,7 @@ Table::Layout Table::layout() const {
       l.width.push_back(0);
       continue;
     }
-    int w = columns_[i].width > 0 ? columns_[i].width : share;
+    int w = columnWidth(i) > 0 ? columnWidth(i) : share;
     l.x.push_back(x);
     l.width.push_back(w);
     x += w + kGap;
@@ -409,6 +441,15 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
     if (l.width[c] == 0) continue;
     if (columns_[c].icon) {
       drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col));
+      continue;
+    }
+    if (!columns_[c].buttons.empty()) {
+      setFgColor((selected && focused_) || pressed ? fg : styles.window_accent_fg_color);
+      int x = l.x[c];
+      for (const std::string & glyph : columns_[c].buttons) {
+        putstr(y + row_height_ / 2, x, glyph);
+        x += utf8::displayWidth(glyph) + 1;
+      }
       continue;
     }
     std::optional<Color> color = model_->color(model_row, col);

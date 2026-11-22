@@ -34,6 +34,10 @@ struct TableColumn {
   // The cells are pictures (TableModel::icon()), shown where the display shows
   // pictures. Where it does not, the column takes no room and no gap.
   bool icon = false;
+  // The cells are a row of small buttons, one for each glyph (the same in every row): "[i]", an icon, a word. The
+  // column is as wide as its buttons (one cell between them), not `width`, and is never sorted. A click on one selects
+  // its row and emits Table::button_clicked with the button's index.
+  std::vector<std::string> buttons = {};
 };
 
 // A small picture in an icon column's cell: width*height pixels, row 0 at the
@@ -143,6 +147,9 @@ class Table : public Widget {
   Signal<int> selection_changed;
   Signal<int> activated;
   Signal<int, SortOrder> sort_changed;
+  // A click on a button of a buttons column (TableColumn::buttons): the model row, the column and the button's index.
+  // The row is selected first (selection_changed), then this is emitted.
+  Signal<int, int, int> button_clicked;
 
   // Draws the table; every change above does it already.
   void render();
@@ -169,6 +176,10 @@ class Table : public Widget {
   // drag past an edge reaches the rows beyond it. -1 when there are no rows.
   int dragPosition(int screen_row, bool scroll);
   int columnAt(int local_col) const;
+  // The cells column `c` takes: its own width, or its buttons' together.
+  int columnWidth(size_t c) const;
+  // The button of a buttons column at a table column, as {column, index}; {-1, -1} for none.
+  std::pair<int, int> buttonAt(int local_col) const;
   bool key(const KeyDown & e);
   void drawHeading(const Layout & l, const StyleProvider & styles);
   void drawRow(const Layout & l, const StyleProvider & styles, int position, int y);
@@ -194,6 +205,7 @@ class Table : public Widget {
   // pointer, among the headings if the button went down on one, among the rows if on a row. A release acts on it.
   int pressed_heading_ = -1, pressed_position_ = -1;
   bool press_on_heading_ = false;
+  std::pair<int, int> press_button_{-1, -1};  // the button the press went down on
   bool pressing_ = false;
   std::vector<Connection> connections_;
 };

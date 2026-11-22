@@ -169,10 +169,10 @@ Application::Application(std::unique_ptr<Backend> backend, std::vector<std::stri
   configurePlane();
   dispatcher_->setDragDropEnabled(backend_->display().drag_drop);
   // A bare Escape waits for the key after it, in case it was an Alt prefix,
-  // unless what has the focus wants it at once.
+  // unless what has the focus wants it at once, or the palette or a modal dialog is up.
   key_reader_.takeEscape = [this](const Input & escape) {
     Widget * focused = dispatcher_->focused();
-    if (!palette_.isOpen() && (!focused || !focused->wantsBareEscape())) return false;
+    if (!palette_.isOpen() && !own_root_widget_.activeModal() && (!focused || !focused->wantsBareEscape())) return false;
     dispatcher_->offer(escape);
     return true;
   };
