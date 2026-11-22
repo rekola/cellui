@@ -387,3 +387,48 @@ TEST(table_rows_are_under_the_pointer_by_where_they_are_shown_while_easing) {
   f.table.post(MouseUp{5, 2, 2, 5, 1, {}});
   CHECK(f.table.selectedRow() == 0 || f.table.selectedRow() == 1);  // the first row or the next, never the ones scrolled to
 }
+
+namespace {
+
+// A model whose first two rows share one icon id and whose third has none.
+struct IconModel : Quotes {
+  std::shared_ptr<const TableIcon> shared = std::make_shared<const TableIcon>(
+      TableIcon{7, 2, 2, std::make_shared<const std::vector<uint32_t>>(std::vector<uint32_t>(4, Image::pack(200, 30, 30)))});
+  std::shared_ptr<const TableIcon> icon(int r, int c) const override { return c == 0 && r < 2 ? shared : nullptr; }
+};
+
+struct IconFixture {
+  StyleProvider styles;
+  CellBuffer buffer{8, 30};
+  BufferPlane root{buffer, styles};
+  std::unique_ptr<Charts> charts = cellCharts();
+  Table table{root, *charts};
+  IconFixture(bool pictures) {
+    if (pictures) root.setCellPixelSize(16, 8);
+    table.setColumns({{.title = "", .width = 2, .sortable = false, .icon = true}, {.title = "Name", .width = 10}, {.title = "Price", .width = 8}});
+    table.resize(6, 30);
+    table.move(1, 0);
+    table.setModel(std::make_shared<IconModel>());
+    root.refresh();
+  }
+};
+
+}  // namespace
+
+TEST(table_shows_an_icon_column_as_one_picture_for_every_row_that_has_it) {
+  IconFixture f(true);
+  f.root.refresh();
+  if (f.root.images().empty()) return;  // no pixel backend in this build
+  CHECK(f.root.images().size() == 2);
+  CHECK(f.root.images()[0].shared.valid() && f.root.images()[0].shared == f.root.images()[1].shared);
+}
+
+TEST(table_icon_column_takes_no_room_where_the_display_has_no_pictures) {
+  IconFixture plain(false);
+  CHECK(plain.root.images().empty());
+  const std::string text = plain.buffer.toPlainText();
+  const size_t heading = text.find("Name"), nokia = text.find("4.20");
+  CHECK(heading != std::string::npos && nokia != std::string::npos);
+  // No gap before the first visible column: its heading and its first cell start together.
+  CHECK(heading - text.rfind('\n', heading) == nokia - text.rfind('\n', nokia));
+}
