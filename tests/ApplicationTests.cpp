@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 
 #include <cellui/Application.h>
+#include <cellui/InfoModal.h>
 #include <cellui/TestBackend.h>
 
 using namespace cellui;
@@ -349,4 +350,22 @@ TEST(application_keymap_where_the_program_offers_it_runs_ahead_of_the_focused_wi
   // The palette runs a name through execute(); the source's binding comes before the keymap's.
   CHECK(f.app->execute("save") && ran.back() == "palette save");
   CHECK(f.app->bindingFor("save") == "F2" && f.app->bindingFor("quit") == "C-x C-c");
+}
+
+TEST(application_a_bare_escape_reaches_an_open_modal_at_once) {
+  Fixture f;
+  int result = -2;
+  f.app->commands().define("info", "Show a box", [&] {
+    InfoModal box(f.app->widgets(), f.app->root(), f.app->backend().eventLoop(), "Title", "text");
+    result = box.showModal();
+  });
+  f.app->keymap().bind("i", "info");
+  f.app->backend().eventLoop().setBefore([] { return 0; });
+  int turn = 0;
+  auto frame = f.app->backend().eventLoop().onFrame([&] {
+    if (turn++ == 0) press(*f.app, Key::Escape);  // not held for a key that may follow it
+    else f.app->backend().eventLoop().quit();
+  });
+  press(*f.app, 'i');
+  CHECK(result == 0);  // closed by the Escape (done), not by the loop ending
 }
