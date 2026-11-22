@@ -432,3 +432,63 @@ TEST(table_icon_column_takes_no_room_where_the_display_has_no_pictures) {
   // No gap before the first visible column: its heading and its first cell start together.
   CHECK(heading - text.rfind('\n', heading) == nokia - text.rfind('\n', nokia));
 }
+
+namespace {
+
+// Name at 0, Price at 9, and the buttons at 16 ("[i]") and 20 ("[c]").
+struct ButtonFixture : Fixture {
+  struct Click {
+    int row, column, button;
+  };
+  std::vector<Click> clicks;
+  Connection connection;
+  ButtonFixture() {
+    table.setColumns({{.title = "Name", .width = 8}, {.title = "Price", .width = 6, .align = Align::RIGHT}, {.title = "", .width = 0, .sortable = true, .buttons = {"[i]", "[c]"}}});
+    connection = table.button_clicked.connect([this](int r, int c, int b) { clicks.push_back({r, c, b}); });
+  }
+};
+
+}  // namespace
+
+TEST(table_buttons_column_draws_its_glyphs_and_a_click_on_one_selects_the_row_and_says_which) {
+  ButtonFixture f;
+  CHECK(f.text().find("[i] [c]") != std::string::npos);
+  int selected = -2;
+  auto a = f.table.selection_changed.connect([&](int r) { selected = r; });
+  f.click(3, 17);  // the second row's "[i]"
+  CHECK(selected == 1 && f.table.selectedRow() == 1);
+  CHECK(f.clicks.size() == 1u); if (f.clicks.empty()) return;
+  CHECK(f.clicks[0].row == 1 && f.clicks[0].column == 2 && f.clicks[0].button == 0);
+  f.click(4, 21);  // the third row's "[c]"
+  CHECK(f.clicks.size() == 2u); if (f.clicks.empty()) return;
+  CHECK(f.clicks[1].row == 2 && f.clicks[1].button == 1);
+}
+
+TEST(table_click_beside_a_button_or_off_it_only_selects) {
+  ButtonFixture f;
+  f.click(2, 19);  // the gap between the buttons
+  CHECK(f.table.selectedRow() == 0 && f.clicks.empty());
+  f.press(3, 17);
+  f.release(3, 5);  // pressed on a button, released elsewhere in the row
+  CHECK(f.clicks.empty());
+  f.press(3, 17);
+  f.release(4, 17);  // released on the same button of another row
+  CHECK(f.clicks.empty());
+}
+
+TEST(table_buttons_follow_the_rows_through_a_sort_and_keep_the_scroll_position) {
+  ButtonFixture f;
+  f.click(1, 17);  // the heading over the buttons does not sort
+  CHECK(f.table.sortOrder() == SortOrder::NONE);
+  f.click(1, 2);  // Name ascending: Fortum Kone Nokia Sampo
+  f.click(2, 17);  // the first row shown is Fortum, model row 1
+  CHECK(f.clicks.size() == 1u); if (f.clicks.empty()) return;
+  CHECK(f.clicks[0].row == 1);
+  f.table.resize(3, 30);  // heading and two rows
+  f.table.post(Wheel{0, 0, 2, 3, 0, -1, {}});
+  CHECK(f.table.firstVisiblePosition() == 1);
+  f.click(2, 17);  // the first row in view is position 1: Kone
+  CHECK(f.clicks.back().row == 3);
+  CHECK(f.table.firstVisiblePosition() == 1);  // the click did not move the view
+  CHECK(f.table.sortColumn() == 0);
+}
