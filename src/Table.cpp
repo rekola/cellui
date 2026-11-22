@@ -307,7 +307,7 @@ int Table::columnWidth(size_t c) const {
   const TableColumn & column = columns_[c];
   if (column.buttons.empty()) return column.width;
   int w = static_cast<int>(column.buttons.size()) - 1;  // one cell between buttons
-  for (const std::string & glyph : column.buttons) w += utf8::displayWidth(glyph);
+  for (const ButtonFace & face : column.buttons) w += face.width();
   return w;
 }
 
@@ -316,7 +316,7 @@ std::pair<int, int> Table::buttonAt(int local_col) const {
   if (c < 0 || columns_[static_cast<size_t>(c)].buttons.empty()) return {-1, -1};
   int x = layout().x[static_cast<size_t>(c)];
   for (size_t i = 0; i < columns_[static_cast<size_t>(c)].buttons.size(); i++) {
-    const int w = utf8::displayWidth(columns_[static_cast<size_t>(c)].buttons[i]);
+    const int w = columns_[static_cast<size_t>(c)].buttons[i].width();
     if (local_col >= x && local_col < x + w) return {c, static_cast<int>(i)};
     x += w + 1;
   }
@@ -479,9 +479,9 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
     if (!columns_[c].buttons.empty()) {
       setFgColor((selected && focused_) || pressed ? fg : styles.window_accent_fg_color);
       int x = l.x[c];
-      for (const std::string & glyph : columns_[c].buttons) {
-        putstr(y + row_height_ / 2, x, glyph);
-        x += utf8::displayWidth(glyph) + 1;
+      for (const ButtonFace & face : columns_[c].buttons) {
+        putstr(y + row_height_ / 2, x, face.glyph);
+        x += face.width() + 1;
       }
       continue;
     }
