@@ -38,6 +38,10 @@ struct LinkStatus {
   bool operator!=(const LinkStatus & o) const { return !(*this == o); }
 };
 
+// What an info line shows of a link: "Link: Full speed, 60 Hz vsync, 58 fps", "Link: 5 Hz (pinned)",
+// "Link: n/a" until the backend has a figure.
+std::string linkStatusText(const LinkStatus & status);
+
 // The bandwidth, in bytes a second, a class needs: what its profile sends, as measured, over the
 // share of the link it may use. The figures are the kitty demands of the playing UI with pictures
 // deflated (about 400, 200 and 100 kB/s for full, 30 Hz and 15 Hz, and 40 kB/s of text at 5 Hz)

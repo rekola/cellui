@@ -15,6 +15,18 @@ LinkClassifier::TimePoint at(int ms) { return t0 + Ms(ms); }
 
 }  // namespace
 
+TEST(link_status_text_reads_as_the_info_line_shows_it) {
+  LinkStatus status;
+  CHECK(linkStatusText(status) == "Link: n/a");
+  status.available = true;
+  status.description = "60 Hz vsync, 58 fps";
+  CHECK(linkStatusText(status) == "Link: Full speed, 60 Hz vsync, 58 fps");
+  status.pinned = true;
+  status.description.clear();
+  status.cls = LinkClass::HZ_5;
+  CHECK(linkStatusText(status) == "Link: 5 Hz (pinned)");
+}
+
 TEST(link_class_names_parse_and_auto_clears_the_pin) {
   std::optional<LinkClass> pin = LinkClass::HZ_5;
   CHECK(parseLinkClass("auto", pin) && !pin);
