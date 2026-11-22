@@ -188,7 +188,7 @@ class Table : public Widget {
   bool key(const KeyDown & e);
   void drawHeading(const Layout & l, const StyleProvider & styles);
   void drawRow(const Layout & l, const StyleProvider & styles, int position, int y);
-  void drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon, bool inverted, const Color & tint);
+  void drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon, bool inverted, const Color & paper, const Color & ink, bool light_ink);
   void drawScrollbar(const Layout & l, const StyleProvider & styles);
 
   const Charts & charts_;

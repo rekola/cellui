@@ -456,6 +456,12 @@ void Table::drawHeading(const Layout & l, const StyleProvider & styles) {
   }
 }
 
+// Icons are made for the window's background: light ink on a dark window, dark on a light one.
+static bool lightIcons(const StyleProvider & styles) {
+  const std::array<uint8_t, 3> w = styles.window_bg_color.toSrgb8();
+  return 0.2126f * static_cast<float>(w[0]) + 0.7152f * static_cast<float>(w[1]) + 0.0722f * static_cast<float>(w[2]) < 127.5f;
+}
+
 void Table::drawRow(const Layout & l, const StyleProvider & styles, int position, int y) {
   const int cols = getDim().second;
   const int model_row = order_[static_cast<size_t>(position)];
@@ -471,7 +477,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
     const int col = static_cast<int>(c);
     if (l.width[c] == 0) continue;
     if (columns_[c].icon) {
-      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col), selected && focused_, styles.highlight_fg_color);
+      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col), selected && focused_, styles.highlight_bg_color, styles.highlight_fg_color, lightIcons(styles));
       continue;
     }
     if (!columns_[c].buttons.empty()) {
@@ -497,20 +503,24 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
 }
 
 // The display fits the picture into the cell's box, as large as it goes with its proportions kept. On the focused
-// selection the picture is desaturated, inverted and coloured with `tint` (the highlight's foreground, as the text is),
-// alpha kept: whatever colours a provider's logo has, it reads as light on the highlight. It has a key of its own, so the
-// plain picture stays shared.
-void Table::drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon, bool inverted, const Color & tint) {
+// selection the picture is desaturated and recoloured as a duotone between the highlight's background and its
+// foreground (`paper`, `ink`), alpha kept, so a logo keeps its detail on the highlight whatever the highlight's
+// colours are (tinting by the foreground alone makes every pixel black where the foreground is). The picture's own
+// ink is taken to be what stands out from the window's background, so it becomes the highlight's foreground: the
+// inversion, where the highlight's polarity differs from the window's. It has a key of its own, so the plain picture
+// stays shared.
+void Table::drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon, bool inverted, const Color & paper, const Color & ink,
+                     bool light_ink) {
   if (!icon || !icon->pixels || icon->width <= 0 || icon->height <= 0) return;
-  const std::array<uint8_t, 3> t = tint.toSrgb8();
-  auto render = [icon, inverted, t] {
+  const std::array<uint8_t, 3> pa = paper.toSrgb8(), in = ink.toSrgb8();
+  auto render = [icon, inverted, pa, in, light_ink] {
     std::vector<uint32_t> pixels = *icon->pixels;
     if (inverted) {
       for (uint32_t & p : pixels) {
         auto * b = reinterpret_cast<unsigned char *>(&p);  // bytes R, G, B, A in memory
         const float gray = (0.2126f * static_cast<float>(b[0]) + 0.7152f * static_cast<float>(b[1]) + 0.0722f * static_cast<float>(b[2])) / 255.0f;
-        const float v = 1.0f - gray;
-        for (int k = 0; k < 3; k++) b[k] = static_cast<unsigned char>(std::lround(v * static_cast<float>(t[static_cast<size_t>(k)])));
+        const float t = light_ink ? gray : 1.0f - gray;  // how much of the picture's ink is here
+        for (size_t k = 0; k < 3; k++) b[k] = static_cast<unsigned char>(std::lround(static_cast<float>(pa[k]) + t * (static_cast<float>(in[k]) - static_cast<float>(pa[k]))));
       }
     }
     return pixels;
