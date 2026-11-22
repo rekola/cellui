@@ -450,13 +450,15 @@ struct ButtonFixture : Fixture {
 
 }  // namespace
 
-TEST(table_buttons_column_draws_its_glyphs_and_a_click_on_one_selects_the_row_and_says_which) {
+TEST(table_buttons_column_draws_its_glyphs_and_a_click_on_one_says_which_row_and_button_and_leaves_the_selection) {
   ButtonFixture f;
   CHECK(f.text().find("[i] [c]") != std::string::npos);
   int selected = -2;
   auto a = f.table.selection_changed.connect([&](int r) { selected = r; });
+  f.table.select(3);
+  selected = -2;
   f.click(3, 17);  // the second row's "[i]"
-  CHECK(selected == 1 && f.table.selectedRow() == 1);
+  CHECK(selected == -2 && f.table.selectedRow() == 3);  // the selection stayed
   CHECK(f.clicks.size() == 1u); if (f.clicks.empty()) return;
   CHECK(f.clicks[0].row == 1 && f.clicks[0].column == 2 && f.clicks[0].button == 0);
   f.click(4, 21);  // the third row's "[c]"
