@@ -105,7 +105,7 @@ class ChoiceList {
 
   void scrollTo(int offset, int rows) {
     window_.setExtent(count_, std::max(1, rows));
-    window_.scrollTo(offset);
+    window_.jumpTo(offset);
     detached_ = true;
   }
 };
