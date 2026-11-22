@@ -46,6 +46,12 @@ class ScrollAxis {
     if (!smooth_) shown_ = offset_;
   }
   void scrollBy(int delta) { scrollTo(offset_ + delta); }
+  // To the offset with no easing, though the view is smooth: what follows the pointer (a dragged scrollbar) must
+  // not lag behind it.
+  void jumpTo(int offset) {
+    offset_ = std::clamp(offset, 0, maxOffset());
+    shown_ = offset_;
+  }
 
   // Slides the view just far enough that `index` is at least `margin` cells
   // from both edges, and no further, so it only moves when the cursor

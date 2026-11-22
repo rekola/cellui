@@ -259,7 +259,7 @@ bool Table::beginThumbDrag(int screen_row, int screen_col) {
   auto jump = thumb_drag_.begin(track, count, visibleRows(), rows_.shown(), y - 1);
   if (!thumb_drag_.active()) return false;
   if (jump) {
-    rows_.scrollTo(*jump);
+    rows_.jumpTo(*jump);
     render();
   }
   return true;
@@ -268,7 +268,7 @@ bool Table::beginThumbDrag(int screen_row, int screen_col) {
 void Table::dragThumb(int screen_row) {
   const int track = std::max(0, getDim().first - 1), count = static_cast<int>(order_.size());
   rows_.setExtent(count, visibleRows());
-  rows_.scrollTo(thumb_drag_.offset(track, count, visibleRows(), screen_row - getPosition().first - 1));
+  rows_.jumpTo(thumb_drag_.offset(track, count, visibleRows(), screen_row - getPosition().first - 1));
   render();
 }
 
