@@ -113,3 +113,27 @@ TEST(choice_list_thumb_is_unset_while_everything_fits_and_follows_the_window_oth
   auto bottom = list.thumb(5, 5);
   CHECK(bottom && bottom->top == 4);
 }
+
+TEST(choicelist_dragging_the_thumb_scrolls_without_moving_the_selection) {
+  cellui::ChoiceList list;
+  list.reset(100, 0);
+  list.firstVisible(10);
+  // Grab the thumb at its top, drag to the middle of the 10-cell track: the window follows, the selection stays.
+  CHECK(list.beginThumbDrag(10, 0));
+  list.dragThumb(10, 4);
+  CHECK(list.offset() > 30 && list.offset() < 60);
+  CHECK(list.selected() == 0);
+  list.dragThumb(10, 50);  // past the end: the thumb stops there
+  CHECK(list.offset() == 90);
+  list.dragThumb(10, -5);
+  CHECK(list.offset() == 0);
+  list.endThumbDrag();
+  CHECK(!list.thumbDragging());
+  // A press on the bare track jumps the thumb to the pointer.
+  CHECK(list.beginThumbDrag(10, 9));
+  CHECK(list.offset() == 90);
+  list.endThumbDrag();
+  // Everything fits: no drag.
+  list.reset(5, 0);
+  CHECK(!list.beginThumbDrag(10, 0));
+}

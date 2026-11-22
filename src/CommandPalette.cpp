@@ -240,9 +240,19 @@ int CommandPalette::indexAt(int y, int x) {
 
 bool CommandPalette::inPanel(int y, int x) const { return y >= y_ && y < y_ + rows_ && x - x_ >= 0 && x - x_ < width_; }
 
+// The scrollbar's column, beside the list (nothing where every command fits).
+bool CommandPalette::onScrollbar(int y, int x) const {
+  int row = y - y_;
+  return x - x_ == width_ - 1 && row >= 0 && row < visibleRows() && list_.count() > visibleRows();
+}
+
 CommandPalette::Result CommandPalette::press(int y, int x) {
   if (!open_) return Result::CANCELLED;
   pressing_ = true;
+  if (onScrollbar(y, x) && list_.beginThumbDrag(visibleRows(), y - y_)) {
+    started_on_command_ = started_outside_ = false;
+    return Result::NONE;
+  }
   int index = indexAt(y, x);
   started_on_command_ = index >= 0;
   started_outside_ = !inPanel(y, x);
@@ -251,6 +261,10 @@ CommandPalette::Result CommandPalette::press(int y, int x) {
 }
 
 CommandPalette::Result CommandPalette::drag(int y, int x) {
+  if (list_.thumbDragging()) {
+    list_.dragThumb(visibleRows(), y - y_);
+    return Result::NONE;
+  }
   if (!open_ || !pressing_ || !started_on_command_) return Result::NONE;
   list_.setPressed(indexAt(y, x));
   return Result::NONE;
@@ -258,6 +272,12 @@ CommandPalette::Result CommandPalette::drag(int y, int x) {
 
 CommandPalette::Result CommandPalette::click(int y, int x) {
   if (!open_) return Result::CANCELLED;
+  if (list_.thumbDragging()) {
+    list_.dragThumb(visibleRows(), y - y_);
+    list_.endThumbDrag();
+    pressing_ = false;
+    return Result::NONE;
+  }
   int index = indexAt(y, x);
   bool on_command = pressing_ ? started_on_command_ : index >= 0;
   bool outside = pressing_ ? started_outside_ : !inPanel(y, x);
