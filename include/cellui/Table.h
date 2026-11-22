@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cellui/Button.h>
 #include <cellui/Charts.h>
 #include <cellui/InputEvents.h>
 #include <cellui/Scrollbar.h>
@@ -38,7 +39,7 @@ struct TableColumn {
   // The cells are a row of small buttons, one for each glyph (the same in every row): "[i]", an icon, a word. The
   // column is as wide as its buttons (one cell between them), not `width`, and is never sorted. A click on one selects
   // its row and emits Table::button_clicked with the button's index.
-  std::vector<std::string> buttons = {};
+  std::vector<ButtonFace> buttons = {};
 };
 
 // A small picture in an icon column's cell: width*height pixels, row 0 at the
