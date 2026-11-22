@@ -7,6 +7,7 @@
 #include <cellui/Viewport.h>
 #include <cellui/Widget.h>
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <span>
@@ -30,6 +31,18 @@ struct TableColumn {
   // The cells are traces (TableModel::trace()) drawn by the display's Charts,
   // not text.
   bool trace = false;
+  // The cells are pictures (TableModel::icon()), shown where the display shows
+  // pictures. Where it does not, the column takes no room and no gap.
+  bool icon = false;
+};
+
+// A small picture in an icon column's cell: width*height pixels, row 0 at the
+// top, bytes R, G, B, A. `id` names the picture: every row that shows the same
+// id shows the same pixels, which the display then keeps once.
+struct TableIcon {
+  uint64_t id = 0;
+  int width = 0, height = 0;
+  std::shared_ptr<const std::vector<uint32_t>> pixels;
 };
 
 // What a Table shows. Rows are numbered 0 up to rowCount() in the model's
@@ -44,6 +57,9 @@ class TableModel {
   // The values of a trace cell, oldest first (see TraceLook): a view of the
   // model's own values, read while the cell is drawn, so nothing is copied.
   virtual std::span<const float> trace(int /*row*/, int /*column*/) const { return {}; }
+  // The picture of a cell in an icon column; null for none (not there yet, or the row has none). Read while the cell
+  // is drawn, so it must not wait for anything.
+  virtual std::shared_ptr<const TableIcon> icon(int /*row*/, int /*column*/) const { return nullptr; }
   // The cell's colour: the text's, or a trace's line. Unset is the theme's.
   virtual std::optional<Color> color(int /*row*/, int /*column*/) const { return std::nullopt; }
   // The cell's value, which it sorts by: a model with numbers gives them
@@ -139,6 +155,8 @@ class Table : public Widget {
     std::vector<int> x, width;
     int scrollbar_x = 0;
   };
+  // Whether column `c` is drawn: an icon column only where the display shows pictures.
+  bool shown(size_t c) const;
   Layout layout() const;
   void resort();
   void moveSelection(int delta);
@@ -154,6 +172,7 @@ class Table : public Widget {
   bool key(const KeyDown & e);
   void drawHeading(const Layout & l, const StyleProvider & styles);
   void drawRow(const Layout & l, const StyleProvider & styles, int position, int y);
+  void drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon);
   void drawScrollbar(const Layout & l, const StyleProvider & styles);
 
   const Charts & charts_;

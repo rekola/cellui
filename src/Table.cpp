@@ -1,6 +1,7 @@
 #include <cellui/Table.h>
 
 #include <cellui/NumberParse.h>
+#include <cellui/ImageScale.h>
 #include <cellui/Scrollbar.h>
 #include <cellui/Utf8.h>
 
@@ -261,6 +262,7 @@ int Table::columnAt(int local_col) const {
   Layout l = layout();
   int found = -1;
   for (size_t i = 0; i < l.x.size(); i++) {
+    if (l.width[i] == 0 && columns_[i].icon) continue;  // not shown
     if (local_col >= l.x[i]) found = static_cast<int>(i);
   }
   if (found >= 0 && local_col >= l.x[static_cast<size_t>(found)] + l.width[static_cast<size_t>(found)] + kGap) return -1;
@@ -294,23 +296,36 @@ Table::Layout Table::layout() const {
   Layout l;
   const int cols = getDim().second;
   const int usable = std::max(0, cols - 1);  // the last column is the scrollbar
-  int fixed = 0, flex = 0;
-  for (auto & c : columns_) {
-    if (c.width > 0) fixed += c.width;
+  int fixed = 0, flex = 0, count = 0;
+  for (size_t i = 0; i < columns_.size(); i++) {
+    if (!shown(i)) continue;
+    count++;
+    if (columns_[i].width > 0) fixed += columns_[i].width;
     else flex++;
   }
-  int gaps = columns_.empty() ? 0 : kGap * (static_cast<int>(columns_.size()) - 1);
+  int gaps = count == 0 ? 0 : kGap * (count - 1);
   int left = std::max(0, usable - fixed - gaps);
   int share = flex ? std::max(kMinFlexWidth, left / flex) : 0;
   int x = 0;
-  for (auto & c : columns_) {
-    int w = c.width > 0 ? c.width : share;
+  for (size_t i = 0; i < columns_.size(); i++) {
+    if (!shown(i)) {
+      l.x.push_back(x);
+      l.width.push_back(0);
+      continue;
+    }
+    int w = columns_[i].width > 0 ? columns_[i].width : share;
     l.x.push_back(x);
     l.width.push_back(w);
     x += w + kGap;
   }
   l.scrollbar_x = cols - 1;
   return l;
+}
+
+bool Table::shown(size_t c) const {
+  if (!columns_[c].icon) return true;
+  int h = 0, w = 0;
+  return getPlane().cellPixelSize(h, w) && h > 0 && w > 0;
 }
 
 bool Table::animating() const { return rows_.animating(); }
@@ -363,6 +378,7 @@ void Table::drawHeading(const Layout & l, const StyleProvider & styles) {
   setBgColor(styles.heading_bg_color);
   putstr(0, 0, std::string(static_cast<size_t>(cols), ' '));
   for (size_t i = 0; i < columns_.size(); i++) {
+    if (l.width[i] == 0) continue;
     std::string title = columns_[i].title;
     if (static_cast<int>(i) == sort_column_) title += sort_order_ == SortOrder::DESCENDING ? " ▼" : " ▲";
     // A heading that does not fit loses its end, but keeps the arrow: the sorted column must say so.
@@ -390,6 +406,11 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
   for (int r = 0; r < row_height_; r++) putstr(y + r, 0, std::string(static_cast<size_t>(cols), ' '));
   for (size_t c = 0; c < columns_.size(); c++) {
     const int col = static_cast<int>(c);
+    if (l.width[c] == 0) continue;
+    if (columns_[c].icon) {
+      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col));
+      continue;
+    }
     std::optional<Color> color = model_->color(model_row, col);
     if (columns_[c].trace) {
       TraceLook look{bg, color.value_or(fg), color ? color : std::nullopt};
@@ -401,6 +422,24 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
       putText(y + row_height_ / 2, l.x[c], l.width[c], model_->text(model_row, col), TextStyle{font_, TextOverflow::ELLIPSIS, kPlainFace, textAlign(columns_[c].align)});
     }
   }
+}
+
+// The picture fills the cell's height, or its width where that is less, as one scaled copy that every row showing the
+// same id shares.
+void Table::drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon) {
+  int cell_h = 0, cell_w = 0;
+  if (!icon || !icon->pixels || icon->width <= 0 || icon->height <= 0 || !getPlane().cellPixelSize(cell_h, cell_w)) return;
+  const int side = std::max(1, std::min(row_height_ * cell_h, width * cell_w));
+  const uint64_t id = icon->id * 4096 + static_cast<uint64_t>(side);
+  getPlane().drawSharedImageAt(y, x, ImageKey{"icon", id}, side, side,
+                               [icon, side] {
+                                 Image source;
+                                 source.width = icon->width;
+                                 source.height = icon->height;
+                                 source.pixels = *icon->pixels;
+                                 return scaleImage(source, side, side).pixels;
+                               },
+                               0, getDim().first + 1);
 }
 
 void Table::drawScrollbar(const Layout & l, const StyleProvider & styles) {
