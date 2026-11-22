@@ -471,7 +471,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
     const int col = static_cast<int>(c);
     if (l.width[c] == 0) continue;
     if (columns_[c].icon) {
-      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col));
+      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col), selected && focused_);
       continue;
     }
     if (!columns_[c].buttons.empty()) {
@@ -496,10 +496,24 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
   }
 }
 
-// The display fits the picture into the cell's box, as large as it goes with its proportions kept.
-void Table::drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon) {
+// The display fits the picture into the cell's box, as large as it goes with its proportions kept. On the focused
+// selection the colours are inverted (alpha kept), as the text turns to the highlight's foreground; a picture of
+// its own key, so the plain one stays shared.
+void Table::drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon, bool inverted) {
   if (!icon || !icon->pixels || icon->width <= 0 || icon->height <= 0) return;
-  getPlane().drawSharedImageFitted(y, x, row_height_, width, ImageKey{"icon", icon->id}, icon->width, icon->height, [icon] { return *icon->pixels; }, 0,
+  auto render = [icon, inverted] {
+    std::vector<uint32_t> pixels = *icon->pixels;
+    if (inverted) {
+      for (uint32_t & p : pixels) {
+        auto * b = reinterpret_cast<unsigned char *>(&p);  // bytes R, G, B, A in memory
+        b[0] = static_cast<unsigned char>(255 - b[0]);
+        b[1] = static_cast<unsigned char>(255 - b[1]);
+        b[2] = static_cast<unsigned char>(255 - b[2]);
+      }
+    }
+    return pixels;
+  };
+  getPlane().drawSharedImageFitted(y, x, row_height_, width, ImageKey{inverted ? "icon-inverted" : "icon", icon->id}, icon->width, icon->height, render, 0,
                                    getDim().first + 1);
 }
 
