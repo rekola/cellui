@@ -1,9 +1,8 @@
 #pragma once
 
-#include <cellui/ChoiceList.h>
+#include <cellui/ScrollBody.h>
 #include <cellui/Widget.h>
 
-#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -39,7 +38,7 @@ class ChoiceDialog {
   // Above every plane under the same parent.
   void raise() {
     if (plane_) plane_->moveToTop();
-    if (list_plane_) list_plane_->moveToTop();
+    body_.raise();
   }
   // Whether the list is still moving (smooth scrolling): another show() is due.
   bool animating() const;
@@ -59,30 +58,21 @@ class ChoiceDialog {
   Result click(int row, int col);
   Result wheel(bool up);
 
-  int selected() const { return list_.selected(); }
+  int selected() const { return body_.selected(); }
 
  private:
   int visibleRows() const { return rows_ - 5; }  // see kChromeRows
-  // The entry shown under a screen cell, -1 for none; whether a cell is in the box.
-  int indexAt(int y, int x) const;
+  // Whether a cell is in the box.
   bool inBox(int y, int x) const;
 
-  // The box with its title and hint; the entries are a plane of their own
-  // over it, so they can scroll by parts of a row under a cursor band.
+  // The box with its title and hint; the entries are a ScrollBody over it, so they can scroll by parts of a row
+  // under a cursor band.
   std::unique_ptr<Plane> plane_;
   std::optional<float> elevation_;
-  std::unique_ptr<Plane> list_plane_;
-  // The cursor's row in the list: a whole number except while it eases.
-  double cursor_y_ = 0;
-  bool fresh_ = true;
-  std::chrono::steady_clock::time_point last_tick_;
+  ScrollBody body_;
   std::string title_;
   std::vector<std::string> labels_;
   int current_ = -1;
-  ChoiceList list_;
-  // The left button is down: on an entry, or outside the box.
-  bool onScrollbar(int row, int col) const;
-  bool pressing_ = false, started_on_entry_ = false, started_outside_ = false;
   // Where the box sits and how big it is, as of the last show().
   int y_ = 0, x_ = 0, rows_ = 0, width_ = 0;
 };

@@ -70,3 +70,40 @@ TEST(scrollbody_keys_scroll_by_lines_and_to_the_ends) {
   CHECK(f.body.firstLine() == 0);
   CHECK(f.body.page() == 3);
 }
+
+TEST(scrollbody_a_press_and_release_on_a_line_chooses_it) {
+  Fixture f;
+  f.body.setCursor(true);
+  f.layout();
+  CHECK(!f.body.press(6, 10));  // the second line
+  CHECK(f.body.pressed() == 1);
+  CHECK(f.body.click(6, 10, true) == ScrollBody::Click::CHOSEN);
+  CHECK(f.body.selected() == 1);
+  CHECK(f.body.pressed() == -1);
+}
+
+TEST(scrollbody_a_press_on_a_line_let_go_elsewhere_in_the_box_chooses_nothing) {
+  Fixture f;
+  f.body.press(6, 10);
+  CHECK(f.body.click(3, 10, true) == ScrollBody::Click::NONE);
+  CHECK(f.body.selected() == 0);
+}
+
+TEST(scrollbody_a_press_and_release_outside_the_box_are_outside) {
+  Fixture f;
+  f.body.press(0, 0, false);
+  CHECK(f.body.click(0, 0, false) == ScrollBody::Click::OUTSIDE);
+}
+
+TEST(scrollbody_the_wheel_scrolls_without_moving_the_selection) {
+  Fixture f;
+  f.body.setCursor(true);
+  f.layout();
+  f.body.scrollBy(10);
+  f.layout();
+  CHECK(f.body.firstLine() == 10);
+  CHECK(f.body.selected() == 0);
+  f.body.move(1);  // moving the selection brings the window back
+  f.layout();
+  CHECK(f.body.firstLine() == 1);
+}

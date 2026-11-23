@@ -235,10 +235,7 @@ TEST(palette_list_is_a_raised_panel_but_the_description_and_query_use_the_displa
   Fixture f;
   f.feed("undo");
   // Rows 16 and 17 list the two matches, 18 is the description, 19 the query.
-  auto panel = f.styles.picker_bg_color;
-  // The selected row (16) takes the cursor colour, the other the panel's.
-  CHECK(f.buffer.at(16, 10).bg && sameColor(*f.buffer.at(16, 10).bg, f.styles.highlight_bg_color));
-  CHECK(f.buffer.at(17, 10).bg && sameColor(*f.buffer.at(17, 10).bg, panel));
+  // The list rows are on a plane of their own under the selection's band, so the buffer holds none of them.
   for (int row : {18, 19}) {
     for (int col : {0, 1, 10, 79}) CHECK(!f.buffer.at(row, col).bg);
   }
@@ -362,7 +359,7 @@ TEST(palette_list_eases_to_a_new_scroll_position_where_the_display_scrolls_smoot
   // Down past the last of the twelve rows: the list scrolls, and takes frames to get there.
   for (int i = 0; i < 14; i++) palette.key(InputDispatcher::keyDownFor(key(Key::Down)));
   bool shifted = false;
-  CHECK(!palette.animating());  // nothing has been drawn for the new position yet
+  CHECK(palette.animating());  // the cursor and the window have somewhere to go
   for (int i = 0; i < 100; i++) {
     auto layers = show();
     for (auto & layer : layers)
@@ -375,7 +372,11 @@ TEST(palette_list_eases_to_a_new_scroll_position_where_the_display_scrolls_smoot
   // The fifteenth of the names as they are listed (by name).
   auto names = palette.shownNames();
   CHECK(palette.chosen() && palette.chosen()->name == names[14]);
-  CHECK(buffer.toPlainText().find(names[14]) != std::string::npos);
+  // The cursor band rests on the last of the twelve rows.
+  double band = -1;
+  for (auto & layer : show())
+    if (layer.scroll && layer.scroll->band) band = layer.scroll->band->row;
+  CHECK(band == 11.0);
 }
 
 TEST(palette_list_does_not_ease_where_the_display_does_not_scroll_smoothly) {

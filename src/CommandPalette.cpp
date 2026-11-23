@@ -1,7 +1,6 @@
 #include <cellui/CommandPalette.h>
 
 #include <cellui/FuzzyMatch.h>
-#include <cellui/Scrollbar.h>
 #include <cellui/Utf8.h>
 
 #include <algorithm>
@@ -23,14 +22,17 @@ constexpr int kChromeRows = 2;
 void CommandPalette::open(vector<PaletteEntry> entries) {
   entries_ = std::move(entries);
   query_.clear();
-  pressing_ = false;
+  // Application ticks it, each frame, by the time since the last.
+  body_.setCursor(true);
+  body_.setClocked(false);
+  body_.setMouseCursor(MouseCursor::POINTER);
   open_ = true;
   refilter();
 }
 
 void CommandPalette::close() {
   plane_.reset();
-  list_plane_.reset();
+  body_.close();
   entries_.clear();
   shown_.clear();
   query_.clear();
@@ -82,12 +84,12 @@ void CommandPalette::refilter() {
   });
   shown_.clear();
   for (auto & s : scored) shown_.push_back({s.entry, std::move(s.positions)});
-  list_.reset(static_cast<int>(shown_.size()), 0);
+  body_.reset(static_cast<int>(shown_.size()), 0);
 }
 
 const PaletteEntry * CommandPalette::chosen() const {
   if (shown_.empty()) return nullptr;
-  return &entries_[shown_[static_cast<size_t>(list_.selected())].entry];
+  return &entries_[shown_[static_cast<size_t>(body_.selected())].entry];
 }
 
 vector<string> CommandPalette::shownNames() const {
@@ -139,27 +141,14 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   for (int row = list_rows; row < rows_; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
   int inner = width_ - 2;
 
-  // The list follows its scroll position with an animation where the display scrolls smoothly.
-  list_.setSmooth(parent.smoothScroll());
-  list_.firstVisible(visibleRows());
   if (count == 0) {
     set(quiet, bg);
     plane_->putstr(0, 1, "No matching command");
   }
   y_ = screen_rows - rows_;
   x_ = 0;
-  if (!list_plane_) {
-    list_plane_ = parent.createChild();
-    list_plane_->setMouseCursor(MouseCursor::POINTER);
-    // Over the panel, at its height.
-    list_plane_->setElevation(plane_->elevation());
-    list_plane_->setCastsShadow(false);
-  }
-  list_plane_->move(y_, x_);
-  list_plane_->resize(visibleRows(), width_ - 1);
-  list_plane_->setScrollOffset(list_.fraction(), 0);
-  list_plane_->erase();
-  Plane & body = *list_plane_;
+  body_.layout(parent, *plane_, y_, x_, 0, list_rows, width_ - 1, ScrollBodyColors{bg, fg, quiet, strong, cursor_bg});
+  Plane & body = body_.plane();
   auto set_body = [&](const Color & foreground, const Color & background) {
     body.setFgColor(foreground);
     body.setBgColor(background);
@@ -170,34 +159,28 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   int name_room = inner - 1 - (binding_col > 0 ? binding_col + 2 : 0);
   const TextStyle name_style{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::LEFT};
   const TextStyle binding_style{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::RIGHT};
-  int drawn = visibleRows() + (list_.smooth() ? 1 : 0);
-  for (int i = 0; i < drawn && list_.firstShown() + i < count; i++) {
-    int index = list_.firstShown() + i;
-    bool selected = index == list_.selected();
-    bool pressed = index == list_.pressed();
+  for (int i = 0; i < body_.drawnRows() && body_.firstLine() + i < count; i++) {
+    int index = body_.firstLine() + i;
+    bool pressed = index == body_.pressed();
     auto & row = shown_[static_cast<size_t>(index)];
     auto & entry = entries_[row.entry];
-    // The pressed row takes the look of a pressed row, over the selection's.
-    auto name_fg = pressed ? strong : selected ? cursor_fg : fg;
-    auto row_bg = pressed ? styles.row_pressed_bg_color : selected ? cursor_bg : bg;
-    auto binding_fg = pressed ? strong : selected ? cursor_fg : quiet;
-    set_body(name_fg, row_bg);
+    // The selection is the cursor band's; a pressed row takes the look of a pressed row.
+    auto row_bg = pressed ? styles.row_pressed_bg_color : bg;
+    set_body(pressed ? strong : fg, row_bg);
     body.putstr(i, 0, string(static_cast<size_t>(width_ - 1), ' '));
     // The characters the query matched are bold in a colour of their own, as byte ranges so that the text can be
     // set in any face.
-    TextEmphasis emphasis{{}, pressed || !selected ? strong : cursor_fg};
+    TextEmphasis emphasis{{}, strong};
     for (int p : row.positions) {
       if (!emphasis.ranges.empty() && emphasis.ranges.back().second == p) emphasis.ranges.back().second = p + 1;
       else emphasis.ranges.emplace_back(p, p + 1);
     }
     body.putEmphasisedText(i, 1, name_room, entry.name, name_style, emphasis);
     if (binding_col > 0 && !entry.binding.empty()) {
-      set_body(binding_fg, row_bg);
+      set_body(pressed ? strong : quiet, row_bg);
       body.putText(i, width_ - 2 - binding_col, binding_col, entry.binding, binding_style);
     }
   }
-  // The scrollbar rides the right margin, beside the list.
-  drawScrollbar(*plane_, 0, width_ - 1, visibleRows(), count, visibleRows(), list_.shown(), bg, quiet, strong);
 
   // The selected command's description, or what the last Tab had to say.
   // Quiet and italic on the display's background, so it is not taken for a
@@ -227,72 +210,35 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
 
   plane_->move(y_, x_);
   plane_->moveToTop();
-  list_plane_->moveToTop();
-}
-
-int CommandPalette::indexAt(int y, int x) {
-  int row = y - y_, col = x - x_;
-  list_.firstVisible(visibleRows());
-  int index = list_.indexAt(row);
-  bool on_list = row >= 0 && row < visibleRows() && col >= 0 && col < width_;
-  return on_list && index < static_cast<int>(shown_.size()) ? index : -1;
+  body_.raise();
 }
 
 bool CommandPalette::inPanel(int y, int x) const { return y >= y_ && y < y_ + rows_ && x - x_ >= 0 && x - x_ < width_; }
 
-// The scrollbar's column, beside the list (nothing where every command fits).
-bool CommandPalette::onScrollbar(int y, int x) const {
-  int row = y - y_;
-  return x - x_ == width_ - 1 && row >= 0 && row < visibleRows() && list_.count() > visibleRows();
-}
-
 CommandPalette::Result CommandPalette::press(int y, int x) {
   if (!open_) return Result::CANCELLED;
-  pressing_ = true;
-  if (onScrollbar(y, x) && list_.beginThumbDrag(visibleRows(), y - y_)) {
-    started_on_command_ = started_outside_ = false;
-    return Result::NONE;
-  }
-  int index = indexAt(y, x);
-  started_on_command_ = index >= 0;
-  started_outside_ = !inPanel(y, x);
-  list_.setPressed(index);
+  body_.press(y, x, inPanel(y, x));
   return Result::NONE;
 }
 
 CommandPalette::Result CommandPalette::drag(int y, int x) {
-  if (list_.thumbDragging()) {
-    list_.dragThumb(visibleRows(), y - y_);
-    return Result::NONE;
-  }
-  if (!open_ || !pressing_ || !started_on_command_) return Result::NONE;
-  list_.setPressed(indexAt(y, x));
+  if (open_) body_.drag(y, x);
   return Result::NONE;
 }
 
 CommandPalette::Result CommandPalette::click(int y, int x) {
   if (!open_) return Result::CANCELLED;
-  if (list_.thumbDragging()) {
-    list_.dragThumb(visibleRows(), y - y_);
-    list_.endThumbDrag();
-    pressing_ = false;
-    return Result::NONE;
+  switch (body_.click(y, x, inPanel(y, x))) {
+    case ScrollBody::Click::CHOSEN: return Result::CHOSEN;
+    case ScrollBody::Click::OUTSIDE: return Result::CANCELLED;
+    case ScrollBody::Click::NONE: break;
   }
-  int index = indexAt(y, x);
-  bool on_command = pressing_ ? started_on_command_ : index >= 0;
-  bool outside = pressing_ ? started_outside_ : !inPanel(y, x);
-  pressing_ = false;
-  list_.setPressed(-1);
-  if (on_command && index >= 0) {
-    list_.select(index);
-    return Result::CHOSEN;
-  }
-  return outside && !inPanel(y, x) ? Result::CANCELLED : Result::NONE;
+  return Result::NONE;
 }
 
 CommandPalette::Result CommandPalette::wheel(bool up) {
   if (!open_) return Result::CANCELLED;
-  list_.scroll(up ? -1 : 1, visibleRows());
+  body_.scrollBy(up ? -1 : 1);
   return Result::NONE;
 }
 
@@ -305,13 +251,13 @@ CommandPalette::Result CommandPalette::key(const KeyDown & e) {
 
   int page = max(1, visibleRows() - 1);
   if (id == Key::Up || (ctrl && id == 'p'))
-    list_.move(-1);
+    body_.move(-1);
   else if (id == Key::Down || (ctrl && id == 'n'))
-    list_.move(1);
+    body_.move(1);
   else if (id == Key::PageUp)
-    list_.move(-page);
+    body_.move(-page);
   else if (id == Key::PageDown)
-    list_.move(page);
+    body_.move(page);
   else if (id == Key::Tab)
     complete();
   else if (id == Key::Backspace || (ctrl && id == 'h')) {
