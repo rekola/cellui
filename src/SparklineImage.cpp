@@ -1,5 +1,6 @@
 #include <cellui/StageStats.h>
 #include <cellui/SparklineImage.h>
+#include <cellui/HeatmapImage.h>
 
 #include <canvas/Context.h>
 #include "NativeContext.h"
@@ -19,7 +20,7 @@ canvas::Color toCanvas(const Color & c) { return canvas::Color(c.r(), c.g(), c.b
 }  // namespace
 
 Picture renderPicture(const std::vector<std::optional<SparklineReading>> & columns, const SparklineLook & look, unsigned width,
-                      unsigned height, const StyleProvider & styles, float scale, bool prefer_float) {
+                      unsigned height, const StyleProvider & styles, float scale, bool prefer_float, float cell_height) {
   StageTimer timer(Stage::PICTURE_RENDER);
   Picture blank;
   blank.width = static_cast<int>(width);
@@ -71,6 +72,17 @@ Picture renderPicture(const std::vector<std::optional<SparklineReading>> & colum
       ctx.fillStyle = toCanvas(peak_color);
       ctx.fillRect(x0, y, x1 - x0, thickness);
     }
+  }
+
+  // The label over the bars along the bottom row, white at the heatmap's label strength.
+  if (!look.label.empty() && cell_height > 0.0f) {
+    const float label_px = cell_height * 0.6f;
+    ctx.fillStyle = canvas::Color(1.0f, 1.0f, 1.0f, heatmap_image::kLabelAlpha);
+    ctx.font.family = "sans-serif";
+    ctx.font.size = label_px;
+    ctx.textBaseline = canvas::TextBaseline::MIDDLE;
+    ctx.textAlign = canvas::TextAlign::LEFT;
+    ctx.fillText(look.label, std::max(1.0f, std::round(scale)), h - cell_height / 2.0f);
   }
 
   Picture out = readPicture(drawn, width, height, 1.0f);

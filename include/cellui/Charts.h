@@ -59,9 +59,10 @@ class Charts {
 };
 
 // The fallback for a display with no pictures, drawn in cells (cellui/term/
-// CellCharts.h). Every backend can show these. `sextants`: the display can
-// draw the finer glyphs (DisplayInfo::sextants).
-std::unique_ptr<Charts> cellCharts(bool sextants = false);
+// CellCharts.h). Every backend can show these. `sextants`/`octants`: the display
+// can draw the finer glyphs (DisplayInfo::sextants, octants); the meters use the
+// finest there is.
+std::unique_ptr<Charts> cellCharts(bool sextants = false, bool octants = false);
 
 // Drawn as pixels with canvas, for a backend whose planes show images
 // (Plane::pixelSize()/drawImage()). Not available where canvas has no
@@ -74,7 +75,7 @@ inline std::unique_ptr<Charts> chartsFor(const DisplayInfo & display) {
   if (display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0) {
     if (auto pixel = pixelCharts()) return pixel;
   }
-  return cellCharts(display.sextants);
+  return cellCharts(display.sextants, display.octants);
 }
 
 }  // namespace cellui

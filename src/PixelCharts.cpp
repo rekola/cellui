@@ -139,8 +139,9 @@ class PixelCharts : public Charts {
     if (slots.size() % 2) slots.push_back(std::nullopt);
     unsigned width = static_cast<unsigned>(slots.size() / 2 * static_cast<size_t>(cell_w)), height = static_cast<unsigned>(rows * cell_h);
     drawPictureAt(plane, row, col,
-                  sparkline_image::renderPicture(slots, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()), plane.hdrPictures()), id,
-                  clip_top, clip_bottom);
+                  sparkline_image::renderPicture(slots, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()), plane.hdrPictures(),
+                                                   static_cast<float>(cell_h)),
+                  id, clip_top, clip_bottom);
   }
   void drawTrace(Plane & plane, int row, int col, int rows, int cols, std::span<const float> values, const TraceLook & look, int clip_top,
                  int clip_bottom, uint64_t id) const override {

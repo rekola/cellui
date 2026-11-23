@@ -14,14 +14,19 @@ namespace cellui::term {
 namespace glyph_meter {
 
 // The sub-cell glyphs a meter is drawn with. Both have two columns per
-// cell; BRAILLE has 4 steps per cell, BLOCKS (sextants, needs terminal
-// support) 3.
-enum class Glyphs { BRAILLE, BLOCKS };
+// cell; BRAILLE and OCTANTS (needs terminal support) have 4 steps per cell,
+// BLOCKS (sextants, needs terminal support) 3.
+enum class Glyphs { BRAILLE, BLOCKS, OCTANTS };
 
-constexpr int stepsPerCell(Glyphs glyphs) { return glyphs == Glyphs::BRAILLE ? 4 : 3; }
+constexpr int stepsPerCell(Glyphs glyphs) { return glyphs == Glyphs::BLOCKS ? 3 : 4; }
 
 inline unsigned int glyphCodepoint(Glyphs glyphs, int mask) {
-  return glyphs == Glyphs::BRAILLE ? brailleCodepoint(mask) : sextantCodepoint(mask);
+  switch (glyphs) {
+    case Glyphs::BRAILLE: return brailleCodepoint(mask);
+    case Glyphs::BLOCKS: return sextantCodepoint(mask);
+    case Glyphs::OCTANTS: return octantCodepoint(mask);
+  }
+  return 0x0020;
 }
 
 // One column of a cell: `fill` steps lit from the bottom, and an optional

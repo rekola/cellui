@@ -253,7 +253,7 @@ Gallery::Gallery(Plane & plane, const Theme & theme, const DisplayInfo & display
     spectrum_->setValues(values);
 
     // Sparklines side by side, each with a peak marker; the last two at full scale.
-    SparklineLook look{plane.getStyles().window_bg_color, std::nullopt};
+    SparklineLook look{plane.getStyles().window_bg_color, std::nullopt, {}};
     const std::vector<SparklineReading> readings = {
       { 0.7f, 0.8f }, { 0.3f, 0.5f }, { 0.12f, 0.2f }, { 0.5f, 0.6f }, { 0.02f, 0.05f }, { 1.0f, 1.0f }, { 0.0f, 0.0f } };
     charts.drawSparkline(plane, page.row(), 44, 5, readings, look, 0, plane.getDim().first, 0);

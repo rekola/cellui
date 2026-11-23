@@ -3,6 +3,7 @@
 #include <cellui/BufferPlane.h>
 
 #include <cmath>
+#include <set>
 #include <cellui/term/CellCharts.h>
 #include <cellui/term/GlyphMeter.h>
 #include <cellui/Charts.h>
@@ -27,7 +28,7 @@ bool same(Rgb a, const Color & c) { return a.r == c.getRed() && a.g == c.getGree
 
 TEST(sparkline_image_fills_its_slot_from_the_bottom) {
   StyleProvider styles;
-  SparklineLook look{Color(10, 20, 30), Color(200, 100, 50)};
+  SparklineLook look{Color(10, 20, 30), Color(200, 100, 50), {}};
   // One cell's two dot columns, the bar in the right one, half full.
   auto img = sparkline_image::render({std::nullopt, SparklineReading{0.5f, 0.0f}}, look, 20, 40, styles);
   CHECK(img.size() == 800u);
@@ -202,4 +203,33 @@ TEST(sparkline_with_several_bars_puts_two_to_a_cell_from_the_left) {
   CHECK(b.at(3, 1).text == "\xe2\xa3\xbf");  // both columns full
   CHECK(b.at(3, 2).text == "\xe2\xa1\x87");  // only the left column
   CHECK(b.at(3, 3).text == " ");
+}
+
+TEST(octant_codepoints_are_the_standard_blocks) {
+  using term::octantCodepoint;
+  CHECK(octantCodepoint(0x00) == 0x0020u && octantCodepoint(0xFF) == 0x2588u);
+  CHECK(octantCodepoint(0x04) == 0x1CD00u);  // octant 3, the first of the new block
+  CHECK(octantCodepoint(0x06) == 0x1CD01u && octantCodepoint(0x07) == 0x1CD02u);
+  CHECK(octantCodepoint(0xFE) == 0x1CDE5u);  // all but octant 1, the last
+  CHECK(octantCodepoint(0x0F) == 0x2580u && octantCodepoint(0xF0) == 0x2584u);
+  // Every mask gets its own glyph.
+  std::set<unsigned> seen;
+  for (int m = 0; m < 256; m++) seen.insert(octantCodepoint(m));
+  CHECK(seen.size() == 256u);
+}
+
+TEST(sparkline_label_is_text_over_the_bottom_row_on_the_bars_colour) {
+  StyleProvider styles;
+  CellBuffer b(4, 3);
+  BufferPlane root(b, styles);
+  SparklineLook look{styles.window_bg_color, std::nullopt, "AB"};
+  // Two full bars, then two silent ones.
+  term::drawCellSparkline(root, 0, 0, 3, {{1.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}}, look, 0, 3, term::glyph_meter::Glyphs::OCTANTS);
+  root.refresh();
+  CHECK(b.at(2, 0).text == "A" && b.at(2, 1).text == "B");
+  auto red = [&](int c) { return b.at(2, c).bg->toSrgb8()[1]; };
+  // Full: the bar's colour; silent: the plain background.
+  CHECK(red(0) > styles.window_bg_color.toSrgb8()[1] + 40);
+  CHECK(b.at(2, 1).bg->toSrgb8()[1] == styles.window_bg_color.toSrgb8()[1]);
+  CHECK(b.at(1, 0).text != "A");
 }
