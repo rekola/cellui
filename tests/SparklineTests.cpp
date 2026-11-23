@@ -233,3 +233,16 @@ TEST(sparkline_label_is_text_over_the_bottom_row_on_the_bars_colour) {
   CHECK(b.at(2, 1).bg->toSrgb8()[1] == styles.window_bg_color.toSrgb8()[1]);
   CHECK(b.at(1, 0).text != "A");
 }
+
+TEST(sparkline_label_space_shows_the_bars_and_block_glyphs_have_no_peak) {
+  StyleProvider styles;
+  CellBuffer b(4, 3);
+  BufferPlane root(b, styles);
+  SparklineLook look{styles.window_bg_color, std::nullopt, " B"};
+  // Half-full bars with a peak well above: no peak step in octants.
+  term::drawCellSparkline(root, 0, 0, 3, {{0.5f, 0.9f}, {0.5f, 0.9f}, {0.5f, 0.9f}, {0.5f, 0.9f}}, look, 0, 3, term::glyph_meter::Glyphs::OCTANTS);
+  root.refresh();
+  CHECK(b.at(2, 0).text == "\xe2\x96\x88");  // a full block: the bars, not a blank
+  CHECK(b.at(2, 1).text == "B");
+  CHECK(b.at(0, 0).text == " ");  // no peak marker up top
+}
