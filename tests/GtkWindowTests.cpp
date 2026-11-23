@@ -723,7 +723,8 @@ TEST(gtk_window_input_from_the_display) {
   // A click: the cell under the pointer, press and release.
   got.clear();
   int cw = w->display().cell_px_width, ch = w->display().cell_px_height;
-  xdotool("search --name cellui-test mousemove --window %1 " + std::to_string(cw * 5 + 2) + " " + std::to_string(ch * 3 + 2) + " click 1");
+  const int margin = 2;  // the window's margin round the cells (the test display has scale 1)
+  xdotool("search --name cellui-test mousemove --window %1 " + std::to_string(margin + cw * 5 + 2) + " " + std::to_string(margin + ch * 3 + 2) + " click 1");
   CHECK(gather(2));
   if (got.size() >= 2) {
     CHECK(got[0].input.getId() == Key::Button1 && got[0].input.getKind() == Input::Kind::PRESS);
@@ -742,7 +743,7 @@ TEST(gtk_window_input_from_the_display) {
 
   // The wheel goes to where the pointer is now, not to the last cell clicked.
   got.clear();
-  xdotool("search --name cellui-test mousemove --window %1 " + std::to_string(cw * 9 + 2) + " " + std::to_string(ch * 6 + 2) + " click 5");
+  xdotool("search --name cellui-test mousemove --window %1 " + std::to_string(margin + cw * 9 + 2) + " " + std::to_string(margin + ch * 6 + 2) + " click 5");
   CHECK(pumpUntil(*w, [&] {
     for (auto & e : w->poll()) got.push_back(e);
     for (auto & e : got) {
@@ -756,7 +757,7 @@ TEST(gtk_window_input_from_the_display) {
 
   // A move with no button is hover Motion, at the pointer's place within the cell.
   got.clear();
-  xdotool("search --name cellui-test mousemove --window %1 " + std::to_string(cw * 7 + cw / 2) + " " + std::to_string(ch * 4 + ch / 2));
+  xdotool("search --name cellui-test mousemove --window %1 " + std::to_string(margin + cw * 7 + cw / 2) + " " + std::to_string(margin + ch * 4 + ch / 2));
   CHECK(pumpUntil(*w, [&] {
     for (auto & e : w->poll()) got.push_back(e);
     for (auto & e : got) {
@@ -774,7 +775,7 @@ TEST(gtk_window_input_from_the_display) {
 
   // A new window size is a resize in cells.
   got.clear();
-  xdotool("search --name cellui-test windowsize " + std::to_string(cw * 40) + " " + std::to_string(ch * 10));
+  xdotool("search --name cellui-test windowsize " + std::to_string(cw * 40 + 2 * margin) + " " + std::to_string(ch * 10 + 2 * margin));
   CHECK(pumpUntil(*w, [&] {
     for (auto & e : w->poll()) got.push_back(e);
     return w->cols() == 40 && w->rows() == 10;
