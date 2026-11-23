@@ -35,6 +35,14 @@ extern const unsigned int kQuadrantCodepoints[16];
 // sextants - the cell scopes ask the display once, not per call.
 unsigned int sextantCodepoint(int mask);
 
+// Unicode 16 octant glyph for an 8-bit mask over a 2-column x 4-row sub-cell,
+// bit = row*2+col like the tables above (bit 0 is the octant the standard
+// numbers 1, bit 7 number 8). 230 masks have their own codepoints, U+1CD00..U+1CDE5
+// in mask order; the other 26 (blank, full, the halves, quadrants, the
+// upper/lower quarters and three quarters, the middle left/right quarters and
+// the four corner octants) are older or supplementary codepoints.
+unsigned int octantCodepoint(int mask);
+
 // Unicode Braille Patterns (U+2800-U+28FF) for an 8-bit mask over a
 // 2-column x 4-row sub-cell, row-major like the two tables above (bit =
 // row*2+col, 1 = "on"/foreground) - finer than sextants' 2x3 and needs no

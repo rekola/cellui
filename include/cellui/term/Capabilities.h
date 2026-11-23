@@ -88,6 +88,7 @@ struct Environment {
   // "iterm2". Empty means detect.
   std::string colors_override;
   std::string pixels_override;
+  std::string octants_override;  // CELLUI_OCTANTS: "1" or "0"
 
   // Reads the process environment (CELLUI_COLORS and CELLUI_PIXELS hold
   // the overrides).

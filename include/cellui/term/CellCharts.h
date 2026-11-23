@@ -2,6 +2,7 @@
 
 #include <cellui/Charts.h>
 #include <cellui/LineChart.h>
+#include <cellui/term/GlyphMeter.h>
 
 namespace cellui::term {
 
@@ -22,7 +23,7 @@ class CellLineChart : public LineChart {
 };
 
 void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look, int clip_top,
-                     int clip_bottom);
+                     int clip_bottom, glyph_meter::Glyphs glyphs = glyph_meter::Glyphs::BRAILLE);
 
 // A trace in braille dots, two points to a cell across and four levels to a cell down.
 void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, std::span<const float> values, const TraceLook & look, int clip_top,

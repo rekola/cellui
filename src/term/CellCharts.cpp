@@ -149,13 +149,22 @@ private:
 }  // namespace
 
 void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look,
-                       int clip_top, int clip_bottom) {
+                       int clip_top, int clip_bottom, glyph_meter::Glyphs glyphs) {
   if (rows <= 0 || readings.empty()) return;
   auto & styles = plane.getStyles();
   plane.setBgColor(look.background);
+  const int per_cell = glyph_meter::stepsPerCell(glyphs);
   auto column = [&](const SparklineReading & r) {
-    return glyph_meter::BarColumn{glyph_meter::barSteps(r.fraction, rows), glyph_meter::barSteps(r.peak, rows)};
+    return glyph_meter::BarColumn{glyph_meter::barSteps(r.fraction, rows, glyphs), glyph_meter::barSteps(r.peak, rows, glyphs)};
   };
+  // The bar's colour at a height, a fraction of the meter.
+  auto barColor = [&](float height) { return look.color ? *look.color : styles.levelColor(height); };
+  auto rgb = [](const Color & c) {
+    auto v = c.toSrgb8();
+    return term::SubcellRgb{static_cast<float>(v[0]), static_cast<float>(v[1]), static_cast<float>(v[2])};
+  };
+  // The label's characters, one to a cell of the bottom row.
+  const std::vector<std::string> label = utf8::clusters(look.label);
   // A lone bar stands in a cell's right dot column; more are two to a cell.
   const bool lone = readings.size() == 1;
   const int cells_wide = lone ? 1 : static_cast<int>((readings.size() + 1) / 2);
@@ -163,14 +172,39 @@ void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vec
     SparklineReading none;
     const SparklineReading & left = lone ? none : readings[static_cast<size_t>(2 * c)];
     const SparklineReading & right = lone ? readings[0] : (static_cast<size_t>(2 * c + 1) < readings.size() ? readings[static_cast<size_t>(2 * c + 1)] : none);
-    auto glyphs = glyph_meter::verticalBar(glyph_meter::Glyphs::BRAILLE, rows, lone ? glyph_meter::BarColumn{} : column(left), column(right));
+    const glyph_meter::BarColumn left_bar = lone ? glyph_meter::BarColumn{} : column(left), right_bar = column(right);
+    auto glyph_rows = glyph_meter::verticalBar(glyphs, rows, left_bar, right_bar);
     for (int i = 0; i < rows; i++) {
       int y = row + i;
       if (y < clip_top || y >= clip_bottom) continue;
+      if (i == rows - 1 && static_cast<size_t>(c) < label.size()) {
+        // Text over the bars: the cell's background is the colour its bars
+        // average to (the background where silent, the bar's where full), as in
+        // the heatmap, and the glyph is laid over it.
+        term::SubcellRgb sum{0, 0, 0};
+        for (int sub = 0; sub < per_cell; sub++) {
+          int step = per_cell - sub;  // 1-based from the bottom of this cell
+          for (const glyph_meter::BarColumn * bar : {&left_bar, &right_bar}) {
+            bool lit = step <= bar->steps || step == bar->peak_steps;
+            term::SubcellRgb sample = rgb(lit ? barColor(static_cast<float>(step) / static_cast<float>(per_cell * rows)) : look.background);
+            sum.r += sample.r;
+            sum.g += sample.g;
+            sum.b += sample.b;
+          }
+        }
+        const float samples = static_cast<float>(2 * per_cell);
+        term::SubcellRgb mean{sum.r / samples, sum.g / samples, sum.b / samples};
+        uint8_t fr, fg, fb;
+        heatmap_grid::labelForegroundColor(mean, fr, fg, fb);
+        plane.setFgColor(fr, fg, fb);
+        plane.setBgColor(static_cast<int>(mean.r), static_cast<int>(mean.g), static_cast<int>(mean.b));
+        plane.putstr(y, col + c, label[static_cast<size_t>(c)]);
+        plane.setBgColor(look.background);
+        continue;
+      }
       // Shaded by the height of this cell; i = 0 is the top one.
-      Color fg = look.color ? *look.color : styles.levelColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows));
-      plane.setFgColor(fg);
-      plane.putstr(y, col + c, glyphs[static_cast<size_t>(i)]);
+      plane.setFgColor(barColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows)));
+      plane.putstr(y, col + c, glyph_rows[static_cast<size_t>(i)]);
     }
   }
 }
@@ -324,7 +358,8 @@ namespace {
 
 class CellCharts : public Charts {
  public:
-  explicit CellCharts(bool sextants) : sextants_(sextants) { }
+  CellCharts(bool sextants, bool octants)
+    : sextants_(sextants), meter_glyphs_(octants ? glyph_meter::Glyphs::OCTANTS : sextants ? glyph_meter::Glyphs::BLOCKS : glyph_meter::Glyphs::BRAILLE) { }
 
   std::shared_ptr<LineChart> lineChart(Plane & parent) const override { return std::make_shared<CellLineChart>(parent); }
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
@@ -332,7 +367,7 @@ class CellCharts : public Charts {
   }
   void drawSparkline(Plane & plane, int row, int col, int rows, const std::vector<SparklineReading> & readings, const SparklineLook & look,
                      int clip_top, int clip_bottom, uint64_t) const override {
-    drawCellSparkline(plane, row, col, rows, readings, look, clip_top, clip_bottom);
+    drawCellSparkline(plane, row, col, rows, readings, look, clip_top, clip_bottom, meter_glyphs_);
   }
   void drawTrace(Plane & plane, int row, int col, int rows, int cols, std::span<const float> values, const TraceLook & look, int clip_top,
                  int clip_bottom, uint64_t) const override {
@@ -344,12 +379,13 @@ class CellCharts : public Charts {
 
  private:
   bool sextants_;
+  glyph_meter::Glyphs meter_glyphs_;
 };
 
 }  // namespace
 
 }  // namespace term
 
-std::unique_ptr<Charts> cellCharts(bool sextants) { return std::make_unique<term::CellCharts>(sextants); }
+std::unique_ptr<Charts> cellCharts(bool sextants, bool octants) { return std::make_unique<term::CellCharts>(sextants, octants); }
 
 }  // namespace cellui

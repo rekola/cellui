@@ -294,7 +294,7 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
 - Charts (`cellui/Charts.h`, `chartsFor(display)` picks the display's): the
   application asks `Charts` for a spectrum, a heatmap, a sparkline or a
   waveform row and the display draws it as it can. Cell versions
-  (`term/CellCharts.h`: braille bars, quadrant/sextant heatmap and waveform;
+  (`term/CellCharts.h`: sparkline bars in octants (`DisplayInfo::octants`, Unicode 16, claimed only by `CELLUI_OCTANTS=1`), else sextants, else braille, with `SparklineLook::label` written over the bottom row in a background averaging the bars under it, as the heatmap's labels are; quadrant/sextant heatmap and waveform;
   glyph tables in `term/SubcellGlyphs.h`, `GlyphMeter.h`) are drawn by hand,
   never through canvas, and nothing outside `cellui/term/` knows those
   glyphs. Pixel versions are images drawn with canvas (`LineImage.h`,

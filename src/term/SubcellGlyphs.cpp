@@ -23,6 +23,30 @@ sextantCodepoint(int mask) {
 }
 
 unsigned int
+octantCodepoint(int mask) {
+  struct Elsewhere { int mask; unsigned int codepoint; };
+  // Masks as the sum of 1 << (octant number - 1).
+  static const Elsewhere kElsewhere[] = {
+    {0x00, 0x0020}, {0xFF, 0x2588}, {0x55, 0x258C}, {0xAA, 0x2590}, {0x0F, 0x2580}, {0xF0, 0x2584},
+    {0x05, 0x2598}, {0x0A, 0x259D}, {0x50, 0x2596}, {0xA0, 0x2597}, {0xA5, 0x259A}, {0x5A, 0x259E},
+    {0xF5, 0x2599}, {0x5F, 0x259B}, {0xAF, 0x259C}, {0xFA, 0x259F},
+    {0x03, 0x1FB82}, {0x3F, 0x1FB85}, {0xC0, 0x2582}, {0xFC, 0x2586}, {0x14, 0x1FBE6}, {0x28, 0x1FBE7},
+    {0x02, 0x1CEA0}, {0x01, 0x1CEA3}, {0x40, 0x1CEA8}, {0x80, 0x1CEAB},
+  };
+  mask &= 0xFF;
+  int index = 0;
+  for (int m = 0; m < mask; m++) {
+    bool taken = false;
+    for (const auto & e : kElsewhere) taken = taken || e.mask == m;
+    if (!taken) index++;
+  }
+  for (const auto & e : kElsewhere) {
+    if (e.mask == mask) return e.codepoint;
+  }
+  return 0x1CD00u + static_cast<unsigned int>(index);
+}
+
+unsigned int
 brailleCodepoint(int mask) {
   if (mask == 0) return 0x0020;
   unsigned int dots = 0;

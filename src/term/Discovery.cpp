@@ -71,6 +71,7 @@ Environment Environment::fromProcess() {
   env.ssh = !get("SSH_CONNECTION").empty() || !get("SSH_TTY").empty();
   env.colors_override = get("CELLUI_COLORS");
   env.pixels_override = get("CELLUI_PIXELS");
+  env.octants_override = get("CELLUI_OCTANTS");
 #ifdef _WIN32
   env.windows = true;
 #endif
@@ -347,6 +348,7 @@ Capabilities Discovery::result() const {
   // Glyph repertoire.
   caps.display.sextants = name == "kitty" || name == "vte" || name == "foot" || name == "contour" ||
                   (name == "wezterm" && version >= "20210610");
+  caps.display.octants = env_.octants_override == "1";
   caps.quadrants = caps.display.sextants || name == "wezterm" || name == "alacritty" || name == "iterm2" ||
                    name == "konsole" || name == "mlterm" || name == "terminology" || name == "rxvt" || name == "windows";
   caps.braille = name != "rxvt" && name != "linux";

@@ -47,6 +47,9 @@ struct DisplayInfo {
   // Whether the terminal fallback charts (cellCharts()) can use the finer
   // sextant glyphs. A display that shows pictures has no use for it.
   bool sextants = false;
+  // The same for the Unicode 16 octant glyphs (2x4), finer still; no terminal
+  // is assumed to have them, `CELLUI_OCTANTS=1` says one does.
+  bool octants = false;
   // Unset for a backend with no HDR path at all (the terminal, a window drawn
   // in sRGB): it clips every colour with Color::toSrgb8(). It changes while
   // the program runs (HDR toggled in the OS, a window moved to another
