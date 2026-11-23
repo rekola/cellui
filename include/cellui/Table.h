@@ -127,6 +127,10 @@ class Table : public Widget {
   // The selected row as the model numbers it, or -1 for none.
   int selectedRow() const { return selected_; }
   void select(int model_row);
+  // The same without moving the view: for a selection restored after the data changed (the row's number may have
+  // changed, and the view must not chase it, or the rows would slide about at every update). A user's own selection
+  // is select(), which brings the row into view.
+  void reselect(int model_row);
   // Where the selected row is in what is shown, or -1.
   int selectedPosition() const;
   // The model row shown at `position` (0 is the first row after sorting).

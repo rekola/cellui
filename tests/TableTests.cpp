@@ -494,3 +494,15 @@ TEST(table_buttons_follow_the_rows_through_a_sort_and_keep_the_scroll_position) 
   CHECK(f.table.firstVisiblePosition() == 1);  // the click did not move the view
   CHECK(f.table.sortColumn() == 0);
 }
+
+TEST(table_reselect_keeps_the_view_where_it_is) {
+  Fixture f;
+  f.table.resize(3, 30);  // heading and two rows
+  f.table.reselect(3);    // the selection comes back after new data: no scrolling to it
+  CHECK(f.table.selectedRow() == 3);
+  CHECK(f.table.firstVisiblePosition() == 0);
+  f.table.select(2);  // a user's own selection brings the row into view
+  f.table.select(0);
+  f.table.reselect(3);
+  CHECK(f.table.firstVisiblePosition() == 0);
+}
