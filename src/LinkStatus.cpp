@@ -77,22 +77,27 @@ LinkClass linkClassForFrameRate(double fps, double refresh_hz, double margin) {
 }
 
 void FrameRateMeter::tick(int64_t time_us, bool drew) {
-  if (last_drew_ && last_us_ > 0) {
-    int64_t length = time_us - last_us_;
-    if (length > 0 && length <= kLongestFrameUs) frames_.push_back({time_us, length});
+  int64_t length = time_us - last_us_;
+  // After a pause, or a clock that stopped while it ticked (the window hidden), the clock starts again.
+  bool fresh = paused_ || length <= 0 || length > kLongestFrameUs;
+  if (!fresh) {
+    running_us_ += length;
+    if (last_drew_ && last_measured_) frames_.push_back({running_us_, length});
   }
   last_us_ = time_us;
   last_drew_ = drew;
-  while (!frames_.empty() && frames_.front().end_us < time_us - kSpanUs) frames_.pop_front();
+  last_measured_ = !fresh;
+  paused_ = false;
+  while (!frames_.empty() && frames_.front().end_us < running_us_ - kSpanUs) frames_.pop_front();
 }
 
-std::optional<double> FrameRateMeter::rate(int64_t now_us) const {
+std::optional<double> FrameRateMeter::rate() const {
   // The frames that ended in the last second, or the last two when fewer did (a slow display).
   size_t count = 0;
   int64_t total = 0;
   for (auto it = frames_.rbegin(); it != frames_.rend(); ++it) {
-    if (it->end_us < now_us - kSpanUs) break;
-    if (it->end_us < now_us - kRecentUs && count >= 2) break;
+    if (it->end_us < running_us_ - kSpanUs) break;
+    if (it->end_us < running_us_ - kRecentUs && count >= 2) break;
     count++;
     total += it->length_us;
   }
@@ -143,6 +148,12 @@ void LinkMonitor::pin(std::optional<LinkClass> pin) {
   notifyIfChanged(before);
 }
 
+void LinkMonitor::setDescription(std::string description, bool tell) {
+  if (description == status_.description) return;
+  status_.description = std::move(description);
+  if (tell && handler_) handler_(status_);
+}
+
 void LinkMonitor::update(TimePoint now, LinkClass indicated, LinkClass indicated_with_margin) {
   LinkStatus before = status_;
   status_.cls = classifier_.update(now, indicated, indicated_with_margin);
@@ -158,10 +169,7 @@ void LinkMonitor::setAvailable(bool available) {
 }
 
 void updateWindowLink(LinkMonitor & link, LinkMonitor::TimePoint now, std::optional<double> fps, double refresh_hz) {
-  if (!fps) {
-    link.hold();
-    return;
-  }
+  if (!fps) return;
   link.update(now, linkClassForFrameRate(*fps, refresh_hz), linkClassForFrameRate(*fps, refresh_hz, link.classifierConfig().up_margin));
 }
 

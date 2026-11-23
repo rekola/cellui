@@ -116,7 +116,7 @@ TEST(classifier_pin_holds_whatever_is_read_and_unpinning_measures_again) {
   CHECK(c.current() == LinkClass::HZ_30);
 }
 
-TEST(link_monitor_tells_the_handler_of_a_class_change_and_not_a_new_description) {
+TEST(link_monitor_tells_the_handler_of_a_class_change_and_a_new_description_when_asked) {
   LinkMonitor m;
   int calls = 0;
   LinkStatus last;
@@ -130,6 +130,11 @@ TEST(link_monitor_tells_the_handler_of_a_class_change_and_not_a_new_description)
   calls = 0;
   m.setDescription("470 kB/s");
   CHECK(calls == 0 && m.status().description == "470 kB/s");
+  m.setDescription("60 Hz vsync, 58 fps", true);
+  CHECK(calls == 1 && last.description == "60 Hz vsync, 58 fps");
+  m.setDescription("60 Hz vsync, 58 fps", true);
+  CHECK(calls == 1);  // the same figure
+  calls = 0;
   m.update(at(0), LinkClass::HZ_5, LinkClass::HZ_5);
   m.update(at(2000), LinkClass::HZ_5, LinkClass::HZ_5);
   CHECK(calls == 1 && last.cls == LinkClass::HZ_5 && !last.pinned);
@@ -159,12 +164,12 @@ namespace {
 
 // A window's frame clock: it ticks every refresh interval, a tick that draws holds the next one back
 // until its frame is done, and only every `every`th tick draws (an application capping its own rate).
-// The window's reading is taken once a second, as the window does.
+// The window's reading is taken once a second of the clock's running time, as the window does.
 struct FakeClock {
   LinkMonitor link;
   FrameRateMeter meter;
   int64_t now_us = 100'000'000;
-  int64_t next_reading_us = now_us + 1'000'000;
+  int64_t last_reading_us = 0;
   int tick_count = 0;
 
   void run(double seconds, double refresh_hz, int64_t frame_us, int every = 1) {
@@ -173,17 +178,37 @@ struct FakeClock {
     while (now_us < end) {
       bool drew = tick_count++ % every == 0;
       meter.tick(now_us, drew);
-      if (now_us >= next_reading_us) {
-        updateWindowLink(link, t0 + std::chrono::microseconds(now_us), meter.rate(now_us), refresh_hz);
-        next_reading_us += 1'000'000;
+      if (meter.runningUs() - last_reading_us >= 1'000'000 && meter.rate()) {
+        last_reading_us = meter.runningUs();
+        updateWindowLink(link, t0 + std::chrono::microseconds(meter.runningUs()), meter.rate(), refresh_hz);
       }
       now_us += drew ? std::max(refresh_us, frame_us) : refresh_us;
     }
   }
   // Nothing drawn and no ticks: the clock is stopped.
   void idle(double seconds) {
+    meter.pause();
     now_us += static_cast<int64_t>(seconds * 1e6);
-    next_reading_us = now_us;
+    tick_count = 0;
+  }
+  // A static UI answering a key: a burst of `frames` drawn in a row, then a few ticks that draw nothing,
+  // then the clock stops for `pause` seconds. The first frame of each burst is `first_us` long.
+  void bursts(int count, int frames, double pause, int64_t first_us = 16'667) {
+    for (int i = 0; i < count; i++) {
+      for (int f = 0; f < frames; f++) {
+        meter.tick(now_us, true);
+        now_us += f == 0 ? first_us : 16'667;
+      }
+      for (int t = 0; t < 8; t++) {
+        meter.tick(now_us, false);
+        now_us += 16'667;
+      }
+      if (meter.runningUs() - last_reading_us >= 1'000'000 && meter.rate()) {
+        last_reading_us = meter.runningUs();
+        updateWindowLink(link, t0 + std::chrono::microseconds(meter.runningUs()), meter.rate(), 60);
+      }
+      idle(pause);
+    }
   }
 };
 
@@ -220,22 +245,42 @@ TEST(window_link_holds_while_nothing_is_drawn) {
   clock.run(5, 60, 77'000);
   CHECK(clock.link.status().cls == LinkClass::HZ_15);
   clock.run(10, 60, 0);  // a trend up begins
-  clock.idle(30);        // a static UI: no ticks at all
-  clock.run(6, 60, 0);
-  CHECK(clock.link.status().cls == LinkClass::HZ_15);  // the trend starts again after the pause
+  clock.idle(300);       // a static UI: no ticks at all
+  CHECK(clock.link.status().cls == LinkClass::HZ_15);
+  clock.run(7, 60, 0);
+  CHECK(clock.link.status().cls == LinkClass::HZ_30);  // the trend goes on where it was
   // Ticks that draw nothing measure nothing either: the class neither falls nor rises.
   clock.run(30, 60, 0, 1'000'000);
+  CHECK(clock.link.status().cls == LinkClass::HZ_30);
+}
+
+// A static UI draws a few frames a key, seconds apart: those add up to readings, so the class follows
+// them, and the frame clock starting up for each burst is not a slow frame.
+TEST(window_link_reads_the_bursts_of_a_static_ui) {
+  FakeClock clock;
+  clock.bursts(200, 3, 2.0, 50'000);  // each key's first frame waits for the clock to start
+  CHECK(clock.link.status().available && clock.link.status().cls == LinkClass::FULL);
+  clock.run(5, 60, 77'000);
   CHECK(clock.link.status().cls == LinkClass::HZ_15);
+  clock.bursts(400, 3, 2.0);  // keys, seconds apart
+  CHECK(clock.link.status().cls == LinkClass::FULL);
 }
 
 TEST(window_link_a_stopped_clock_is_not_a_slow_frame) {
   FrameRateMeter meter;
   meter.tick(0, true);
   meter.tick(10'000'000, true);  // the window was hidden for ten seconds
-  meter.tick(10'016'667, true);
-  CHECK(!meter.rate(10'016'667));  // one frame is too few to tell
+  meter.tick(10'016'667, true);  // the first frame after it is the clock starting: not measured
   meter.tick(10'033'333, true);
-  CHECK(meter.rate(10'033'333) && *meter.rate(10'033'333) > 55);
+  CHECK(!meter.rate());  // one frame is too few to tell
+  meter.tick(10'050'000, true);
+  CHECK(meter.rate() && *meter.rate() > 55);
+  // A pause is the same: the frame on the tick after it is not measured.
+  meter.pause();
+  meter.tick(10'500'000, true);
+  meter.tick(10'600'000, false);  // a slow start-up
+  CHECK(meter.rate() && *meter.rate() > 55);
+  CHECK(meter.runningUs() == 50'000 + 100'000);
 }
 
 TEST(window_link_a_pinned_class_is_kept_whatever_the_frame_rate) {

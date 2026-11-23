@@ -143,7 +143,8 @@ struct Window::Impl {
   FrameRateMeter frame_rate;
   bool last_tick_drew = false;
   gint64 last_tick_us = 0;
-  std::chrono::steady_clock::time_point link_last_update{};
+  // The frame clock's running time at the last reading, in microseconds.
+  int64_t link_last_reading_us = 0;
   // The monitor's refresh rate in Hz, 0 when it is not known.
   double monitorHz() const;
   static std::string vsyncText(double hz);
@@ -410,14 +411,13 @@ void Window::Impl::noteTick(GdkFrameClock * clock, bool drew) {
   last_tick_drew = drew;
   last_tick_us = time;
   frame_rate.tick(time, drew);
-  auto now = std::chrono::steady_clock::now();
-  if (now - link_last_update < std::chrono::seconds(1)) return;
-  link_last_update = now;
-  auto fps = frame_rate.rate(time);
-  if (!fps) {
-    updateWindowLink(link, now, fps, 0);
-    return;
-  }
+  // A reading a second of the clock's running time, so a static UI that draws now and then still reads
+  // its frames; the ticks before there are frames to read try again.
+  int64_t running = frame_rate.runningUs();
+  if (running - link_last_reading_us < 1'000'000) return;
+  auto fps = frame_rate.rate();
+  if (!fps) return;
+  link_last_reading_us = running;
   // The rate the display refreshes at: the monitor's, else the one the frame clock paces to.
   double hz = monitorHz();
   if (hz <= 0) {
@@ -426,8 +426,9 @@ void Window::Impl::noteTick(GdkFrameClock * clock, bool drew) {
     if (refresh_us > 0) hz = 1e6 / static_cast<double>(refresh_us);
   }
   stats.link_readings++;
-  link.setDescription(vsyncText(hz) + ", " + std::to_string(static_cast<int>(*fps + 0.5)) + " fps");
-  updateWindowLink(link, now, fps, hz);
+  updateWindowLink(link, LinkMonitor::TimePoint{} + std::chrono::microseconds(running), fps, hz);
+  // The figure changes with every reading, and an info line shows it: the handler hears of it.
+  link.setDescription(vsyncText(hz) + ", " + std::to_string(static_cast<int>(*fps + 0.5)) + " fps", true);
 }
 
 gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data) {
@@ -450,6 +451,7 @@ gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data)
   if (self->presented_in_tick) gtk_widget_queue_draw(self->view);
   if (keep) return G_SOURCE_CONTINUE;
   self->tick_id = 0;
+  self->frame_rate.pause();
   return G_SOURCE_REMOVE;
 }
 

@@ -63,13 +63,23 @@ LinkClass linkClassForFrameRate(double fps, double refresh_hz, double margin = 1
 // clock's next tick, drawn or not, since a frame still being drawn holds the clock back. So a window
 // that draws only some of its ticks (an application capping its own rate) still measures what it could
 // do, and one that draws nothing measures nothing.
+//
+// The meter runs on the clock's running time: the time between ticks while the clock ticks, without the
+// pauses when it stops (a static UI draws nothing for minutes, then a few frames for a key). So the
+// frames of short bursts add up to a reading, and a reading a second is one of running time. The frame
+// drawn on the first tick after a pause is not measured: its length is mostly the clock starting up
+// (waiting for the display's next refresh), not the window.
 class FrameRateMeter {
  public:
   // A tick at `time_us` (microseconds, the frame clock's own time); `drew` when it drew a frame.
   void tick(int64_t time_us, bool drew);
-  // Frames a second over the frames that ended in the last kRecentUs, or the last two when fewer did
-  // (none older than kSpanUs); nothing for fewer than two.
-  std::optional<double> rate(int64_t now_us) const;
+  // The clock stopped (the tick callback is gone): the next tick starts it again.
+  void pause() { paused_ = true; }
+  // How long the clock has run, in microseconds.
+  int64_t runningUs() const { return running_us_; }
+  // Frames a second over the frames that ended in the last kRecentUs of running time, or the last two
+  // when fewer did (none older than kSpanUs); nothing for fewer than two.
+  std::optional<double> rate() const;
   // A frame longer than this is a clock that stopped (the window hidden), not a slow frame.
   static constexpr int64_t kLongestFrameUs = 2'000'000;
   static constexpr int64_t kRecentUs = 1'000'000;
@@ -77,12 +87,15 @@ class FrameRateMeter {
 
  private:
   struct Frame {
-    int64_t end_us;
+    int64_t end_us;  // in running time
     int64_t length_us;
   };
   std::deque<Frame> frames_;
   int64_t last_us_ = 0;
+  int64_t running_us_ = 0;
   bool last_drew_ = false;
+  bool last_measured_ = false;  // whether the frame drawn on the last tick is measured
+  bool paused_ = true;
 };
 
 struct LinkClassifierConfig {
@@ -109,12 +122,6 @@ class LinkClassifier {
     below_since_.reset();
     above_since_.reset();
   }
-  // Nothing was read for a while (nothing drawn): a trend up or down so far is forgotten, so the
-  // class holds and the next readings start one afresh.
-  void hold() {
-    below_since_.reset();
-    above_since_.reset();
-  }
   LinkClass current() const { return current_; }
   bool pinned() const { return pin_.has_value(); }
   const LinkClassifierConfig & config() const { return config_; }
@@ -128,7 +135,8 @@ class LinkClassifier {
 };
 
 // A backend's link status: the classifier, the latest description, the pin, and the handler told
-// when the class or the pin changes (not for every new description).
+// when the class or the pin changes, and for a new description only when the backend asks (a window's
+// description changes only while it draws; a terminal's every second, idle or not).
 class LinkMonitor {
  public:
   using TimePoint = LinkClassifier::TimePoint;
@@ -139,8 +147,8 @@ class LinkMonitor {
   void setHandler(Handler handler) { handler_ = std::move(handler); }
   void pin(std::optional<LinkClass> pin);
   void update(TimePoint now, LinkClass indicated, LinkClass indicated_with_margin);
-  void hold() { classifier_.hold(); }
-  void setDescription(std::string description) { status_.description = std::move(description); }
+  // `tell`: the handler hears of a changed description too.
+  void setDescription(std::string description, bool tell = false);
   // A figure to show without a class to go with it (the link is not what limits the display).
   void setAvailable(bool available);
   const LinkClassifierConfig & classifierConfig() const { return classifier_.config(); }
@@ -154,8 +162,10 @@ class LinkMonitor {
   Handler handler_;
 };
 
-// A window's reading, once a second: the frame rate it keeps up with against its refresh rate, or
-// nothing when too little was drawn to tell, in which case the class holds.
+// A window's reading, once a second of its clock's running time: the frame rate it keeps up with
+// against its refresh rate, or nothing when too little was drawn to tell, in which case the class and
+// any trend up or down so far hold. Its time is the running time too, so a trend goes on where it was
+// across a pause instead of starting again, and a pause is not a while of readings.
 void updateWindowLink(LinkMonitor & link, LinkMonitor::TimePoint now, std::optional<double> fps, double refresh_hz);
 
 }  // namespace cellui
