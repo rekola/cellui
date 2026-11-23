@@ -471,7 +471,13 @@ is the hue of that light (each channel's excess, scaled so the strongest is full
 much of it there is. The bloom is on the GPU and in the light's own colour: the glow blurred wide as a halo
 and blurred a little as a core, each with its alpha multiplied after the blur (a thin line's light is thin
 once blurred; a colour-matrix node that leaves the colour alone), the core with a threshold taken off so a
-weak glow makes none, screened over the picture (`GSK_BLEND_MODE_SCREEN`). The core thickens what is
+weak glow makes none, screened over the picture (`GSK_BLEND_MODE_SCREEN`; inside the picture over black, since
+the GL renderers screen a layer that is not opaque by its alpha twice). The bloom depends only on the picture, its
+size on the screen and the cell height, so it is blurred once (`bloomTextures()`, the window's renderer drawing into
+textures kept with the picture's, `FrameStats::blooms`), never per frame: the picture with its light (an opaque
+picture; a picture with transparent pixels keeps the light over black, screened each frame over it and what shows
+through it) and the light past the picture with its box cut out. A frame draws two textures per lit picture, so a
+table of dozens of traces costs no more than without the light. The core thickens what is
 brightest: what is near a bright line reaches full strength, so the line looks wider the more light it
 carries, as an overexposed filament does. The glow has a clip of its own, wider than the picture's cells: a
 lamp at the picture's edge glows past it. A frame without light past white costs only the first texture.

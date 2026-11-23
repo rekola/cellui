@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 
 #include <cellui/BufferPlane.h>
+#include <cellui/Charts.h>
 #include <cellui/gtk/GlibEventLoop.h>
 #include <cellui/gtk/Window.h>
 
@@ -189,6 +190,37 @@ TEST(gtk_window_glows_where_a_colour_is_lit_past_white) {
   CHECK(drawn(Color::linear(1.0f, 1.0f, 1.0f)) == 0);
   CHECK(drawn(Color::linear(2.5f, 2.5f, 2.5f)) == 1);
   CHECK(drawn(Color::linear(0.6f, 0.6f, 0.6f)) == 0);
+}
+
+// A picture's light past white is blurred once, into textures the window keeps, not in every frame that shows it:
+// a table of traces redrawn as it scrolls blurs only the pictures that are new.
+TEST(gtk_window_blooms_a_lit_picture_once_however_often_it_is_shown) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  auto charts = chartsFor(w->display());
+  const std::vector<float> rising = {0.0f, 0.2f, 0.5f, 0.4f, 1.0f};
+  const std::vector<float> falling = {1.0f, 0.6f, 0.7f, 0.2f, 0.0f};
+  // One root plane for every frame, as an application keeps: it knows a picture it drew before.
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setCellPixelSize(w->display().cell_px_height, w->display().cell_px_width);
+  root.setHdrPictures(w->display().hdr_pictures);
+  auto drawn = [&](int row, const std::vector<float> & values) {
+    root.erase();
+    TraceLook look{Color::linear(0.01f, 0.01f, 0.01f), Color::linear(0.1f, 0.6f, 0.2f), std::nullopt, 4.0f};
+    charts->drawTrace(root, row, 2, 2, 20, values, look, 0, w->rows(), 7);
+    root.refresh();
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images());
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+    return w->stats().blooms;
+  };
+  size_t first = drawn(2, rising);
+  CHECK(first > 0);
+  CHECK(drawn(2, rising) == first);
+  CHECK(drawn(5, rising) == first);  // moved, as a table's row is when it scrolls
+  CHECK(drawn(5, falling) == first + 1);  // a new picture
 }
 
 // Raised areas are drawn again over the shadows below them, from the frame's cells laid out
