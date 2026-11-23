@@ -241,11 +241,29 @@ struct Window::Impl {
     // For a float picture, the light past white (HdrLayers::glow), to be blurred over the texture;
     // null when there is none.
     GdkTexture * glow = nullptr;
+    // Whether every pixel of the picture is opaque.
+    bool opaque = false;
+    // The bloom of `glow`, blurred once on the GPU and kept, since it depends only on the picture, its size
+    // on the screen and the cell height (bloomTextures()): `lit`, the picture with its light screened over it
+    // (an opaque picture), or `light`, the light over black to be screened over the picture and what shows
+    // through it (one with transparent pixels); and `spill`, the light with its alpha outside the picture's box
+    // only, reaching past it by `spill_reach` on every side, to be laid over what is around it.
+    GdkTexture * lit = nullptr, * light = nullptr, * spill = nullptr;
+    float bloom_w = 0, bloom_h = 0, spill_reach = 0;
+    int bloom_cell_h = 0;
     bool used = false;
+    void releaseBloom() {
+      for (GdkTexture ** t : {&lit, &light, &spill}) {
+        if (*t) g_object_unref(*t);
+        *t = nullptr;
+      }
+      bloom_cell_h = 0;
+    }
     void release() {
       if (texture) g_object_unref(texture);
       if (glow) g_object_unref(glow);
       texture = glow = nullptr;
+      releaseBloom();
     }
   };
   std::map<const Image *, ImageTexture> image_textures;
@@ -300,6 +318,8 @@ struct Window::Impl {
   void appendImages(GtkSnapshot * snapshot, const CellBuffer & cells, const Painted & layer_bands);
   void appendTextRuns(GtkSnapshot * snapshot, const CellBuffer & cells);
   GdkTexture * imageTexture(const ImagePlacement & placement);
+  bool bloomTextures(ImageTexture & entry, GdkTexture * texture, float w, float h, GskScalingFilter filter);
+  GdkTexture * renderTexture(GskRenderNode * node, const graphene_rect_t & area);
   static void release(Painted & p) {
     for (Painted::Band & band : p.bands) releaseBand(band);
     p = {};
@@ -984,6 +1004,7 @@ GdkTexture * Window::Impl::imageTexture(const ImagePlacement & placement) {
     if (image.isHdr()) {
       HdrLayers cut = splitHdr(image.hdr, image.width, image.height);
       if (!cut.base.empty()) entry.texture = upload(cut.base);
+      entry.opaque = std::all_of(cut.base.begin(), cut.base.end(), [](uint32_t p) { return Image::alpha(p) == 255; });
       if (!cut.glow.empty()) entry.glow = upload(cut.glow);
     } else {
       entry.texture = upload(image.pixels);
@@ -1025,6 +1046,99 @@ std::map<int, std::vector<MarkedRun>> markedRuns(const CellBuffer & cells, Mark 
 }
 }  // namespace
 
+// `node`, whose content lies in `area`, drawn into a texture of that area at the window's scale, by the window's own
+// renderer (on the GPU); null before the window is realized.
+GdkTexture * Window::Impl::renderTexture(GskRenderNode * node, const graphene_rect_t & area) {
+  GtkNative * native = view ? gtk_widget_get_native(view) : nullptr;
+  GskRenderer * renderer = native ? gtk_native_get_renderer(native) : nullptr;
+  if (!renderer || !node || area.size.width <= 0.0f || area.size.height <= 0.0f) return nullptr;
+  const float scale = static_cast<float>(std::max(1, gtk_widget_get_scale_factor(view)));
+  GskRenderNode * scaled = scale == 1.0f ? gsk_render_node_ref(node) : gsk_transform_node_new(node, gsk_transform_scale(nullptr, scale, scale));
+  graphene_rect_t viewport = GRAPHENE_RECT_INIT(area.origin.x * scale, area.origin.y * scale, std::ceil(area.size.width * scale), std::ceil(area.size.height * scale));
+  GdkTexture * texture = gsk_renderer_render_texture(renderer, scaled, &viewport);
+  gsk_render_node_unref(scaled);
+  return texture;
+}
+
+// The bloom of a picture's light past white, made when the picture, its size on the screen (`w` x `h`) or the cell
+// height is new: the light in the colour of that light, added to the picture by screening. A halo, the glow
+// blurred wide, and a core, blurred a little, which thickens what is brightest: a bright line is wider than it is
+// drawn because its glow, added to its neighbours, takes them past white too, and the brighter the light, the
+// further out. In both the glow's alpha (how much light) is multiplied after the blur - a thin line's light is thin
+// once blurred, and would not show - and the colour is left as it is. What is taken off the core's alpha keeps a
+// weak glow from making a core at all. Inside the picture the core and the halo are screened over black: black adds
+// no light, so over it the light is opaque and screening it is the same sum as screening the light with its alpha
+// (the GL renderers screen a layer that is not opaque by its alpha twice). False when the picture has no light or
+// the bloom cannot be drawn.
+bool Window::Impl::bloomTextures(ImageTexture & entry, GdkTexture * texture, float w, float h, GskScalingFilter filter) {
+  if (!entry.glow) return false;
+  if (entry.bloom_cell_h == cell_h && entry.bloom_w == w && entry.bloom_h == h) return entry.spill != nullptr;
+  entry.releaseBloom();
+  entry.bloom_cell_h = cell_h, entry.bloom_w = w, entry.bloom_h = h;
+  stats.blooms++;
+  // The picture's own box, from the origin; its light reaches past it by `reach` on every side.
+  const graphene_rect_t box = GRAPHENE_RECT_INIT(0.0f, 0.0f, w, h);
+  const float reach = static_cast<float>(kPictureHaloRadius * cell_h * 2.5);
+  const graphene_rect_t wide = GRAPHENE_RECT_INIT(-reach, -reach, w + 2.0f * reach, h + 2.0f * reach);
+  auto layerNode = [&](double radius, double gain, double threshold, double strength) {
+    GtkSnapshot * s = gtk_snapshot_new();
+    glowLayer(s, [&]() { gtk_snapshot_append_scaled_texture(s, entry.glow, filter, &box); }, radius * cell_h, gain, threshold, strength);
+    return gtk_snapshot_free_to_node(s);
+  };
+  GskRenderNode * core = layerNode(kPictureCoreRadius, kPictureCoreGain, kPictureCoreThreshold, kPictureCoreStrength);
+  GskRenderNode * halo = layerNode(kPictureHaloRadius, kPictureHaloGain, 0.0, kPictureHaloStrength);
+  // The core and the halo screened together inside `area`, each over black when `on_black`.
+  auto light = [&](GtkSnapshot * s, const graphene_rect_t & area, bool on_black) {
+    const GdkRGBA black = { 0.0f, 0.0f, 0.0f, 1.0f };
+    gtk_snapshot_push_clip(s, &area);
+    gtk_snapshot_push_blend(s, GSK_BLEND_MODE_SCREEN);
+    if (on_black) gtk_snapshot_append_color(s, &black, &area);
+    if (core) gtk_snapshot_append_node(s, core);
+    gtk_snapshot_pop(s);
+    if (on_black) gtk_snapshot_append_color(s, &black, &area);
+    if (halo) gtk_snapshot_append_node(s, halo);
+    gtk_snapshot_pop(s);  // the halo and the core
+    gtk_snapshot_pop(s);  // the clip
+  };
+  auto render = [&](const graphene_rect_t & area, const std::function<void(GtkSnapshot *)> & draw) {
+    GtkSnapshot * s = gtk_snapshot_new();
+    draw(s);
+    GskRenderNode * node = gtk_snapshot_free_to_node(s);
+    GdkTexture * made = renderTexture(node, area);
+    if (node) gsk_render_node_unref(node);
+    return made;
+  };
+  entry.spill_reach = reach;
+  // The light past the picture's box only: inside it the light is the picture's (`lit` or `light`).
+  entry.spill = render(wide, [&](GtkSnapshot * s) {
+    const GdkRGBA opaque = { 0.0f, 0.0f, 0.0f, 1.0f };
+    gtk_snapshot_push_mask(s, GSK_MASK_MODE_INVERTED_ALPHA);
+    gtk_snapshot_append_color(s, &opaque, &box);
+    gtk_snapshot_pop(s);  // the box, the mask
+    light(s, wide, false);
+    gtk_snapshot_pop(s);  // the light, the source
+  });
+  if (entry.opaque) {
+    entry.lit = render(box, [&](GtkSnapshot * s) {
+      gtk_snapshot_push_blend(s, GSK_BLEND_MODE_SCREEN);
+      gtk_snapshot_append_scaled_texture(s, texture, filter, &box);
+      gtk_snapshot_pop(s);
+      light(s, box, true);
+      gtk_snapshot_pop(s);
+    });
+  } else {
+    entry.light = render(box, [&](GtkSnapshot * s) { light(s, box, true); });
+  }
+  if (core) gsk_render_node_unref(core);
+  if (halo) gsk_render_node_unref(halo);
+  if (!entry.spill || (!entry.lit && !entry.light)) {
+    entry.releaseBloom();
+    entry.bloom_cell_h = cell_h;  // tried: not again for this size
+    return false;
+  }
+  return true;
+}
+
 // The pictures the cells show, each over the cells marked with it: the whole
 // texture at its place, cut to those cells.
 void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, const Painted & layer_bands) {
@@ -1064,93 +1178,56 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, co
       }
       continue;
     }
-    // The picture with its light past white spread around it, in the colour of that light, added to it by
-    // screening: a halo, the glow blurred wide, and a core, blurred a little, which thickens what is
-    // brightest. A bright line is wider than it is drawn because its glow, added to its neighbours,
-    // takes them past white too, and the brighter the light, the further out. In both the glow's alpha (how
-    // much light) is multiplied after the blur - a thin line's light is thin once blurred, and would not
-    // show - and the colour is left as it is. What is taken off the core's alpha keeps a weak glow from
-    // making a core at all.
-    GskRenderNode * core = nullptr, * halo = nullptr;
-    {
-      GtkSnapshot * s = gtk_snapshot_new();
-      glowLayer(s, [&]() { gtk_snapshot_append_scaled_texture(s, glow, filter, &bounds); }, kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, kPictureCoreStrength);
-      core = gtk_snapshot_free_to_node(s);
-      s = gtk_snapshot_new();
-      glowLayer(s, [&]() { gtk_snapshot_append_scaled_texture(s, glow, filter, &bounds); }, kPictureHaloRadius * cell_h, kPictureHaloGain, 0.0, kPictureHaloStrength);
-      halo = gtk_snapshot_free_to_node(s);
-    }
-    // The picture stays in the cells it shows, but its light is not part of it: it spills past the edge
-    // (a lamp at the top of a picture glows above it), so the glow has a clip of its own, wider.
-    const float reach = static_cast<float>(kPictureHaloRadius * cell_h * 2.5);
-    graphene_rect_t wide = cutTo(list.front());
-    for (const MarkedRun & run : list) {
-      graphene_rect_t r = cutTo(run);
-      graphene_rect_union(&wide, &r, &wide);
-    }
-    wide = GRAPHENE_RECT_INIT(wide.origin.x - reach, wide.origin.y - reach, wide.size.width + 2.0f * reach, wide.size.height + 2.0f * reach);
-    // The core and the halo screened together, each over black when `on_black`: black is what adds no light,
-    // so over it the light is opaque and screening it is the same sum as screening the light with its alpha.
-    // The GL renderers screen a layer that is not opaque by its alpha twice (a light of alpha 0.3 adds a
-    // tenth of itself, not a third), which left the glow faint over the picture it comes from.
-    auto light = [&](bool on_black) {
-      const GdkRGBA black = { 0.0f, 0.0f, 0.0f, 1.0f };
-      gtk_snapshot_push_clip(snap, &wide);
-      gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
-      if (on_black) gtk_snapshot_append_color(snap, &black, &wide);
-      if (core) gtk_snapshot_append_node(snap, core);
-      gtk_snapshot_pop(snap);
-      if (on_black) gtk_snapshot_append_color(snap, &black, &wide);
-      if (halo) gtk_snapshot_append_node(snap, halo);
-      gtk_snapshot_pop(snap);  // the halo and the core
-      gtk_snapshot_pop(snap);  // the wide clip
-    };
-    // The picture's own cells, as a mask: the light is screened onto the picture inside them and laid over
-    // what is around it outside them.
-    auto cellsMask = [&]() {
-      const GdkRGBA opaque = { 0.0f, 0.0f, 0.0f, 1.0f };
+    // The picture with its light past white spread around it (bloomTextures()). The light is blurred once per
+    // version of the picture, not every frame: a table shows dozens of traces, and the blurs, blends and masks
+    // of each, done again for every frame, were most of a frame's work on the GPU.
+    ImageTexture & entry = image_textures[placement.image.get()];
+    if (!bloomTextures(entry, texture, w, h, filter)) {
       for (const MarkedRun & run : list) {
-        graphene_rect_t r = cutTo(run);
-        gtk_snapshot_append_color(snap, &opaque, &r);
+        graphene_rect_t clip = cutTo(run);
+        gtk_snapshot_push_clip(snap, &clip);
+        gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
+        gtk_snapshot_pop(snap);
       }
-    };
-    // The bottom of the blend is drawn on its own, so it holds the backgrounds under the picture too: a
-    // picture with transparent pixels would otherwise leave the light to be laid over the cells, not added.
-    // The pieces of the picture are all drawn before the light, which is added once over the lot: a piece
-    // drawn after another's light would cover it.
-    gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
-    // Only under the picture's own cells: the backgrounds of the cells around it would cover the pictures
-    // drawn before this one.
-    for (const MarkedRun & run : list) {
-      graphene_rect_t under = cutTo(run);
-      gtk_snapshot_push_clip(snap, &under);
-      for (const Painted::Band & band : layer_bands.bands) {
-        if (band.bg) gtk_snapshot_append_node(snap, band.bg);
+      continue;
+    }
+    if (entry.lit) {
+      for (const MarkedRun & run : list) {
+        graphene_rect_t clip = cutTo(run);
+        gtk_snapshot_push_clip(snap, &clip);
+        gtk_snapshot_append_scaled_texture(snap, entry.lit, filter, &bounds);
+        gtk_snapshot_pop(snap);
       }
-      gtk_snapshot_pop(snap);
+    } else {
+      // The bottom of the blend is drawn on its own, so it holds the backgrounds under the picture too: a
+      // picture with transparent pixels would otherwise leave the light to be laid over the cells, not added.
+      // Only under the picture's own cells: the backgrounds of the cells around it would cover the pictures
+      // drawn before this one. The light is over black, so outside the cells, where the bottom is empty, it
+      // must not be drawn at all.
+      gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
+      for (const MarkedRun & run : list) {
+        graphene_rect_t under = cutTo(run);
+        gtk_snapshot_push_clip(snap, &under);
+        for (const Painted::Band & band : layer_bands.bands) {
+          if (band.bg) gtk_snapshot_append_node(snap, band.bg);
+        }
+        gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
+        gtk_snapshot_pop(snap);
+      }
+      gtk_snapshot_pop(snap);  // the picture, the bottom of the blend
+      for (const MarkedRun & run : list) {
+        graphene_rect_t clip = cutTo(run);
+        gtk_snapshot_push_clip(snap, &clip);
+        gtk_snapshot_append_scaled_texture(snap, entry.light, filter, &bounds);
+        gtk_snapshot_pop(snap);
+      }
+      gtk_snapshot_pop(snap);  // the light, the top of the blend
     }
-    for (const MarkedRun & run : list) {
-      graphene_rect_t clip = cutTo(run);
-      gtk_snapshot_push_clip(snap, &clip);
-      gtk_snapshot_append_scaled_texture(snap, texture, filter, &bounds);
-      gtk_snapshot_pop(snap);
-    }
-    gtk_snapshot_pop(snap);  // the picture, the bottom of the blend
-    gtk_snapshot_push_mask(snap, GSK_MASK_MODE_ALPHA);
-    cellsMask();
-    gtk_snapshot_pop(snap);  // the picture's cells, the mask
-    light(true);
-    gtk_snapshot_pop(snap);  // the light over black, the source
-    gtk_snapshot_pop(snap);  // the light inside the cells and the picture
-    // Outside the cells there is nothing under the blend to screen onto (what is there was drawn before it),
-    // so the light that spills is laid over it, as a glyph's glow is.
-    gtk_snapshot_push_mask(snap, GSK_MASK_MODE_INVERTED_ALPHA);
-    cellsMask();
-    gtk_snapshot_pop(snap);  // the picture's cells, the mask
-    light(false);
-    gtk_snapshot_pop(snap);  // the light, the source
-    if (core) gsk_render_node_unref(core);
-    if (halo) gsk_render_node_unref(halo);
+    // The light that spills past the picture is laid over what is around it (drawn before it, so there is
+    // nothing under it to screen onto), as a glyph's glow is.
+    const float reach = entry.spill_reach;
+    graphene_rect_t spilled = GRAPHENE_RECT_INIT(x - reach, y - reach, w + 2.0f * reach, h + 2.0f * reach);
+    gtk_snapshot_append_scaled_texture(snap, entry.spill, GSK_SCALING_FILTER_LINEAR, &spilled);
   }
 }
 
