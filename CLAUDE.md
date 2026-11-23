@@ -401,8 +401,12 @@ timing (and missed-vsync counts) at exit.
   drawn lasts until the frame clock's next tick, drawn or not, so an app capping
   its own rate is still measured) as a share of its refresh rate capped at 60 Hz
   (`linkClassForFrameRate()`: a 30 Hz monitor at 30 fps is FULL); FULL needs no
-  up margin, and with too little drawn there is no reading and the class holds
-  (`LinkClassifier::hold()`). Its description is `60 Hz vsync, 58 fps`.
+  up margin. The meter and the classifier run on the clock's running time (the
+  pauses of a static UI left out, and the frame drawn on the first tick after a
+  pause not measured, being mostly the clock starting up), a reading a second of
+  it when there are frames to read; with too little drawn there is no reading and
+  the class and its trend hold. Its description is `60 Hz vsync, 58 fps`, which
+  the handler is told of (`setDescription(..., true)`) so an info line keeps up.
   `InfoLine` shows `Link: ...` (`n/a` until available). The app chooses what to draw by
   link class (synth's `PerformanceProfile.h`). `tools/pacing/run_assertions.py`
   (ctest `cellui_pacing_harness`) runs `cellui_pacing_probe` on a shaped pty.
