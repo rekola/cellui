@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <deque>
 #include <functional>
@@ -1761,8 +1762,28 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
   impl.rows = options.rows;
   impl.cols = options.cols;
   impl.frame = CellBuffer(impl.rows, impl.cols);
+  // A small margin round the cells (GTK scales it by the display scale), in the cells' own background.
+  constexpr int kMarginPx = 2;
+  gtk_widget_set_margin_start(impl.view, kMarginPx);
+  gtk_widget_set_margin_end(impl.view, kMarginPx);
+  gtk_widget_set_margin_top(impl.view, kMarginPx);
+  gtk_widget_set_margin_bottom(impl.view, kMarginPx);
+  {
+    auto rgb = impl.display_info.default_bg->toSrgb8();
+    char css[96];
+    std::snprintf(css, sizeof css, "window.cellui-window { background-color: rgb(%d, %d, %d); }", rgb[0], rgb[1], rgb[2]);
+    GtkCssProvider * provider = gtk_css_provider_new();
+#if GTK_CHECK_VERSION(4, 12, 0)
+    gtk_css_provider_load_from_string(provider, css);
+#else
+    gtk_css_provider_load_from_data(provider, css, -1);
+#endif
+    gtk_style_context_add_provider_for_display(gtk_widget_get_display(impl.window), GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(provider);
+    gtk_widget_add_css_class(impl.window, "cellui-window");
+  }
   gtk_window_set_child(GTK_WINDOW(impl.window), impl.view);
-  gtk_window_set_default_size(GTK_WINDOW(impl.window), impl.cols * impl.cell_w, impl.rows * impl.cell_h);
+  gtk_window_set_default_size(GTK_WINDOW(impl.window), impl.cols * impl.cell_w + 2 * kMarginPx, impl.rows * impl.cell_h + 2 * kMarginPx);
 
   Impl * self = &impl;
   // The keys are taken in the capture phase: Tab and the arrows would move
