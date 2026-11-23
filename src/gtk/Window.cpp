@@ -1071,13 +1071,17 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, co
     // much light) is multiplied after the blur - a thin line's light is thin once blurred, and would not
     // show - and the colour is left as it is. What is taken off the core's alpha keeps a weak glow from
     // making a core at all.
-    auto layer = [&](double radius, double gain, double threshold, double strength) {
-      glowLayer(snap, [&]() { gtk_snapshot_append_scaled_texture(snap, glow, filter, &bounds); }, radius, gain, threshold, strength);
-    };
+    GskRenderNode * core = nullptr, * halo = nullptr;
+    {
+      GtkSnapshot * s = gtk_snapshot_new();
+      glowLayer(s, [&]() { gtk_snapshot_append_scaled_texture(s, glow, filter, &bounds); }, kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, kPictureCoreStrength);
+      core = gtk_snapshot_free_to_node(s);
+      s = gtk_snapshot_new();
+      glowLayer(s, [&]() { gtk_snapshot_append_scaled_texture(s, glow, filter, &bounds); }, kPictureHaloRadius * cell_h, kPictureHaloGain, 0.0, kPictureHaloStrength);
+      halo = gtk_snapshot_free_to_node(s);
+    }
     // The picture stays in the cells it shows, but its light is not part of it: it spills past the edge
-    // (a lamp at the top of a picture glows above it), so the glow has a clip of its own, wider. The pieces
-    // of the picture are all drawn before the light, which is added once over the lot: a piece drawn after
-    // another's light would cover it.
+    // (a lamp at the top of a picture glows above it), so the glow has a clip of its own, wider.
     const float reach = static_cast<float>(kPictureHaloRadius * cell_h * 2.5);
     graphene_rect_t wide = cutTo(list.front());
     for (const MarkedRun & run : list) {
@@ -1085,8 +1089,35 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, co
       graphene_rect_union(&wide, &r, &wide);
     }
     wide = GRAPHENE_RECT_INIT(wide.origin.x - reach, wide.origin.y - reach, wide.size.width + 2.0f * reach, wide.size.height + 2.0f * reach);
+    // The core and the halo screened together, each over black when `on_black`: black is what adds no light,
+    // so over it the light is opaque and screening it is the same sum as screening the light with its alpha.
+    // The GL renderers screen a layer that is not opaque by its alpha twice (a light of alpha 0.3 adds a
+    // tenth of itself, not a third), which left the glow faint over the picture it comes from.
+    auto light = [&](bool on_black) {
+      const GdkRGBA black = { 0.0f, 0.0f, 0.0f, 1.0f };
+      gtk_snapshot_push_clip(snap, &wide);
+      gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
+      if (on_black) gtk_snapshot_append_color(snap, &black, &wide);
+      if (core) gtk_snapshot_append_node(snap, core);
+      gtk_snapshot_pop(snap);
+      if (on_black) gtk_snapshot_append_color(snap, &black, &wide);
+      if (halo) gtk_snapshot_append_node(snap, halo);
+      gtk_snapshot_pop(snap);  // the halo and the core
+      gtk_snapshot_pop(snap);  // the wide clip
+    };
+    // The picture's own cells, as a mask: the light is screened onto the picture inside them and laid over
+    // what is around it outside them.
+    auto cellsMask = [&]() {
+      const GdkRGBA opaque = { 0.0f, 0.0f, 0.0f, 1.0f };
+      for (const MarkedRun & run : list) {
+        graphene_rect_t r = cutTo(run);
+        gtk_snapshot_append_color(snap, &opaque, &r);
+      }
+    };
     // The bottom of the blend is drawn on its own, so it holds the backgrounds under the picture too: a
     // picture with transparent pixels would otherwise leave the light to be laid over the cells, not added.
+    // The pieces of the picture are all drawn before the light, which is added once over the lot: a piece
+    // drawn after another's light would cover it.
     gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
     // Only under the picture's own cells: the backgrounds of the cells around it would cover the pictures
     // drawn before this one.
@@ -1105,14 +1136,21 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, co
       gtk_snapshot_pop(snap);
     }
     gtk_snapshot_pop(snap);  // the picture, the bottom of the blend
-    gtk_snapshot_push_clip(snap, &wide);
-    gtk_snapshot_push_blend(snap, GSK_BLEND_MODE_SCREEN);
-    layer(kPictureCoreRadius * cell_h, kPictureCoreGain, kPictureCoreThreshold, kPictureCoreStrength);
-    gtk_snapshot_pop(snap);
-    layer(kPictureHaloRadius * cell_h, kPictureHaloGain, 0.0, kPictureHaloStrength);
-    gtk_snapshot_pop(snap);  // the halo and the core
-    gtk_snapshot_pop(snap);  // the wide clip
-    gtk_snapshot_pop(snap);  // those and the picture
+    gtk_snapshot_push_mask(snap, GSK_MASK_MODE_ALPHA);
+    cellsMask();
+    gtk_snapshot_pop(snap);  // the picture's cells, the mask
+    light(true);
+    gtk_snapshot_pop(snap);  // the light over black, the source
+    gtk_snapshot_pop(snap);  // the light inside the cells and the picture
+    // Outside the cells there is nothing under the blend to screen onto (what is there was drawn before it),
+    // so the light that spills is laid over it, as a glyph's glow is.
+    gtk_snapshot_push_mask(snap, GSK_MASK_MODE_INVERTED_ALPHA);
+    cellsMask();
+    gtk_snapshot_pop(snap);  // the picture's cells, the mask
+    light(false);
+    gtk_snapshot_pop(snap);  // the light, the source
+    if (core) gsk_render_node_unref(core);
+    if (halo) gsk_render_node_unref(halo);
   }
 }
 
