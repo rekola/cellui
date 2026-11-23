@@ -155,7 +155,9 @@ void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vec
   plane.setBgColor(look.background);
   const int per_cell = glyph_meter::stepsPerCell(glyphs);
   auto column = [&](const SparklineReading & r) {
-    return glyph_meter::BarColumn{glyph_meter::barSteps(r.fraction, rows, glyphs), glyph_meter::barSteps(r.peak, rows, glyphs)};
+    // The peak marker is a braille dot; a block glyph's step is too coarse for it to read as one, so it is left out.
+    const bool peaks = glyphs == glyph_meter::Glyphs::BRAILLE;
+    return glyph_meter::BarColumn{glyph_meter::barSteps(r.fraction, rows, glyphs), peaks ? glyph_meter::barSteps(r.peak, rows, glyphs) : 0};
   };
   // The bar's colour at a height, a fraction of the meter.
   auto barColor = [&](float height) { return look.color ? *look.color : styles.levelColor(height); };
@@ -177,7 +179,8 @@ void drawCellSparkline(Plane & plane, int row, int col, int rows, const std::vec
     for (int i = 0; i < rows; i++) {
       int y = row + i;
       if (y < clip_top || y >= clip_bottom) continue;
-      if (i == rows - 1 && static_cast<size_t>(c) < label.size()) {
+      // A space in the label leaves the bars as they are.
+      if (i == rows - 1 && static_cast<size_t>(c) < label.size() && label[static_cast<size_t>(c)] != " ") {
         // Text over the bars: the cell's background is the colour its bars
         // average to (the background where silent, the bar's where full), as in
         // the heatmap, and the glyph is laid over it.
