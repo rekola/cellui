@@ -213,6 +213,14 @@ int Table::selectedPosition() const {
   return it == order_.end() ? -1 : static_cast<int>(it - order_.begin());
 }
 
+void Table::reselect(int model_row) {
+  if (!model_ || model_row < 0 || model_row >= model_->rowCount()) model_row = -1;
+  if (model_row == selected_) return;
+  selected_ = model_row;
+  render();
+  selection_changed.emit(selected_);
+}
+
 void Table::select(int model_row) {
   if (!model_ || model_row < 0 || model_row >= model_->rowCount()) model_row = -1;
   if (model_row == selected_) return;
