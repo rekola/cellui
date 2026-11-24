@@ -519,28 +519,6 @@ void Table::render() {
   swapPlane(body_);
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
-  drawCursor(l, styles);
-}
-
-// The cursor's cell is a border-only band on the rows' plane, which stays put while the rows ease under it.
-void Table::drawCursor(const Layout & l, const StyleProvider & styles) {
-  const auto stop = cursorStop();
-  const int position = selectedPosition();
-  if (stop.first < 0 || position < 0) {
-    body_->clearBand();
-    return;
-  }
-  const double top = (position - rows_.shown()) * row_height_, bottom = top + row_height_;
-  const double limit = static_cast<double>(visibleRows() * row_height_);
-  const double from = std::max(0.0, top), to = std::min(limit, bottom);
-  if (to <= from) {
-    body_->clearBand();
-    return;
-  }
-  int x = 0, width = 0;
-  cursorSpan(l, stop, x, width);
-  const Color & color = focused_ ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
-  body_->setBand(Band{from, to - from, static_cast<double>(x), static_cast<double>(width), color, 0.0f, BlendMode::NORMAL, 0.0f, color, 1.0f, 2.0});
 }
 
 void Table::drawHeading(const Layout & l, const StyleProvider & styles) {
@@ -575,17 +553,18 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
   const int model_row = order_[static_cast<size_t>(position)];
   const bool selected = model_row == selected_;
   const bool pressed = position == pressed_position_;
-  Color bg = pressed ? styles.row_pressed_bg_color
-                     : selected ? (focused_ ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color) : styles.window_bg_color;
-  Color fg = pressed ? styles.window_accent_fg_color : selected && focused_ ? styles.highlight_fg_color : styles.window_fg_color;
+  // The selected row is tinted (as a pressed one is); the cursor's cell on it is the bar.
+  Color bg = pressed || selected ? styles.row_pressed_bg_color : styles.window_bg_color;
+  Color fg = pressed ? styles.window_accent_fg_color : styles.window_fg_color;
+  const Color bar_bg = focused_ ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
+  const Color bar_fg = focused_ ? styles.highlight_fg_color : styles.window_fg_color;
   setBgColor(bg);
   setFgColor(fg);
   for (int r = 0; r < row_height_; r++) putstr(y + r, 0, std::string(static_cast<size_t>(cols), ' '));
   const auto stop = cursorStop();
-  // The cursor's cell is the window's own, not the bar's.
   auto paintCursorCell = [&](int x, int width) {
-    setBgColor(styles.window_bg_color);
-    setFgColor(styles.window_fg_color);
+    setBgColor(bar_bg);
+    setFgColor(bar_fg);
     for (int r = 0; r < row_height_; r++) putstr(y + r, x, std::string(static_cast<size_t>(width), ' '));
   };
   for (size_t c = 0; c < columns_.size(); c++) {
@@ -596,7 +575,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
     setFgColor(fg);
     if (columns_[c].icon) {
       if (cursor_here) paintCursorCell(l.x[c], l.width[c]);
-      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col), selected && focused_ && !cursor_here, styles.highlight_bg_color, styles.highlight_fg_color, lightIcons(styles));
+      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col), cursor_here && focused_, styles.highlight_bg_color, styles.highlight_fg_color, lightIcons(styles));
       continue;
     }
     if (!columns_[c].buttons.empty()) {
@@ -611,17 +590,15 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
         if (here) paintCursorCell(x, face.width());
         else {
           setBgColor(bg);
-          setFgColor((selected && focused_) || pressed ? fg : styles.window_accent_fg_color);
+          setFgColor(pressed ? fg : styles.window_accent_fg_color);
         }
-        if (here) setFgColor(styles.window_accent_fg_color);
         putstr(y + row_height_ / 2, x, face.glyph);
         x += face.width() + 1;
       }
       continue;
     }
-    const bool inverted = selected && focused_ && !cursor_here;
-    const Color cell_bg = cursor_here ? styles.window_bg_color : bg;
-    const Color cell_fg = cursor_here ? styles.window_fg_color : fg;
+    const Color cell_bg = cursor_here ? bar_bg : bg;
+    const Color cell_fg = cursor_here ? bar_fg : fg;
     if (cursor_here) paintCursorCell(l.x[c], l.width[c]);
     std::optional<Color> color = model_->color(model_row, col);
     if (columns_[c].trace) {
@@ -631,7 +608,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
       setBgColor(bg);
     } else {
       setBgColor(cell_bg);
-      setFgColor(inverted || pressed ? fg : color.value_or(cell_fg));
+      setFgColor(cursor_here || pressed ? cell_fg : color.value_or(cell_fg));
       putText(y + row_height_ / 2, l.x[c], l.width[c], model_->text(model_row, col), TextStyle{font_, TextOverflow::ELLIPSIS, kPlainFace, textAlign(columns_[c].align)});
     }
   }
