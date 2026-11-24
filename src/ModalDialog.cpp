@@ -13,6 +13,7 @@ ModalDialog::~ModalDialog() {
 void ModalDialog::connect() {
   // Every event is the dialog's: the handlers sit on the root, ahead of the
   // widget an event is aimed at.
+  connections_.push_back(root_.on<Paste>([this](const Paste & e, EventContext &) { paste(e); return Handled::yes; }, Phase::capture));
   connections_.push_back(root_.on<KeyDown>([this](const KeyDown & e, EventContext &) { keyDown(e); return Handled::yes; }, Phase::capture));
   connections_.push_back(root_.on<KeyUp>([this](const KeyUp & e, EventContext &) { keyUp(e); return Handled::yes; }, Phase::capture));
   connections_.push_back(root_.on<MouseDown>([this](const MouseDown & e, EventContext &) { mouseDown(e); return Handled::yes; }, Phase::capture));

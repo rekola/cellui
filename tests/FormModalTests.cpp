@@ -44,6 +44,9 @@ struct Fixture {
   void type(const std::string & s) {
     for (char c : s) key(c);
   }
+  void paste(const std::string & s) {
+    steps.push_back([this, s] { dispatcher.paste(Paste{s}); });
+  }
   void click(int row, int col) {
     steps.push_back([this, row, col] {
       dispatcher.offer(mouse(row, col, Input::Kind::PRESS));
@@ -103,6 +106,17 @@ TEST(form_typing_fills_the_focused_field_tab_moves_on_and_enter_accepts) {
   CHECK(form.number(0) == 12.0 && form.number(1) == 4.5 && form.date(2) && form.date(2)->month == 12 && !form.number(3));
   CHECK(f.widget_keys == 0);  // the dialog took every key
   CHECK(f.root.activeModal() == nullptr);
+}
+
+TEST(form_a_paste_goes_into_the_focused_field) {
+  Fixture f;
+  FormModal form(f.root, f.screen, f.loop, "Buy", orderFields());
+  f.paste("12");
+  f.key(Key::Tab);
+  f.paste("4.5");
+  f.key(Key::Enter);
+  CHECK(form.showModal() == 0);
+  CHECK(form.texts()[0] == "12" && form.texts()[1] == "4.5");
 }
 
 TEST(form_enter_does_not_accept_while_a_field_is_wrong_and_shows_which) {

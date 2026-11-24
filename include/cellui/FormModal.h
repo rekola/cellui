@@ -88,6 +88,7 @@ class FormModal : public ModalDialog {
  protected:
   void layout(Plane & screen, int rows, int cols) override;
   void keyDown(const KeyDown & e) override;
+  void paste(const Paste & e) override;
   void mouseDown(const MouseDown & e) override;
   void mouseMove(const MouseMove & e) override;
   void mouseUp(const MouseUp & e) override;

@@ -85,6 +85,7 @@ class InputDispatcher {
     }
     return target(focus_.get()).post(event);
   }
+  Handled paste(const Paste & event) { return target(focus_.get()).post(event); }
   Handled keyUp(const KeyUp & event) { return target(focus_.get()).post(event); }
 
   Handled mouseDown(const MouseDown & event) {
