@@ -2,6 +2,8 @@
 
 #include <cellui/BufferPlane.h>
 #include <cellui/Charts.h>
+#include <cellui/FormModal.h>
+#include <cellui/InputDispatcher.h>
 #include <cellui/gtk/GlibEventLoop.h>
 #include <cellui/gtk/Window.h>
 
@@ -280,6 +282,45 @@ TEST(gtk_window_draws_a_presented_frame) {
   size_t drawn = w->stats().frames;
   pumpUntil(*w, [] { return false; }, 200);
   CHECK(w->stats().frames == drawn);
+}
+
+TEST(gtk_window_shows_a_form_modal_which_takes_its_keys_and_accepts) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  Widget widgets;
+  InputDispatcher dispatcher(widgets);
+  EventLoop & loop = w->eventLoop();
+  FormModal form(widgets, root, loop, "Buy Nokia", {{"Quantity", FieldKind::NUMBER, "", "", false}, {"Date", FieldKind::DATE, "2026-12-01", "YYYY-MM-DD", false}});
+  size_t step = 0, frames_before = w->stats().frames;
+  bool drawn = false;
+  auto frame = loop.onFrame([&] {
+    root.refresh();
+    const std::string text = screen.toPlainText();
+    switch (step++) {
+      case 0:  // the dialog is laid out: show it
+        drawn = text.find("Buy Nokia") != std::string::npos && text.find("Quantity") != std::string::npos && text.find("OK") != std::string::npos &&
+                text.find("2026-12-01") != std::string::npos;
+        w->present(screen, {true, 1, 2}, root.images());
+        break;
+      case 1:
+        dispatcher.offer(keyInput('4', 0, Input::Kind::PRESS));
+        dispatcher.offer(keyInput('2', 0, Input::Kind::PRESS));
+        break;
+      case 2:
+        drawn = drawn && screen.toPlainText().find("42") != std::string::npos;
+        dispatcher.offer(keyInput(Key::Enter, 0, Input::Kind::PRESS));
+        break;
+      default: loop.quit();
+    }
+    loop.wake();
+  });
+  CHECK(form.showModal() == 0);
+  frame.disconnect();
+  CHECK(drawn && form.number(0) == 42.0);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > frames_before; }));  // the window drew what was presented
 }
 
 TEST(gtk_window_renders_in_ticks_only_while_a_frame_is_wanted) {

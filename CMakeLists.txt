@@ -116,6 +116,7 @@ add_library(cellui STATIC
   src/Gallery.cpp
   src/InfoDialog.cpp
   src/InfoModal.cpp
+  src/FormModal.cpp
   src/InlineEditor.cpp
   src/EscapeCoalescer.cpp
   src/EventLoop.cpp
@@ -311,6 +312,7 @@ add_executable(cellui_tests
   tests/CellBufferTests.cpp
   tests/ChoiceDialogTests.cpp
   tests/ModalDialogTests.cpp
+  tests/FormModalTests.cpp
   tests/ChoiceListTests.cpp
   tests/ScrollBodyTests.cpp
   tests/CommandPaletteTests.cpp
