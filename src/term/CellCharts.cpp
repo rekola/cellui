@@ -238,13 +238,11 @@ void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, std::spa
       }
     }
   }
+  const std::vector<float> light = trace_image::resampleLight(look, values.size(), static_cast<size_t>(dot_cols));
   plane.setBgColor(look.background);
   for (int i = 0; i < rows; i++) {
     int y = row + i;
     if (y < clip_top || y >= clip_bottom) continue;
-    // Shaded by the height of this row, like the picture's gradient, but with no light past white.
-    plane.setFgColor(trace_image::lineColorAt(look, rows == 1 ? 1.0f : (static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows), false));
-    std::string line;
     for (int c = 0; c < cols; c++) {
       int mask = 0;
       for (int sub = 0; sub < 4; sub++) {
@@ -254,9 +252,11 @@ void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, std::spa
           if (level >= low[x] && level <= high[x]) mask |= 1 << (sub * 2 + dx);
         }
       }
-      line += utf8::encodeCodepoint(brailleCodepoint(mask));
+      // A cell has one colour: the brighter of its two dot columns, with no light past white.
+      const size_t x = static_cast<size_t>(2 * c);
+      plane.setFgColor(trace_image::lineColorAt(look, std::max(light[x], light[x + 1]), false));
+      plane.putstr(y, col + c, utf8::encodeCodepoint(brailleCodepoint(mask)));
     }
-    plane.putstr(y, col, line);
   }
 }
 

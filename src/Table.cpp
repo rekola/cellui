@@ -609,7 +609,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
     if (cursor_here) paintCursorCell(l.x[c], l.width[c]);
     std::optional<Color> color = model_->color(model_row, col);
     if (columns_[c].trace) {
-      TraceLook look{cell_bg, color.value_or(cell_fg), color ? color : std::nullopt};
+      TraceLook look{cell_bg, color.value_or(cell_fg), color ? color : std::nullopt, 4.0f, model_->traceLight(model_row, col)};
       uint64_t id = (static_cast<uint64_t>(model_row) + 1) * 64 + static_cast<uint64_t>(c) + 1;
       charts_.drawTrace(getPlane(), y, l.x[c], row_height_, l.width[c], model_->trace(model_row, col), look, 0, getDim().first + 1, id);
       setBgColor(bg);

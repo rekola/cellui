@@ -297,14 +297,26 @@ TEST(table_heading_is_pressed_while_held_and_sorts_on_release) {
   CHECK(f.table.sortColumn() == 1);
 }
 
-TEST(trace_line_is_a_gradient_that_is_lit_past_white_only_at_the_top) {
+TEST(trace_line_is_medium_at_no_light_and_lit_past_white_only_at_the_top) {
   TraceLook look{Color(10, 10, 10), Color(60, 180, 80), std::nullopt};
-  Color low = trace_image::lineColorAt(look, 0.1f, true), high = trace_image::lineColorAt(look, 1.0f, true);
-  auto top = std::max({high.r(), high.g(), high.b()});
-  CHECK(top > 1.0f);
-  CHECK(std::max({low.r(), low.g(), low.b()}) < 1.0f);
-  Color flat = trace_image::lineColorAt(look, 1.0f, false);
-  CHECK(std::max({flat.r(), flat.g(), flat.b()}) <= 1.0f);
+  Color none = trace_image::lineColorAt(look, 0.0f, true), mid = trace_image::lineColorAt(look, 0.3f, true), high = trace_image::lineColorAt(look, 1.0f, true);
+  auto peak = [](const Color & c) { return std::max({c.r(), c.g(), c.b()}); };
+  CHECK(peak(high) > 1.0f);
+  CHECK(peak(mid) < 1.0f);
+  CHECK(peak(none) < peak(mid));
+  CHECK(peak(none) > peak(look.background));  // medium, not dark
+  CHECK(peak(trace_image::lineColorAt(look, 1.0f, false)) <= 1.0f);
+}
+
+TEST(trace_light_is_resampled_with_the_values_and_is_zero_where_it_does_not_fit) {
+  const std::vector<float> light = {0.0f, 1.0f, 2.0f};  // above 1 is kept to 1
+  TraceLook look{Color(10, 10, 10), Color(60, 180, 80), std::nullopt, 4.0f, light};
+  auto v = trace_image::resampleLight(look, 3, 5);
+  CHECK(v.size() == 5);
+  CHECK(v.front() == 0.0f);
+  CHECK(v.back() == 1.0f);
+  CHECK(v[1] == 0.5f);
+  for (float x : trace_image::resampleLight(look, 4, 5)) CHECK(x == 0.0f);  // not one for each value
 }
 
 TEST(table_text_is_laid_out_by_the_display_when_it_can_and_aligned_in_cells_when_not) {
