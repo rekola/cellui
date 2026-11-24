@@ -506,3 +506,45 @@ TEST(table_reselect_keeps_the_view_where_it_is) {
   f.table.reselect(3);
   CHECK(f.table.firstVisiblePosition() == 0);
 }
+
+TEST(table_cursor_moves_between_columns_with_left_and_right_and_enter_acts_on_it) {
+  Fixture f;
+  int row = -2, column = -2, activated = -2;
+  auto a = f.table.cell_activated.connect([&](int r, int c) { row = r, column = c; });
+  auto b = f.table.activated.connect([&](int r) { activated = r; });
+  f.keyPress(Key::Down);
+  CHECK(f.table.cursorColumn() == 0);
+  f.keyPress(Key::Left);
+  CHECK(f.table.cursorColumn() == 0);  // stops at the first
+  f.keyPress(Key::Right);
+  f.keyPress(Key::Right);
+  f.keyPress(Key::Right);
+  CHECK(f.table.cursorColumn() == 2);  // and at the last
+  f.keyPress(Key::Enter);
+  CHECK(row == 0 && column == 2 && activated == 0);
+  f.keyPress(Key::Left);
+  CHECK(f.table.cursorColumn() == 1);
+}
+
+TEST(table_click_puts_the_cursor_in_the_clicked_column_and_it_survives_a_sort) {
+  Fixture f;
+  f.click(3, 12);  // the Price column
+  CHECK(f.table.cursorColumn() == 1 && f.table.selectedRow() == 1);
+  f.click(1, 2);  // sort by Name
+  CHECK(f.table.cursorColumn() == 1);
+}
+
+TEST(table_cursor_stops_on_each_button_and_enter_clicks_it) {
+  ButtonFixture f;
+  f.keyPress(Key::Down);
+  f.keyPress(Key::Right);
+  f.keyPress(Key::Right);
+  CHECK(f.table.cursorColumn() == 2 && f.table.cursorButton() == 0);
+  f.keyPress(Key::Right);
+  CHECK(f.table.cursorButton() == 1);
+  f.keyPress(Key::Right);
+  CHECK(f.table.cursorButton() == 1);
+  f.keyPress(Key::Enter);
+  CHECK(f.clicks.size() == 1u); if (f.clicks.empty()) return;
+  CHECK(f.clicks[0].row == 0 && f.clicks[0].column == 2 && f.clicks[0].button == 1);
+}

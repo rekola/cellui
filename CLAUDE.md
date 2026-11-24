@@ -57,7 +57,7 @@ carries the app's object as an opaque `getAppContext()`.
   `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`, `StatusLine`: the bottom row's message
   and its Emacs-style prompt with Tab completion; `Label`: a line of text on a background of its
   own, its colours fixed or theme roles (`&StyleProvider::info_line_fg_color`), drawn again on
-  every change and resize; `Table` with `TableModel`: a click on a heading sorts, no key does;
+  every change and resize; `Table` with `TableModel`: a click on a heading sorts, no key does; its cursor has two levels (the selected row inverted, `cursorColumn()`/`cursorButton()` an un-inverted cell with a border-only `Band` in the bar's colour; Left/Right move it, Enter says `cell_activated` or clicks the button);
   `ScrollBody` (the body of a dialog that draws plain lines: smooth scrolling, a draggable scrollbar and the wheel, on a plane of its own over the box; the dialog draws `drawnRows()` lines from `firstLine()` with `putText()` and passes it keys and pointer events; stocks' attribute dialog);
   `Button` (a `ButtonFace` on one row, `clicked`; `ButtonFace::info()` is 🛈 U+1F6C8, and a picture will be one more member of the face);
   a buttons column (`TableColumn::buttons`, `ButtonFace`s the same in every row, as wide as they are) says `button_clicked(row, column, button)` and leaves the selection alone;
