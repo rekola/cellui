@@ -81,7 +81,7 @@ class TableModel {
 
 // A scrollable table with a heading row, the rows of a TableModel and a
 // selected row. A click on a heading sorts by that column (ascending, then
-// descending, then the model's order again); a click on a row selects it; both
+// descending, then the model's order again); a click on a row selects it and puts the cursor in the cell; both
 // act when the button is released over what it was pressed on, and show a
 // pressed look while it is held (moving off cancels); the wheel scrolls and the arrow, page, Home and End keys move the selection.
 // A trace column shows each row's series as a small line chart in the
@@ -149,9 +149,20 @@ class Table : public Widget {
   // The position of the first row in view.
   int firstVisiblePosition() const { return rows_.offset(); }
 
+  // The cursor's second level: which column (and, in a buttons column, which button) of the selected row is the
+  // point. The row is drawn inverted and the cursor's cell is not, with a border in the bar's colour instead. Left and
+  // Right move it (a hidden column and a gap are skipped), a click on a cell puts it there, and Enter acts on it: on
+  // a button it is a click on the button (button_clicked), on any other cell it says cell_activated. The column is
+  // kept through sorts and model changes, and when it is not shown the nearest one that is takes its place.
+  int cursorColumn() const;
+  int cursorButton() const;
+  void setCursor(int column, int button = 0);
+
   // The model row selected, activated (Enter), and the new sort.
   Signal<int> selection_changed;
   Signal<int> activated;
+  // Enter on a cell that is not a button: the model row and the column the cursor is in (activated says the row alone).
+  Signal<int, int> cell_activated;
   Signal<int, SortOrder> sort_changed;
   // A click on a button of a buttons column (TableColumn::buttons): the model row, the column and the button's index.
   // The selection does not move: the click is about that row, not a choice of it.
@@ -190,6 +201,14 @@ class Table : public Widget {
   // The button of a buttons column at a table column, as {column, index}; {-1, -1} for none.
   std::pair<int, int> buttonAt(int local_col) const;
   bool key(const KeyDown & e);
+  // The places the cursor can stand, in order: {column, button}, a button of its own for each one of a buttons column.
+  std::vector<std::pair<int, int>> stops() const;
+  // The cursor's place as the columns are now: {-1, -1} when none is shown.
+  std::pair<int, int> cursorStop() const;
+  void moveCursor(int delta);
+  // The cursor's cell in the table's columns.
+  void cursorSpan(const Layout & l, std::pair<int, int> stop, int & x, int & width) const;
+  void drawCursor(const Layout & l, const StyleProvider & styles);
   void drawHeading(const Layout & l, const StyleProvider & styles);
   void drawRow(const Layout & l, const StyleProvider & styles, int position, int y);
   void drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon, bool inverted, const Color & paper, const Color & ink, bool light_ink);
@@ -202,6 +221,7 @@ class Table : public Widget {
   int sort_column_ = -1;
   SortOrder sort_order_ = SortOrder::NONE;
   int selected_ = -1;
+  int cursor_column_ = 0, cursor_button_ = 0;
   int row_height_ = 1;
   TextFont font_ = TextFont::PROPORTIONAL;
   ScrollAxis rows_;

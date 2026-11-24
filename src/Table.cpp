@@ -108,7 +108,13 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
         button_clicked.emit(order_[static_cast<size_t>(over)], press_button_.first, press_button_.second);
       }
     } else if (position >= 0) {
+      const int column = columnAt(e.col - getPosition().second);
+      if (column >= 0 && columns_[static_cast<size_t>(column)].buttons.empty()) {
+        cursor_column_ = column;
+        cursor_button_ = 0;
+      }
       selectPosition(position);
+      render();
     }
     return Handled::yes;
   }));
@@ -346,6 +352,8 @@ bool Table::key(const KeyDown & e) {
   if (e.mods.ctrl) {
     if (e.key == 'n') moveSelection(1);
     else if (e.key == 'p') moveSelection(-1);
+    else if (e.key == 'b') moveCursor(-1);
+    else if (e.key == 'f') moveCursor(1);
     else return false;
     return true;
   }
@@ -355,12 +363,69 @@ bool Table::key(const KeyDown & e) {
   else if (e.key == Key::PageUp) moveSelection(-page);
   else if (e.key == Key::Home) selectPosition(0);
   else if (e.key == Key::End) selectPosition(static_cast<int>(order_.size()) - 1);
+  else if (e.key == Key::Left) moveCursor(-1);
+  else if (e.key == Key::Right) moveCursor(1);
   else if (e.key == Key::Enter) {
-    if (selected_ >= 0) activated.emit(selected_);
+    if (selected_ >= 0) {
+      const auto [column, button] = cursorStop();
+      if (column >= 0 && !columns_[static_cast<size_t>(column)].buttons.empty()) {
+        button_clicked.emit(selected_, column, button);
+      } else {
+        if (column >= 0) cell_activated.emit(selected_, column);
+        activated.emit(selected_);
+      }
+    }
   } else {
     return false;
   }
   return true;
+}
+
+std::vector<std::pair<int, int>> Table::stops() const {
+  std::vector<std::pair<int, int>> out;
+  for (size_t c = 0; c < columns_.size(); c++) {
+    if (!shown(c)) continue;
+    const int n = std::max<int>(1, static_cast<int>(columns_[c].buttons.size()));
+    for (int i = 0; i < n; i++) out.push_back({static_cast<int>(c), i});
+  }
+  return out;
+}
+
+std::pair<int, int> Table::cursorStop() const {
+  const auto all = stops();
+  if (all.empty()) return {-1, -1};
+  for (const auto & stop : all)
+    if (stop >= std::pair<int, int>{cursor_column_, cursor_button_}) return stop;
+  return all.back();
+}
+
+int Table::cursorColumn() const { return cursorStop().first; }
+int Table::cursorButton() const { return cursorStop().second; }
+
+void Table::setCursor(int column, int button) {
+  if (column < 0 || column >= static_cast<int>(columns_.size())) return;
+  cursor_column_ = column;
+  cursor_button_ = std::max(0, button);
+  render();
+}
+
+void Table::moveCursor(int delta) {
+  const auto all = stops();
+  if (all.empty()) return;
+  const auto at = std::find(all.begin(), all.end(), cursorStop());
+  const int i = std::clamp(static_cast<int>(at - all.begin()) + delta, 0, static_cast<int>(all.size()) - 1);
+  cursor_column_ = all[static_cast<size_t>(i)].first;
+  cursor_button_ = all[static_cast<size_t>(i)].second;
+  render();
+}
+
+void Table::cursorSpan(const Layout & l, std::pair<int, int> stop, int & x, int & width) const {
+  const size_t c = static_cast<size_t>(stop.first);
+  x = l.x[c];
+  width = l.width[c];
+  if (columns_[c].buttons.empty()) return;
+  for (int i = 0; i < stop.second; i++) x += columns_[c].buttons[static_cast<size_t>(i)].width() + 1;
+  width = columns_[c].buttons[static_cast<size_t>(stop.second)].width();
 }
 
 Table::Layout Table::layout() const {
@@ -441,6 +506,28 @@ void Table::render() {
   swapPlane(body_);
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
+  drawCursor(l, styles);
+}
+
+// The cursor's cell is a border-only band on the rows' plane, which stays put while the rows ease under it.
+void Table::drawCursor(const Layout & l, const StyleProvider & styles) {
+  const auto stop = cursorStop();
+  const int position = selectedPosition();
+  if (stop.first < 0 || position < 0) {
+    body_->clearBand();
+    return;
+  }
+  const double top = (position - rows_.shown()) * row_height_, bottom = top + row_height_;
+  const double limit = static_cast<double>(visibleRows() * row_height_);
+  const double from = std::max(0.0, top), to = std::min(limit, bottom);
+  if (to <= from) {
+    body_->clearBand();
+    return;
+  }
+  int x = 0, width = 0;
+  cursorSpan(l, stop, x, width);
+  const Color & color = focused_ ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
+  body_->setBand(Band{from, to - from, static_cast<double>(x), static_cast<double>(width), color, 0.0f, BlendMode::NORMAL, 0.0f, color, 1.0f, 2.0});
 }
 
 void Table::drawHeading(const Layout & l, const StyleProvider & styles) {
@@ -481,30 +568,53 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
   setBgColor(bg);
   setFgColor(fg);
   for (int r = 0; r < row_height_; r++) putstr(y + r, 0, std::string(static_cast<size_t>(cols), ' '));
+  const auto stop = cursorStop();
+  // The cursor's cell is the window's own, not the bar's.
+  auto paintCursorCell = [&](int x, int width) {
+    setBgColor(styles.window_bg_color);
+    setFgColor(styles.window_fg_color);
+    for (int r = 0; r < row_height_; r++) putstr(y + r, x, std::string(static_cast<size_t>(width), ' '));
+  };
   for (size_t c = 0; c < columns_.size(); c++) {
     const int col = static_cast<int>(c);
     if (l.width[c] == 0) continue;
+    const bool cursor_here = selected && stop.first == col;
+    setBgColor(bg);
+    setFgColor(fg);
     if (columns_[c].icon) {
-      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col), selected && focused_, styles.highlight_bg_color, styles.highlight_fg_color, lightIcons(styles));
+      if (cursor_here) paintCursorCell(l.x[c], l.width[c]);
+      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col), selected && focused_ && !cursor_here, styles.highlight_bg_color, styles.highlight_fg_color, lightIcons(styles));
       continue;
     }
     if (!columns_[c].buttons.empty()) {
-      setFgColor((selected && focused_) || pressed ? fg : styles.window_accent_fg_color);
       int x = l.x[c];
-      for (const ButtonFace & face : columns_[c].buttons) {
+      for (size_t i = 0; i < columns_[c].buttons.size(); i++) {
+        const ButtonFace & face = columns_[c].buttons[i];
+        const bool here = cursor_here && stop.second == static_cast<int>(i);
+        if (here) paintCursorCell(x, face.width());
+        else {
+          setBgColor(bg);
+          setFgColor((selected && focused_) || pressed ? fg : styles.window_accent_fg_color);
+        }
+        if (here) setFgColor(styles.window_accent_fg_color);
         putstr(y + row_height_ / 2, x, face.glyph);
         x += face.width() + 1;
       }
       continue;
     }
+    const bool inverted = selected && focused_ && !cursor_here;
+    const Color cell_bg = cursor_here ? styles.window_bg_color : bg;
+    const Color cell_fg = cursor_here ? styles.window_fg_color : fg;
+    if (cursor_here) paintCursorCell(l.x[c], l.width[c]);
     std::optional<Color> color = model_->color(model_row, col);
     if (columns_[c].trace) {
-      TraceLook look{bg, color.value_or(fg), color ? color : std::nullopt};
+      TraceLook look{cell_bg, color.value_or(cell_fg), color ? color : std::nullopt};
       uint64_t id = (static_cast<uint64_t>(model_row) + 1) * 64 + static_cast<uint64_t>(c) + 1;
       charts_.drawTrace(getPlane(), y, l.x[c], row_height_, l.width[c], model_->trace(model_row, col), look, 0, getDim().first + 1, id);
       setBgColor(bg);
     } else {
-      setFgColor((selected && focused_) || pressed ? fg : color.value_or(fg));
+      setBgColor(cell_bg);
+      setFgColor(inverted || pressed ? fg : color.value_or(cell_fg));
       putText(y + row_height_ / 2, l.x[c], l.width[c], model_->text(model_row, col), TextStyle{font_, TextOverflow::ELLIPSIS, kPlainFace, textAlign(columns_[c].align)});
     }
   }
