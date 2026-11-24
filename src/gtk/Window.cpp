@@ -1144,6 +1144,9 @@ bool Window::Impl::bloomTextures(ImageTexture & entry, GdkTexture * texture, flo
 // texture at its place, cut to those cells.
 void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, const Painted & layer_bands) {
   auto runs = markedRuns(cells, [](const CellBuffer::Cell & cell) { return cell.image; });
+  // The light each picture spills past its box, and where: drawn once every picture is, or a picture drawn
+  // later (the one below, in a table) would cover the light of the one before it.
+  std::vector<std::pair<GdkTexture *, graphene_rect_t>> spills;
   for (const auto & [index, list] : runs) {
     if (static_cast<size_t>(index) > images.size()) continue;
     const ImagePlacement & placement = images[static_cast<size_t>(index - 1)];
@@ -1224,12 +1227,12 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, co
       }
       gtk_snapshot_pop(snap);  // the light, the top of the blend
     }
-    // The light that spills past the picture is laid over what is around it (drawn before it, so there is
-    // nothing under it to screen onto), as a glyph's glow is.
     const float reach = entry.spill_reach;
-    graphene_rect_t spilled = GRAPHENE_RECT_INIT(x - reach, y - reach, w + 2.0f * reach, h + 2.0f * reach);
-    gtk_snapshot_append_scaled_texture(snap, entry.spill, GSK_SCALING_FILTER_LINEAR, &spilled);
+    spills.emplace_back(entry.spill, GRAPHENE_RECT_INIT(x - reach, y - reach, w + 2.0f * reach, h + 2.0f * reach));
   }
+  // The light that spills past each picture is laid over what is around it, its neighbours too (drawn before it,
+  // so there is nothing under it to screen onto), as a glyph's glow is.
+  for (auto & [spill, spilled] : spills) gtk_snapshot_append_scaled_texture(snap, spill, GSK_SCALING_FILTER_LINEAR, &spilled);
 }
 
 // The text the display lays out, each run over the cells marked with it: set
