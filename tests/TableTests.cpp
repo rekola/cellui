@@ -48,6 +48,13 @@ struct Fixture {
     k.key = key;
     table.post(k);
   }
+  void keyPress(int key, bool ctrl, bool shift) {
+    KeyDown k;
+    k.key = key;
+    k.mods.ctrl = ctrl;
+    k.mods.shift = shift;
+    table.post(k);
+  }
 };
 
 }  // namespace
@@ -94,6 +101,18 @@ TEST(table_selection_keys_clicks_and_signals) {
   CHECK(selected == 1);  // table row 2 of screen => position 1
   f.keyPress(Key::Home);
   CHECK(selected == 0);
+}
+
+TEST(ctrl_shift_p_is_not_ctrl_p) {
+  Fixture f;
+  int selected = -2;
+  auto a = f.table.selection_changed.connect([&](int r) { selected = r; });
+  f.keyPress(Key::End);
+  CHECK(selected == 3);
+  f.keyPress('p', true, true);  // the command palette's, left for the keymap
+  CHECK(selected == 3);
+  f.keyPress('p', true, false);  // Emacs: up
+  CHECK(selected == 2);
 }
 
 TEST(table_selection_follows_its_row_through_a_sort) {

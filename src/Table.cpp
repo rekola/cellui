@@ -353,6 +353,7 @@ bool Table::key(const KeyDown & e) {
   if (e.mods.alt || e.mods.meta) return false;
   const int page = std::max(1, visibleRows() - 1);
   if (e.mods.ctrl) {
+    if (e.mods.shift) return false;  // Ctrl+Shift+P is the command palette's, not Ctrl+P
     if (e.key == 'n') moveSelection(1);
     else if (e.key == 'p') moveSelection(-1);
     else if (e.key == 'b') moveCursor(-1);
