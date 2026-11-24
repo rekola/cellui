@@ -82,10 +82,11 @@ Picture renderPicture(std::span<const float> values, const TraceLook & look, uns
       ctx.beginPath().moveTo(x_at(0), h);
       for (size_t x = 0; x < levels.size(); x++) ctx.lineTo(x_at(x), y_at(x));
       ctx.lineTo(x_at(levels.size() - 1), h).closePath();
-      // Fades in from nothing at the bottom, so the line's body is the brightest part of the fill.
+      // Fades in from nothing at the bottom, so the line's body is the brightest part of the fill, and at its
+      // strongest it is only as bright as a neutral line is (kNeutralLine of the colour at 0.30).
       auto fill = ctx.createLinearGradient(0, h, 0, 0);
-      fill.addColorStop(0.0f, toCanvas(*look.fill, 0.03f));
-      fill.addColorStop(1.0f, toCanvas(*look.fill, 0.30f));
+      fill.addColorStop(0.0f, toCanvas(*look.fill, 0.03f * kNeutralLine));
+      fill.addColorStop(1.0f, toCanvas(*look.fill, 0.30f * kNeutralLine));
       ctx.fillStyle = fill;
       ctx.fill();
     }

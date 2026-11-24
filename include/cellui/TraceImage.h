@@ -38,10 +38,14 @@ struct TraceLook {
 
 namespace trace_image {
 
+// How much of `line` a stroke of brightness 0 has blended in from the background. The fill under the line is kept
+// to the same share, so it is never brighter than the neutral line it lies under.
+inline constexpr float kNeutralLine = 0.55f;
+
 // The line's colour at brightness `t` (0 medium, 1 the brightest). With `hdr`
 // the high end is lit past white by look.hdr_gain.
 inline Color lineColorAt(const TraceLook & look, float t, bool hdr) {
-  Color base = look.background.blend(0.55f + 0.45f * t, look.line);
+  Color base = look.background.blend(kNeutralLine + (1.0f - kNeutralLine) * t, look.line);
   return hdr ? base * StyleProvider::litGain(t, 0.35f, look.hdr_gain) : base;
 }
 
