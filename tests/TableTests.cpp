@@ -548,3 +548,76 @@ TEST(table_cursor_stops_on_each_button_and_enter_clicks_it) {
   CHECK(f.clicks.size() == 1u); if (f.clicks.empty()) return;
   CHECK(f.clicks[0].row == 0 && f.clicks[0].column == 2 && f.clicks[0].button == 1);
 }
+
+namespace {
+
+// The "[c]" button is only on the odd rows (the second and the fourth).
+struct PartialModel : Quotes {
+  bool buttonShown(int row, int, int button) const override { return button == 0 || row % 2 == 1; }
+};
+
+struct PartialFixture : ButtonFixture {
+  PartialFixture() { table.setModel(std::make_shared<PartialModel>()); }
+};
+
+}  // namespace
+
+TEST(table_a_row_may_have_fewer_buttons_than_the_column_and_its_place_stays_empty) {
+  PartialFixture f;
+  const std::string screen = f.text();
+  // The heading is on screen row 1, the rows from 2: Nokia (0), Fortum (1), Sampo (2), Kone (3).
+  std::vector<std::string> lines;
+  for (size_t from = 0; from < screen.size();) {
+    const size_t end = screen.find('\n', from);
+    lines.push_back(screen.substr(from, end == std::string::npos ? std::string::npos : end - from));
+    if (end == std::string::npos) break;
+    from = end + 1;
+  }
+  CHECK(lines.size() > 5);
+  if (lines.size() <= 5) return;
+  CHECK(lines[2].find("[i]") != std::string::npos && lines[2].find("[c]") == std::string::npos);
+  CHECK(lines[3].find("[i] [c]") != std::string::npos);
+  CHECK(lines[4].find("[i]") != std::string::npos && lines[4].find("[c]") == std::string::npos);
+  CHECK(lines[5].find("[i] [c]") != std::string::npos);
+}
+
+TEST(table_a_click_where_a_row_has_no_button_only_selects_the_row) {
+  PartialFixture f;
+  f.click(2, 21);  // the first row has no "[c]"
+  CHECK(f.clicks.empty() && f.table.selectedRow() == 0);
+  f.click(4, 21);  // the third neither
+  CHECK(f.clicks.empty() && f.table.selectedRow() == 2);
+  f.click(3, 21);  // the second does
+  CHECK(f.clicks.size() == 1u && f.table.selectedRow() == 2);
+  if (!f.clicks.empty()) CHECK(f.clicks[0].row == 1 && f.clicks[0].button == 1);
+}
+
+TEST(table_the_cursor_skips_a_button_the_row_does_not_have) {
+  PartialFixture f;
+  f.keyPress(Key::Down);  // the first row, which has "[i]" only
+  for (int i = 0; i < 8; i++) f.keyPress(Key::Right);
+  CHECK(f.table.cursorColumn() == 2 && f.table.cursorButton() == 0);  // it stops at "[i]"
+  f.keyPress(Key::Enter);
+  CHECK(f.clicks.size() == 1u);
+  if (!f.clicks.empty()) CHECK(f.clicks[0].row == 0 && f.clicks[0].button == 0);
+  f.keyPress(Key::Down);  // the second row has both
+  for (int i = 0; i < 8; i++) f.keyPress(Key::Right);
+  CHECK(f.table.cursorButton() == 1);
+  f.keyPress(Key::Enter);
+  CHECK(f.clicks.size() == 2u);
+  if (f.clicks.size() == 2u) CHECK(f.clicks[1].row == 1 && f.clicks[1].button == 1);
+  f.keyPress(Key::Down);  // the third has "[i]" only: the cursor rests on the button it has
+  CHECK(f.table.cursorColumn() == 2 && f.table.cursorButton() == 0);
+}
+
+TEST(table_scrolls_to_a_position_and_leaves_the_selection) {
+  Fixture f;
+  f.table.resize(3, 30);  // heading and two rows
+  f.table.select(0);
+  f.table.scrollToPosition(2);
+  CHECK(f.table.firstVisiblePosition() == 2 && f.table.selectedRow() == 0);
+  f.table.scrollToPosition(99);  // as far as the rows allow
+  CHECK(f.table.firstVisiblePosition() == 2);
+  f.table.scrollToPosition(-3);
+  CHECK(f.table.firstVisiblePosition() == 0);
+}

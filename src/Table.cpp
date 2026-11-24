@@ -64,7 +64,7 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
     hitAt(e.row, e.col, heading, position);
     pressing_ = true;
     press_on_heading_ = heading >= 0;
-    press_button_ = position >= 0 ? buttonAt(e.col - getPosition().second) : std::pair<int, int>{-1, -1};
+    press_button_ = position >= 0 ? buttonAt(e.col - getPosition().second, order_[static_cast<size_t>(position)]) : std::pair<int, int>{-1, -1};
     setPressed(heading, position);
     return Handled::yes;
   }));
@@ -104,7 +104,7 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
       // A press on a button acts only if it is released on the same button of the same row.
       int under = -1, over = -1;
       hitAt(e.row, e.col, under, over);
-      if (over >= 0 && over == pressed && buttonAt(e.col - getPosition().second) == press_button_) {
+      if (over >= 0 && over == pressed && buttonAt(e.col - getPosition().second, order_[static_cast<size_t>(over)]) == press_button_) {
         button_clicked.emit(order_[static_cast<size_t>(over)], press_button_.first, press_button_.second);
       }
     } else if (position >= 0) {
@@ -323,13 +323,16 @@ int Table::columnWidth(size_t c) const {
   return w;
 }
 
-std::pair<int, int> Table::buttonAt(int local_col) const {
+std::pair<int, int> Table::buttonAt(int local_col, int model_row) const {
   const int c = columnAt(local_col);
   if (c < 0 || columns_[static_cast<size_t>(c)].buttons.empty()) return {-1, -1};
   int x = layout().x[static_cast<size_t>(c)];
   for (size_t i = 0; i < columns_[static_cast<size_t>(c)].buttons.size(); i++) {
     const int w = columns_[static_cast<size_t>(c)].buttons[i].width();
-    if (local_col >= x && local_col < x + w) return {c, static_cast<int>(i)};
+    if (local_col >= x && local_col < x + w) {
+      if (model_row >= 0 && model_ && !model_->buttonShown(model_row, c, static_cast<int>(i))) return {-1, -1};
+      return {c, static_cast<int>(i)};
+    }
     x += w + 1;
   }
   return {-1, -1};
@@ -386,7 +389,10 @@ std::vector<std::pair<int, int>> Table::stops() const {
   for (size_t c = 0; c < columns_.size(); c++) {
     if (!shown(c)) continue;
     const int n = std::max<int>(1, static_cast<int>(columns_[c].buttons.size()));
-    for (int i = 0; i < n; i++) out.push_back({static_cast<int>(c), i});
+    for (int i = 0; i < n; i++) {
+      if (!columns_[c].buttons.empty() && selected_ >= 0 && model_ && !model_->buttonShown(selected_, static_cast<int>(c), i)) continue;
+      out.push_back({static_cast<int>(c), i});
+    }
   }
   return out;
 }
@@ -397,6 +403,12 @@ std::pair<int, int> Table::cursorStop() const {
   for (const auto & stop : all)
     if (stop >= std::pair<int, int>{cursor_column_, cursor_button_}) return stop;
   return all.back();
+}
+
+void Table::scrollToPosition(int position) {
+  rows_.setExtent(static_cast<int>(order_.size()), visibleRows());
+  rows_.scrollTo(position);
+  render();
 }
 
 int Table::cursorColumn() const { return cursorStop().first; }
@@ -590,6 +602,10 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
       int x = l.x[c];
       for (size_t i = 0; i < columns_[c].buttons.size(); i++) {
         const ButtonFace & face = columns_[c].buttons[i];
+        if (!model_->buttonShown(model_row, col, static_cast<int>(i))) {
+          x += face.width() + 1;  // not on this row: its place stays empty
+          continue;
+        }
         const bool here = cursor_here && stop.second == static_cast<int>(i);
         if (here) paintCursorCell(x, face.width());
         else {
