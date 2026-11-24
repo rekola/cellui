@@ -157,7 +157,7 @@ class Table : public Widget {
   void scrollToPosition(int position);
 
   // The cursor's second level: which column (and, in a buttons column, which button) of the selected row is the
-  // point. The row is drawn inverted and the cursor's cell is not, with a border in the bar's colour instead. Left and
+  // point. The selected row is tinted (as a pressed one is) and the cursor's cell on it is the bar, inverted. Left and
   // Right move it (a hidden column and a gap are skipped), a click on a cell puts it there, and Enter acts on it: on
   // a button it is a click on the button (button_clicked), on any other cell it says cell_activated. The column is
   // kept through sorts and model changes, and when it is not shown the nearest one that is takes its place.
@@ -216,7 +216,6 @@ class Table : public Widget {
   void moveCursor(int delta);
   // The cursor's cell in the table's columns.
   void cursorSpan(const Layout & l, std::pair<int, int> stop, int & x, int & width) const;
-  void drawCursor(const Layout & l, const StyleProvider & styles);
   void drawHeading(const Layout & l, const StyleProvider & styles);
   void drawRow(const Layout & l, const StyleProvider & styles, int position, int y);
   void drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon, bool inverted, const Color & paper, const Color & ink, bool light_ink);
