@@ -11,7 +11,8 @@ namespace cellui {
 
 namespace {
 
-constexpr int kMaxWidth = 70;
+constexpr int kMinWidth = 60;  // an error and a summary are a line each: room for a sentence
+constexpr int kMaxWidth = 80;
 constexpr int kFieldWidth = 30;
 constexpr const char * kOk = " OK ";
 constexpr const char * kCancel = " Cancel ";
@@ -169,7 +170,7 @@ void FormModal::layout(Plane & screen, int rows, int cols) {
   const int n = static_cast<int>(fields_.size());
   // Padding, title, a gap, the fields, a gap, the error, the summary, a gap, the buttons, the hint, padding.
   const int height = std::min(rows, n + 10);
-  const int width = std::min(std::max(20, cols - 2), std::min(kMaxWidth, label_width + kFieldWidth + 6));
+  const int width = std::min(std::max(20, cols - 2), std::min(kMaxWidth, std::max(kMinWidth, label_width + kFieldWidth + 6)));
   const int field_width = std::max(8, width - label_width - 6);
 
   if (!plane_) {
