@@ -472,7 +472,7 @@ Table::Layout Table::layout() const {
 }
 
 bool Table::shown(size_t c) const {
-  if (!columns_[c].icon) return true;
+  if (!columns_[c].icon || columns_[c].icon_fallback) return true;
   int h = 0, w = 0;
   return getPlane().cellPixelSize(h, w) && h > 0 && w > 0;
 }
@@ -575,7 +575,14 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
     setFgColor(fg);
     if (columns_[c].icon) {
       if (cursor_here) paintCursorCell(l.x[c], l.width[c]);
-      drawIcon(y, l.x[c], l.width[c], model_->icon(model_row, col), cursor_here && focused_, styles.highlight_bg_color, styles.highlight_fg_color, lightIcons(styles));
+      int ph = 0, pw = 0;
+      const auto picture = getPlane().cellPixelSize(ph, pw) && ph > 0 && pw > 0 ? model_->icon(model_row, col) : nullptr;
+      if (picture) {
+        drawIcon(y, l.x[c], l.width[c], picture, cursor_here && focused_, styles.highlight_bg_color, styles.highlight_fg_color, lightIcons(styles));
+      } else if (columns_[c].icon_fallback) {
+        const std::string symbol = model_->iconFallback(model_row, col);
+        if (!symbol.empty()) putstr(y, l.x[c], symbol);
+      }
       continue;
     }
     if (!columns_[c].buttons.empty()) {

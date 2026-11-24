@@ -36,6 +36,9 @@ struct TableColumn {
   // The cells are pictures (TableModel::icon()), shown where the display shows
   // pictures. Where it does not, the column takes no room and no gap.
   bool icon = false;
+  // With `icon`: the column is kept where the display shows no pictures, and a cell with no picture (or on such a display) shows
+  // TableModel::iconFallback() as text, a symbol that stands for the picture.
+  bool icon_fallback = false;
   // The cells are a row of small buttons, one for each glyph (the same in every row): "[i]", an icon, a word. The
   // column is as wide as its buttons (one cell between them), not `width`, and is never sorted. A click on one emits
   // Table::button_clicked with its row and the button's index, and leaves the selection where it is.
@@ -66,6 +69,8 @@ class TableModel {
   // The picture of a cell in an icon column; null for none (not there yet, or the row has none). Read while the cell
   // is drawn, so it must not wait for anything.
   virtual std::shared_ptr<const TableIcon> icon(int /*row*/, int /*column*/) const { return nullptr; }
+  // The symbol (a short text, such as an emoji) an icon column with `icon_fallback` shows where the cell has no picture; empty for none.
+  virtual std::string iconFallback(int /*row*/, int /*column*/) const { return {}; }
   // Whether button `button` of a buttons column is there on this row. All are by default (the buttons are the same in every
   // row); a model that has an action only some rows can take says no for the others: the button is not drawn, a click on its
   // place is a click on the row, and the cursor does not stop there. The column keeps its width.
