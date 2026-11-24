@@ -66,6 +66,10 @@ class TableModel {
   // The picture of a cell in an icon column; null for none (not there yet, or the row has none). Read while the cell
   // is drawn, so it must not wait for anything.
   virtual std::shared_ptr<const TableIcon> icon(int /*row*/, int /*column*/) const { return nullptr; }
+  // Whether button `button` of a buttons column is there on this row. All are by default (the buttons are the same in every
+  // row); a model that has an action only some rows can take says no for the others: the button is not drawn, a click on its
+  // place is a click on the row, and the cursor does not stop there. The column keeps its width.
+  virtual bool buttonShown(int /*row*/, int /*column*/, int /*button*/) const { return true; }
   // The cell's colour: the text's, or a trace's line. Unset is the theme's.
   virtual std::optional<Color> color(int /*row*/, int /*column*/) const { return std::nullopt; }
   // The cell's value, which it sorts by: a model with numbers gives them
@@ -148,6 +152,9 @@ class Table : public Widget {
   double scrollPosition() const { return rows_.shown(); }
   // The position of the first row in view.
   int firstVisiblePosition() const { return rows_.offset(); }
+  // Scrolls so that the row at `position` is the first in view (as far as the rows allow), the selection untouched: for a view put back
+  // as it was left.
+  void scrollToPosition(int position);
 
   // The cursor's second level: which column (and, in a buttons column, which button) of the selected row is the
   // point. The row is drawn inverted and the cursor's cell is not, with a border in the bar's colour instead. Left and
@@ -199,10 +206,11 @@ class Table : public Widget {
   // The cells column `c` takes: its own width, or its buttons' together.
   int columnWidth(size_t c) const;
   // The button of a buttons column at a table column, as {column, index}; {-1, -1} for none.
-  std::pair<int, int> buttonAt(int local_col) const;
+  // The same for the row `model_row` (-1: whatever row): a button that row does not have is not there.
+  std::pair<int, int> buttonAt(int local_col, int model_row = -1) const;
   bool key(const KeyDown & e);
   // The places the cursor can stand, in order: {column, button}, a button of its own for each one of a buttons column.
-  std::vector<std::pair<int, int>> stops() const;
+  std::vector<std::pair<int, int>> stops() const;  // of the selected row: the buttons it has
   // The cursor's place as the columns are now: {-1, -1} when none is shown.
   std::pair<int, int> cursorStop() const;
   void moveCursor(int delta);
