@@ -590,11 +590,12 @@ class Print {
 };
 
 // What a cell's background is drawn as: none (see-through or the window's
-// own), else a colour. A picture, and the second half of a wide character, sit
-// on the window's background.
+// own), else a colour. A picture sits on the window's background; the second half
+// of a wide character has the colour of the first (a selected row's tint runs under
+// the whole glyph).
 std::optional<Color> backgroundOf(const CellBuffer::Cell & cell, bool transparent, const Color & window_bg) {
   if (transparent && CellBuffer::isBlank(cell)) return std::nullopt;
-  if (cell.image > 0 || cell.continuation) return window_bg;
+  if (cell.image > 0) return window_bg;
   return cell.bg.value_or(window_bg);
 }
 
