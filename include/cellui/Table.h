@@ -66,6 +66,9 @@ class TableModel {
   // The values of a trace cell, oldest first (see TraceLook): a view of the
   // model's own values, read while the cell is drawn, so nothing is copied.
   virtual std::span<const float> trace(int /*row*/, int /*column*/) const { return {}; }
+  // How bright the line is at each value of trace(), 0 to 1 (TraceLook::light): as many numbers as the
+  // trace has values, or none for a line of one medium brightness throughout.
+  virtual std::span<const float> traceLight(int /*row*/, int /*column*/) const { return {}; }
   // The picture of a cell in an icon column; null for none (not there yet, or the row has none). Read while the cell
   // is drawn, so it must not wait for anything.
   virtual std::shared_ptr<const TableIcon> icon(int /*row*/, int /*column*/) const { return nullptr; }

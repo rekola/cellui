@@ -210,7 +210,8 @@ TEST(gtk_window_blooms_a_lit_picture_once_however_often_it_is_shown) {
   root.setHdrPictures(w->display().hdr_pictures);
   auto drawn = [&](int row, const std::vector<float> & values) {
     root.erase();
-    TraceLook look{Color::linear(0.01f, 0.01f, 0.01f), Color::linear(0.1f, 0.6f, 0.2f), std::nullopt, 4.0f};
+    const std::vector<float> light(values.size(), 1.0f);
+    TraceLook look{Color::linear(0.01f, 0.01f, 0.01f), Color::linear(0.1f, 0.6f, 0.2f), std::nullopt, 4.0f, light};
     charts->drawTrace(root, row, 2, 2, 20, values, look, 0, w->rows(), 7);
     root.refresh();
     size_t before = w->stats().frames;
