@@ -28,6 +28,12 @@ struct KeyDown {
   std::chrono::steady_clock::time_point timestamp{};
 };
 
+// Text pasted from the clipboard (one line: newlines are spaces). Goes to the
+// focused widget, or to the open modal dialog; a text reader takes it first.
+struct Paste {
+  std::string text;
+};
+
 // Only where DisplayInfo::key_release.
 struct KeyUp {
   int key = 0;
