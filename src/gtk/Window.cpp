@@ -321,10 +321,16 @@ struct Window::Impl {
   // The display's own text selection (Backend::setNativeSelection): a drag with the left button selects the cells
   // between where it began and where it is, in reading order, and Ctrl+C copies their text. The application is
   // told nothing of the pointer or the selection meanwhile.
+  // A selection stays inside the raised plane (a dialog) it began in, or the screen where none is there: the rows
+  // between its ends run from that plane's left edge to its right, not the window's.
   struct Selection {
     bool has = false, dragging = false;
     int from_row = 0, from_col = 0, to_row = 0, to_col = 0;
+    int min_row = 0, min_col = 0, max_row = 0, max_col = 0;  // the cells it can reach, ends included
   };
+  Selection beginSelection(int row, int col) const;
+  // Calls `fn(row, from, to)` for each row of the selection with the columns it covers there, top to bottom.
+  void forEachSelectedRow(const std::function<void(int, int, int)> & fn) const;
   struct Spot {
     const CellBuffer * cells = nullptr;
     int row = 0, col = 0;
@@ -1622,19 +1628,13 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
     }
   }
   if (native_selection && selection.has) {
-    int r0 = selection.from_row, c0 = selection.from_col, r1 = selection.to_row, c1 = selection.to_col;
-    if (std::tie(r1, c1) < std::tie(r0, c0)) {
-      std::swap(r0, r1);
-      std::swap(c0, c1);
-    }
     // Over whatever the cells show, in the text's own colour so it reads on a light theme and a dark one.
     GdkRGBA tint = channel(fg, 0.28f);
-    for (int row = r0; row <= r1; row++) {
-      const int from = row == r0 ? c0 : 0, to = row == r1 ? c1 : std::max(0, cols - 1);
+    forEachSelectedRow([&](int row, int from, int to) {
       graphene_rect_t box = GRAPHENE_RECT_INIT(static_cast<float>(from * cell_w), static_cast<float>(row * cell_h), static_cast<float>((to - from + 1) * cell_w),
                                                static_cast<float>(cell_h));
       gtk_snapshot_append_color(snap, &tint, &box);
-    }
+    });
   }
   if (cursor.visible) {
     graphene_rect_t bar = GRAPHENE_RECT_INIT(static_cast<float>(cursor.x * cell_w), static_cast<float>(cursor.y * cell_h), 2.0f, static_cast<float>(cell_h));
@@ -1645,6 +1645,39 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
   stats.frames++;
   stats.draw_ms_total += ms;
   stats.draw_ms_max = std::max(stats.draw_ms_max, ms);
+}
+
+Window::Impl::Selection Window::Impl::beginSelection(int row, int col) const {
+  Selection s;
+  s.has = s.dragging = true;
+  s.from_row = s.to_row = row;
+  s.from_col = s.to_col = col;
+  s.min_row = s.min_col = 0;
+  s.max_row = std::max(0, rows - 1);
+  s.max_col = std::max(0, cols - 1);
+  // The highest plane that casts a shadow over the cell it began on.
+  const ElevatedArea * top = nullptr;
+  for (const ElevatedArea & area : elevations) {
+    if (area.scrim || !area.shadow || row < area.row || row >= area.row + area.rows || col < area.col || col >= area.col + area.cols) continue;
+    if (!top || area.elevation >= top->elevation) top = &area;
+  }
+  if (top) {
+    s.min_row = std::max(s.min_row, top->row);
+    s.min_col = std::max(s.min_col, top->col);
+    s.max_row = std::min(s.max_row, top->row + top->rows - 1);
+    s.max_col = std::min(s.max_col, top->col + top->cols - 1);
+  }
+  return s;
+}
+
+void Window::Impl::forEachSelectedRow(const std::function<void(int, int, int)> & fn) const {
+  if (!selection.has) return;
+  int r0 = selection.from_row, c0 = selection.from_col, r1 = selection.to_row, c1 = selection.to_col;
+  if (std::tie(r1, c1) < std::tie(r0, c0)) {
+    std::swap(r0, r1);
+    std::swap(c0, c1);
+  }
+  for (int row = r0; row <= r1; row++) fn(row, row == r0 ? c0 : selection.min_col, row == r1 ? c1 : selection.max_col);
 }
 
 void Window::Impl::clearSelection() {
@@ -1739,16 +1772,13 @@ std::string Window::Impl::rowText(int row, int from, int to) const {
 
 std::string Window::Impl::selectedText() const {
   if (!selection.has) return {};
-  int r0 = selection.from_row, c0 = selection.from_col, r1 = selection.to_row, c1 = selection.to_col;
-  if (std::tie(r1, c1) < std::tie(r0, c0)) {
-    std::swap(r0, r1);
-    std::swap(c0, c1);
-  }
   std::string out;
-  for (int row = r0; row <= r1; row++) {
-    if (row > r0) out += '\n';
-    out += rowText(row, row == r0 ? c0 : 0, row == r1 ? c1 : std::max(0, cols - 1));
-  }
+  bool first = true;
+  forEachSelectedRow([&](int row, int from, int to) {
+    if (!first) out += '\n';
+    first = false;
+    out += rowText(row, from, to);
+  });
   return out;
 }
 
@@ -1825,7 +1855,7 @@ void Window::Impl::buttonEvent(int button, double x, double y, bool pressed, Gdk
   last_fx = fx;
   if (native_selection && button == 1) {
     if (pressed) {
-      selection = Selection{true, true, row, col, row, col};
+      selection = beginSelection(row, col);
     } else if (selection.dragging) {
       selection.dragging = false;
       // A click that went nowhere selects nothing.
@@ -1861,8 +1891,8 @@ void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
   updateMouseCursor();
   if (native_selection) {
     if (selection.dragging) {
-      selection.to_row = row;
-      selection.to_col = col;
+      selection.to_row = std::clamp(row, selection.min_row, selection.max_row);
+      selection.to_col = std::clamp(col, selection.min_col, selection.max_col);
       gtk_widget_queue_draw(view);
     }
     return;
