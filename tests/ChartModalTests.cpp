@@ -106,10 +106,23 @@ TEST(chart_modal_arrow_keys_move_the_cursor_and_the_reading_follows) {
 TEST(chart_modal_the_cursor_is_drawn_where_it_is) {
   Fixture f;
   ChartModal chart(f.root, f.screen, f.loop, *f.charts, prices());
+  // What the screen's backgrounds are: the cursor tints the cell it is in.
+  auto looks = [&] {
+    f.screenText();
+    std::string out;
+    for (int row = 0; row < f.buffer.rows(); row++) {
+      for (int col = 0; col < f.buffer.cols(); col++) {
+        const auto & bg = f.buffer.at(row, col).bg;
+        if (bg) for (unsigned char byte : bg->toSrgb8()) out += static_cast<char>(byte);
+        out += '|';
+      }
+    }
+    return out;
+  };
   std::string at_end, at_start;
-  f.then([&] { at_end = f.screenText(); });
+  f.then([&] { at_end = looks(); });
   f.key(Key::Home);
-  f.then([&] { at_start = f.screenText(); });
+  f.then([&] { at_start = looks(); });
   f.key(Key::Escape);
   chart.showModal();
   CHECK(!at_end.empty() && at_end != at_start);

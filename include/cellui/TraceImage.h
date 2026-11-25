@@ -40,8 +40,8 @@ struct TraceLook {
   // What the bottom and the top of the box stand for, where that is more than the series' own lowest and highest (a level
   // meter's 0 to 1: a value outside is clamped to the edge). Unset: the lowest and highest value of the series.
   std::optional<std::pair<float, float>> range = std::nullopt;
-  // A cursor across the box, 0 (the left edge: the first value) to 1 (the right: the last): a hairline through the whole
-  // height and, where the display draws pictures, a dot on the line. Unset: none.
+  // A cursor across the box, 0 (the left edge: the first value) to 1 (the right: the last): where the display draws pictures a
+  // hairline through the whole height and a dot on the line, in cells the cell it falls in with its background tinted. Unset: none.
   std::optional<float> cursor = std::nullopt;
   // The line's width in logical pixels (scaled by the display scale): thicker for a chart of its own than for a table's cell.
   float line_width = 1.5f;
