@@ -1,5 +1,7 @@
 #include "NativeContext.h"
 
+#include <mutex>
+
 #if defined(CANVAS_HAS_QUARTZ)
 #include <canvas/ContextQuartz2D.h>
 #elif defined(CANVAS_HAS_GDIPLUS)
@@ -10,7 +12,21 @@
 
 namespace cellui {
 
+namespace {
+#if defined(CANVAS_HAS_GDIPLUS)
+// GDI+ must be started once before any of its objects is made (a bitmap made first crashes inside Gdiplus). canvas does
+// that in its context factory, which this file bypasses, so it is done here, before the first context and for good.
+void startNativeLibrary() {
+  static std::once_flag started;
+  std::call_once(started, [] { canvas::ContextGDIPlus::initialize(); });
+}
+#else
+void startNativeLibrary() {}
+#endif
+}  // namespace
+
 std::unique_ptr<canvas::Context> nativeContext(unsigned width, unsigned height, unsigned channels, float display_scale) {
+  startNativeLibrary();
 #if defined(CANVAS_HAS_QUARTZ)
   // Fonts and colour spaces are kept in a cache the contexts share; it is not
   // thread safe, so each thread has its own.
@@ -30,6 +46,7 @@ std::unique_ptr<canvas::Context> nativeContext(unsigned width, unsigned height, 
 }
 
 LinearContext nativeLinearContext(unsigned width, unsigned height, float display_scale, bool prefer_float) {
+  startNativeLibrary();
   LinearContext result;
   canvas::PixelSize size{ width, height };
 #if defined(CANVAS_HAS_QUARTZ)

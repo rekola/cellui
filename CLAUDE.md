@@ -57,7 +57,7 @@ carries the app's object as an opaque `getAppContext()`.
   `CommandPalette` with `FuzzyMatch.h`, `ModalDialog`, `StatusLine`: the bottom row's message
   and its Emacs-style prompt with Tab completion; `Label`: a line of text on a background of its
   own, its colours fixed or theme roles (`&StyleProvider::info_line_fg_color`), drawn again on
-  every change and resize; `Table` with `TableModel`: a click on a heading sorts, no key does; its cursor has two levels (the selected row inverted, `cursorColumn()`/`cursorButton()` an un-inverted cell with a border-only `Band` in the bar's colour; Left/Right move it, Enter says `cell_activated` or clicks the button; a click on a cell that is not a button, released on the row it went down on, says `cell_clicked(row, column)` once the row is selected);
+  every change and resize; `Table` with `TableModel`: a click on a heading sorts, no key does; its cursor has two levels (the selected row tinted as a pressed one is, `cursorColumn()`/`cursorButton()` the inverted cell on it; Left/Right move it, Enter says `cell_activated` or clicks the button; a click on a cell that is not a button, released on the row it went down on, says `cell_clicked(row, column)` once the row is selected);
   `ScrollBody` (the body of a dialog that draws plain lines: smooth scrolling, a draggable scrollbar and the wheel, on a plane of its own over the box; the dialog draws `drawnRows()` lines from `firstLine()` with `putText()` and passes it keys and pointer events; stocks' attribute dialog);
   `FormModal` (a modal form: labelled fields of kind text, number or date, each checked as it is typed, an error line, a summary line the program recomputes after every edit through a callback, a check of the fields together, Tab/Shift+Tab between fields then OK and Cancel, Enter accepts, Esc cancels, OK and Cancel by mouse; `showModal()` returns 0 or `kClosed`; `parseFormNumber()`/`parseFormDate()` read the values, a comma is a decimal point; cells and text on one plane, so it is the same in a terminal and in the GTK window);
   `ChartModal` (a series drawn large over the dimmed screen with no window: only the line through `Charts::drawTrace()` with its value labels, the first and last x label, a title, a cursor line with a reading of the value under it (`TraceLook::cursor`; Left/Right, Page Up/Down, Home/End and the pointer move it, Escape, Enter, q, Ctrl+G or a click outside close it); the same in a terminal and in the window; stocks opens it from a click on a trace cell);
@@ -348,8 +348,10 @@ serves the terminal and `TestBackend`; `GlibEventLoop` the GTK window;
 `--ui auto|terminal|window|headless`: `auto` tries the window when built with
 GTK and a display is there (`WAYLAND_DISPLAY` or `DISPLAY`), else the
 terminal; a named backend that cannot start is an error; the choice is made
-once (`cellui/BackendChoice.h`). `SYNTH_WINDOW_STATS=<file>` appends frame
-timing (and missed-vsync counts) at exit.
+once (`cellui/BackendChoice.h`). `CELLUI_WINDOW_STATS=<file>` appends a line at
+exit (`Window` closing): frames, late ticks, the snapshot's time, the whole paint's (`FrameStats::paint_ms_*`, from the frame clock's
+before-paint to after-paint: the snapshot and GSK's rendering of it, the part a slow GPU or renderer shows in) and the counts of text
+runs and glyphs laid out.
 
 ## Terminal backend (`cellui/term/`)
 
@@ -483,6 +485,16 @@ table of dozens of traces costs no more than without the light. The core thicken
 brightest: what is near a bright line reaches full strength, so the line looks wider the more light it
 carries, as an overexposed filament does. The glow has a clip of its own, wider than the picture's cells: a
 lamp at the picture's edge glows past it. A frame without light past white costs only the first texture.
+Native selection (`setNativeSelection(true)`, which an application sets while a
+dialog that `wantsNativeSelection()` is up, as a terminal's mouse reporting is
+off then): the window takes the left button itself, so the application hears no
+press, motion or release. A drag selects the cells between its ends in reading
+order (tinted in the text colour), the wheel or turning it off clears it, and
+Ctrl+C puts the text on the clipboard. The text is read from what is shown
+(`spotAt()`: the frame's cells, then the scrolled planes above the last
+backdrop, never the blurred screen behind it); a proportional text run gives the
+part over the selected cells by where Pango puts each character, and each row
+loses its trailing blanks.
 Not done yet:
 per-plane render nodes, input methods, HiDPI, native dialogs and menus.
 

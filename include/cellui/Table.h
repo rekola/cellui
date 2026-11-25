@@ -36,6 +36,9 @@ struct TableColumn {
   // The cells are pictures (TableModel::icon()), shown where the display shows
   // pictures. Where it does not, the column takes no room and no gap.
   bool icon = false;
+  // With `icon`: the column is kept where the display shows no pictures, and a cell with no picture (or on such a display) shows
+  // TableModel::iconFallback() as text, a symbol that stands for the picture.
+  bool icon_fallback = false;
   // The cells are a row of small buttons, one for each glyph (the same in every row): "[i]", an icon, a word. The
   // column is as wide as its buttons (one cell between them), not `width`, and is never sorted. A click on one emits
   // Table::button_clicked with its row and the button's index, and leaves the selection where it is.
@@ -63,9 +66,14 @@ class TableModel {
   // The values of a trace cell, oldest first (see TraceLook): a view of the
   // model's own values, read while the cell is drawn, so nothing is copied.
   virtual std::span<const float> trace(int /*row*/, int /*column*/) const { return {}; }
+  // How bright the line is at each value of trace(), 0 to 1 (TraceLook::light): as many numbers as the
+  // trace has values, or none for a line of one medium brightness throughout.
+  virtual std::span<const float> traceLight(int /*row*/, int /*column*/) const { return {}; }
   // The picture of a cell in an icon column; null for none (not there yet, or the row has none). Read while the cell
   // is drawn, so it must not wait for anything.
   virtual std::shared_ptr<const TableIcon> icon(int /*row*/, int /*column*/) const { return nullptr; }
+  // The symbol (a short text, such as an emoji) an icon column with `icon_fallback` shows where the cell has no picture; empty for none.
+  virtual std::string iconFallback(int /*row*/, int /*column*/) const { return {}; }
   // Whether button `button` of a buttons column is there on this row. All are by default (the buttons are the same in every
   // row); a model that has an action only some rows can take says no for the others: the button is not drawn, a click on its
   // place is a click on the row, and the cursor does not stop there. The column keeps its width.
@@ -157,7 +165,7 @@ class Table : public Widget {
   void scrollToPosition(int position);
 
   // The cursor's second level: which column (and, in a buttons column, which button) of the selected row is the
-  // point. The row is drawn inverted and the cursor's cell is not, with a border in the bar's colour instead. Left and
+  // point. The selected row is tinted (as a pressed one is) and the cursor's cell on it is the bar, inverted. Left and
   // Right move it (a hidden column and a gap are skipped), a click on a cell puts it there, and Enter acts on it: on
   // a button it is a click on the button (button_clicked), on any other cell it says cell_activated. The column is
   // kept through sorts and model changes, and when it is not shown the nearest one that is takes its place.
@@ -219,7 +227,6 @@ class Table : public Widget {
   void moveCursor(int delta);
   // The cursor's cell in the table's columns.
   void cursorSpan(const Layout & l, std::pair<int, int> stop, int & x, int & width) const;
-  void drawCursor(const Layout & l, const StyleProvider & styles);
   void drawHeading(const Layout & l, const StyleProvider & styles);
   void drawRow(const Layout & l, const StyleProvider & styles, int position, int y);
   void drawIcon(int y, int x, int width, const std::shared_ptr<const TableIcon> & icon, bool inverted, const Color & paper, const Color & ink, bool light_ink);

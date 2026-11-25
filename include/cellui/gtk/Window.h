@@ -22,10 +22,13 @@ struct FrameStats {
   size_t late_ticks = 0;  // ticks of a run more than 25 ms after the one before (a missed vsync at 60 Hz)
   double draw_ms_total = 0, draw_ms_max = 0;      // the whole snapshot
   double raster_ms_total = 0, raster_ms_max = 0;  // the cells rasterized into pixels
+  size_t paints = 0;  // frames the frame clock painted: the snapshot above and GSK's rendering of it, to the call that hands it to the GPU
+  double paint_ms_total = 0, paint_ms_max = 0;
   size_t shadows = 0;  // the last frame's, under raised planes
   size_t glows = 0;  // the last frame's bands with cells lit past white
   size_t blooms = 0;  // pictures' light past white blurred into textures so far, once per picture version and size
   size_t glyphs_shaped = 0;  // glyphs laid out by Pango so far; a glyph in another colour is not
+  size_t text_runs_laid_out = 0;  // runs of proportional text laid out by Pango so far; one shown again is kept, not laid out again
   size_t zoom_runs = 0;  // pieces of cells zoomed as one, counted as the band holding them is built
   size_t glyphs_zoomed = 0;  // lit glyphs drawn larger, counted as the band holding them is built
   size_t link_readings = 0;  // frame rates the link class was updated from so far
@@ -72,6 +75,10 @@ class Window : public Backend {
   LinkStatus linkStatus() const override;
   void setLinkHandler(LinkHandler handler) override;
   void setLinkPin(std::optional<LinkClass> pin) override;
+
+  // The window selects text itself while this is on: a drag with the left button selects, Ctrl+C copies, and
+  // the application sees neither the pointer nor the selection (a terminal does the same by itself).
+  void setNativeSelection(bool on) override;
 
   // Makes wakeFd() readable; any thread may call it.
   void wake();

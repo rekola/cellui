@@ -301,6 +301,12 @@ void FormModal::keyDown(const KeyDown & e) {
   }
 }
 
+void FormModal::paste(const Paste & e) {
+  if (focus_ >= fields_.size()) return;
+  editors_[focus_].insert(e.text);
+  changed();
+}
+
 void FormModal::mouseDown(const MouseDown & e) {
   if (e.button != 1) return;
   const int target = targetAt(e.row, e.col);

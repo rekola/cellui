@@ -411,7 +411,13 @@ void Application::handle(const BackendEvent & event) {
       while (key_reader_.next(&in)) offerInput(in);
       break;
     }
-    case BackendEvent::Type::PASTE: root_plane_.insertIntoReader(event.text); break;
+    case BackendEvent::Type::PASTE:
+      if (!root_plane_.insertIntoReader(event.text)) {
+        std::string line = event.text;
+        std::replace(line.begin(), line.end(), '\n', ' ');
+        dispatcher_->paste(Paste{ std::move(line) });
+      }
+      break;
     case BackendEvent::Type::FOCUS:
       styles_->window_focused = event.focused;
       focus_changed.emit(event.focused);

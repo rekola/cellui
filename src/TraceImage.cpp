@@ -41,6 +41,20 @@ std::vector<float> resample(std::span<const float> values, size_t count, std::op
   return out;
 }
 
+std::vector<float> resampleLight(const TraceLook & look, size_t values_size, size_t count) {
+  std::vector<float> out(count, 0.0f);
+  const std::span<const float> light = look.light;
+  if (light.empty() || light.size() != values_size) return out;
+  auto level = [&](size_t k) { return std::isfinite(light[k]) ? std::clamp(light[k], 0.0f, 1.0f) : 0.0f; };
+  for (size_t i = 0; i < count; i++) {
+    double at = count == 1 ? 0.0 : static_cast<double>(i) * static_cast<double>(light.size() - 1) / static_cast<double>(count - 1);
+    size_t k = static_cast<size_t>(at);
+    double t = at - static_cast<double>(k);
+    out[i] = k + 1 < light.size() ? static_cast<float>(level(k) * (1.0 - t) + level(k + 1) * t) : level(k);
+  }
+  return out;
+}
+
 Picture renderPicture(std::span<const float> values, const TraceLook & look, unsigned width, unsigned height, float scale, bool prefer_float) {
   StageTimer timer(Stage::PICTURE_RENDER);
   Picture blank;
@@ -68,21 +82,20 @@ Picture renderPicture(std::span<const float> values, const TraceLook & look, uns
       ctx.beginPath().moveTo(x_at(0), h);
       for (size_t x = 0; x < levels.size(); x++) ctx.lineTo(x_at(x), y_at(x));
       ctx.lineTo(x_at(levels.size() - 1), h).closePath();
-      // Fades in from nothing at the bottom, so the line's body is the brightest part of the fill.
+      // Fades in from nothing at the bottom, so the line's body is the brightest part of the fill, and at its
+      // strongest it is only as bright as a neutral line is (kNeutralLine of the colour at 0.30).
       auto fill = ctx.createLinearGradient(0, h, 0, 0);
-      fill.addColorStop(0.0f, toCanvas(*look.fill, 0.03f));
-      fill.addColorStop(1.0f, toCanvas(*look.fill, 0.30f));
+      fill.addColorStop(0.0f, toCanvas(*look.fill, 0.03f * kNeutralLine));
+      fill.addColorStop(1.0f, toCanvas(*look.fill, 0.30f * kNeutralLine));
       ctx.fillStyle = fill;
       ctx.fill();
     }
     ctx.beginPath().moveTo(x_at(0), y_at(0));
     for (size_t x = 1; x < levels.size(); x++) ctx.lineTo(x_at(x), y_at(x));
-    auto stroke = ctx.createLinearGradient(0, h, 0, 0);
-    // The light past white rises on a curve, so the gradient is more than its two ends.
-    for (int i = 0; i <= 8; i++) {
-      float t = static_cast<float>(i) / 8.0f;
-      stroke.addColorStop(t, toCanvas(lineColorAt(look, t, true)));
-    }
+    // The brightness changes along the line, so the gradient runs across the box with a stop for each pixel column.
+    const std::vector<float> light = resampleLight(look, values.size(), levels.size());
+    auto stroke = ctx.createLinearGradient(0, 0, w, 0);
+    for (size_t x = 0; x < light.size(); x++) stroke.addColorStop(static_cast<float>(x_at(x) * scale / static_cast<double>(width)), toCanvas(lineColorAt(look, light[x], true)));
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.5f;
     ctx.stroke();

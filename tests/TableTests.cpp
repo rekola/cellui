@@ -48,6 +48,13 @@ struct Fixture {
     k.key = key;
     table.post(k);
   }
+  void keyPress(int key, bool ctrl, bool shift) {
+    KeyDown k;
+    k.key = key;
+    k.mods.ctrl = ctrl;
+    k.mods.shift = shift;
+    table.post(k);
+  }
 };
 
 }  // namespace
@@ -94,6 +101,18 @@ TEST(table_selection_keys_clicks_and_signals) {
   CHECK(selected == 1);  // table row 2 of screen => position 1
   f.keyPress(Key::Home);
   CHECK(selected == 0);
+}
+
+TEST(ctrl_shift_p_is_not_ctrl_p) {
+  Fixture f;
+  int selected = -2;
+  auto a = f.table.selection_changed.connect([&](int r) { selected = r; });
+  f.keyPress(Key::End);
+  CHECK(selected == 3);
+  f.keyPress('p', true, true);  // the command palette's, left for the keymap
+  CHECK(selected == 3);
+  f.keyPress('p', true, false);  // Emacs: up
+  CHECK(selected == 2);
 }
 
 TEST(table_selection_follows_its_row_through_a_sort) {
@@ -309,14 +328,26 @@ TEST(table_heading_is_pressed_while_held_and_sorts_on_release) {
   CHECK(f.table.sortColumn() == 1);
 }
 
-TEST(trace_line_is_a_gradient_that_is_lit_past_white_only_at_the_top) {
+TEST(trace_line_is_medium_at_no_light_and_lit_past_white_only_at_the_top) {
   TraceLook look{Color(10, 10, 10), Color(60, 180, 80), std::nullopt};
-  Color low = trace_image::lineColorAt(look, 0.1f, true), high = trace_image::lineColorAt(look, 1.0f, true);
-  auto top = std::max({high.r(), high.g(), high.b()});
-  CHECK(top > 1.0f);
-  CHECK(std::max({low.r(), low.g(), low.b()}) < 1.0f);
-  Color flat = trace_image::lineColorAt(look, 1.0f, false);
-  CHECK(std::max({flat.r(), flat.g(), flat.b()}) <= 1.0f);
+  Color none = trace_image::lineColorAt(look, 0.0f, true), mid = trace_image::lineColorAt(look, 0.3f, true), high = trace_image::lineColorAt(look, 1.0f, true);
+  auto peak = [](const Color & c) { return std::max({c.r(), c.g(), c.b()}); };
+  CHECK(peak(high) > 1.0f);
+  CHECK(peak(mid) < 1.0f);
+  CHECK(peak(none) < peak(mid));
+  CHECK(peak(none) > peak(look.background));  // medium, not dark
+  CHECK(peak(trace_image::lineColorAt(look, 1.0f, false)) <= 1.0f);
+}
+
+TEST(trace_light_is_resampled_with_the_values_and_is_zero_where_it_does_not_fit) {
+  const std::vector<float> light = {0.0f, 1.0f, 2.0f};  // above 1 is kept to 1
+  TraceLook look{Color(10, 10, 10), Color(60, 180, 80), std::nullopt, 4.0f, light};
+  auto v = trace_image::resampleLight(look, 3, 5);
+  CHECK(v.size() == 5);
+  CHECK(v.front() == 0.0f);
+  CHECK(v.back() == 1.0f);
+  CHECK(v[1] == 0.5f);
+  for (float x : trace_image::resampleLight(look, 4, 5)) CHECK(x == 0.0f);  // not one for each value
 }
 
 TEST(table_text_is_laid_out_by_the_display_when_it_can_and_aligned_in_cells_when_not) {
@@ -407,6 +438,17 @@ TEST(table_jumps_where_the_display_does_not_scroll_smoothly_and_with_taller_rows
   tall.table.setRowHeight(2);  // whole rows only: the plane would have to be shifted by parts of a table row
   tall.wheelDown();
   CHECK(!tall.table.animating());
+}
+
+// A view put back as it was (a context switched back to) is there at once: easing from the top would be a scroll nobody asked for.
+TEST(table_puts_a_view_back_where_it_was_without_easing) {
+  SmoothFixture f(true);
+  f.table.setModel(std::make_shared<Quotes>());  // another model, as a switched context has: a view at the top
+  f.table.scrollToPosition(2);
+  CHECK(f.table.firstVisiblePosition() == 2);
+  CHECK(!f.table.animating() && f.table.scrollPosition() == 2.0);
+  f.wheelDown();  // the wheel still eases
+  CHECK(f.table.animating() || f.table.scrollPosition() == 2.0);
 }
 
 TEST(table_rows_are_under_the_pointer_by_where_they_are_shown_while_easing) {

@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <functional>
+#include <future>
 #include <thread>
 #include <poll.h>
 #include <unistd.h>
@@ -210,7 +211,8 @@ TEST(gtk_window_blooms_a_lit_picture_once_however_often_it_is_shown) {
   root.setHdrPictures(w->display().hdr_pictures);
   auto drawn = [&](int row, const std::vector<float> & values) {
     root.erase();
-    TraceLook look{Color::linear(0.01f, 0.01f, 0.01f), Color::linear(0.1f, 0.6f, 0.2f), std::nullopt, 4.0f};
+    const std::vector<float> light(values.size(), 1.0f);
+    TraceLook look{Color::linear(0.01f, 0.01f, 0.01f), Color::linear(0.1f, 0.6f, 0.2f), std::nullopt, 4.0f, light};
     charts->drawTrace(root, row, 2, 2, 20, values, look, 0, w->rows(), 7);
     root.refresh();
     size_t before = w->stats().frames;
@@ -970,6 +972,53 @@ TEST(gtk_window_draws_the_emphasised_parts_of_a_text_run) {
   CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
 }
 
+// A run of text shown again as it was (a table that redraws, or scrolls by whole rows) is not laid out again; one that
+// differs in its text, its colour or its box is.
+TEST(gtk_window_lays_a_text_run_out_once_however_often_it_is_shown) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  auto present = [&](int row, const char * text, const Color & fg, int cols) {
+    CellBuffer screen(w->rows(), w->cols());
+    BufferPlane root(screen, styles);
+    root.setProportionalText(true);
+    root.setFgColor(fg);
+    root.putText(row, 2, cols, text, TextStyle{ TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS });
+    root.refresh();
+    FrameInfo info;
+    info.text_runs = root.takeTextRuns();
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images(), &info);
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  };
+  const Color white(230, 230, 230);
+  present(1, "Cached headline", white, 20);
+  const size_t laid = w->stats().text_runs_laid_out;
+  present(1, "Cached headline", white, 20);
+  present(3, "Cached headline", white, 20);  // another row: the same run at another place
+  CHECK(w->stats().text_runs_laid_out == laid);
+  present(1, "Another headline", white, 20);
+  CHECK(w->stats().text_runs_laid_out == laid + 1);
+  present(1, "Cached headline", Color(200, 40, 40), 20);
+  CHECK(w->stats().text_runs_laid_out == laid + 2);
+  present(1, "Cached headline", white, 9);
+  CHECK(w->stats().text_runs_laid_out == laid + 3);
+}
+
+// The frame clock's paint, which holds GSK's rendering of the snapshot, is timed: what a slow renderer shows in.
+TEST(gtk_window_times_the_paint_of_its_frames) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.putstr(2, 2, "paint");
+  root.refresh();
+  w->present(screen, {}, root.images());
+  CHECK(pumpUntil(*w, [&] { return w->stats().paints > 0; }));
+  CHECK(w->stats().paint_ms_total > 0.0 && w->stats().paint_ms_max >= w->stats().paint_ms_total / static_cast<double>(w->stats().paints));
+}
+
 // A glyph is shaped once; another colour of it, and its glow in that colour, are made from that.
 TEST(gtk_window_makes_another_colour_of_a_glyph_without_shaping_it_again) {
   gtk::Window * w = theWindow();
@@ -991,4 +1040,70 @@ TEST(gtk_window_makes_another_colour_of_a_glyph_without_shaping_it_again) {
   present(Color::linear(2.0f, 1.2f, 1.2f));
   present(Color::linear(1.6f, 2.4f, 1.3f));
   CHECK(w->stats().glyphs_shaped == shaped);  // no glyph shaped again, its glow included
+}
+
+// The text the X clipboard holds, read by another process while the window's loop runs (it owns the selection).
+static std::string clipboardText(gtk::Window & w) {
+  auto reader = std::async(std::launch::async, [] {
+    FILE * pipe = popen("xclip -selection clipboard -o 2>/dev/null", "r");
+    std::string out;
+    char buffer[256];
+    while (pipe && std::fgets(buffer, sizeof buffer, pipe)) out += buffer;
+    if (pipe) pclose(pipe);
+    return out;
+  });
+  pumpUntil(w, [&] { return reader.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready; }, 4000);
+  return reader.get();
+}
+
+TEST(gtk_window_selects_text_with_the_pointer_and_copies_it_while_the_native_selection_is_on) {
+  gtk::Window * w = theWindow();
+  if (!w || !haveXdotool() || std::system("command -v xclip > /dev/null 2>&1") != 0) return;
+  pumpUntil(*w, [] { return false; }, 500);
+  w->poll();
+  xdotool("search --name cellui-test windowfocus");
+  pumpUntil(*w, [] { return false; }, 200);
+
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.putstr(2, 3, "alpha beta");
+  root.putstr(3, 3, "gamma delta");
+  root.refresh();
+  w->present(screen, {}, root.images());
+  pumpUntil(*w, [] { return false; }, 300);
+
+  const int cw = w->display().cell_px_width, ch = w->display().cell_px_height;
+  const int margin = 2;
+  auto at = [&](int row, int col) { return std::to_string(margin + cw * col + cw / 2) + " " + std::to_string(margin + ch * row + ch / 2); };
+  const std::string window = "search --name cellui-test ";
+
+  // The application sees the drag until the display is asked to select.
+  w->poll();
+  xdotool(window + "mousemove --window %1 " + at(2, 3) + " mousedown 1 mousemove --window %1 " + at(2, 7) + " mouseup 1");
+  pumpUntil(*w, [] { return false; }, 400);
+  bool pressed = false;
+  for (auto & e : w->poll()) pressed |= e.type == BackendEvent::Type::INPUT && e.input.getId() == Key::Button1;
+  CHECK(pressed);
+
+  w->setNativeSelection(true);
+  xdotool(window + "mousemove --window %1 " + at(2, 6) + " mousedown 1 mousemove --window %1 " + at(3, 4) + " mouseup 1");
+  pumpUntil(*w, [] { return false; }, 400);
+  bool told = false;
+  for (auto & e : w->poll()) told |= e.type == BackendEvent::Type::INPUT && (e.input.getId() == Key::Button1 || e.input.getId() == Key::Motion);
+  CHECK(!told);  // the window took the pointer
+  xdotool("key ctrl+c");
+  pumpUntil(*w, [] { return false; }, 300);
+  // From the 'h' of "alpha" (col 6) to col 4 of the next row.
+  const std::string copied = clipboardText(*w);
+  CHECK(copied == "ha beta\n   ga");  // reading order, as a terminal selects: the next row from its first cell
+
+  // Turning it off drops the selection, and Ctrl+C is the application's again.
+  w->setNativeSelection(false);
+  w->poll();
+  xdotool("key ctrl+c");
+  pumpUntil(*w, [] { return false; }, 300);
+  bool key = false;
+  for (auto & e : w->poll()) key |= e.type == BackendEvent::Type::INPUT && e.input.getId() == 'c' && e.input.hasCtrl();
+  CHECK(key);
 }

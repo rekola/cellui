@@ -46,6 +46,7 @@ struct Theme {
   Color button_fg;
   Color button_bg;
   Color button_pressed_bg;
+  Color row_selected_bg;
   Color row_pressed_bg;
   // The menu bar, and the sections that drop down from it.
   Color menu_fg;
@@ -101,7 +102,8 @@ struct Theme {
     t.button_fg = Color("#ffffff");
     t.button_bg = Color("#c04080");
     t.button_pressed_bg = Color("#7a2850");
-    t.row_pressed_bg = Color("#5c7c8c");
+    t.row_selected_bg = Color("#5c7c8c");
+    t.row_pressed_bg = Color("#486270");
     t.menu_fg = Color("#ffffff");
     t.menu_bg = Color("#7f347f");
     t.menu_section_fg = Color("#ffffff");
@@ -138,7 +140,8 @@ struct Theme {
     t.button_fg = t.text_on_accent;
     t.button_bg = t.accent;
     t.button_pressed_bg = Color("#4f9fb4");
-    t.row_pressed_bg = Color("#2f6b78");
+    t.row_selected_bg = Color("#2f6b78");
+    t.row_pressed_bg = Color("#24535d");
     t.menu_fg = t.text_primary;
     t.menu_bg = t.surface_panel;
     t.menu_section_fg = t.text_primary;
@@ -175,7 +178,8 @@ struct Theme {
     t.button_fg = t.text_on_accent;
     t.button_bg = t.accent;
     t.button_pressed_bg = Color("#0058b8");
-    t.row_pressed_bg = Color("#b9d8ff");
+    t.row_selected_bg = Color("#b9d8ff");
+    t.row_pressed_bg = Color("#9cc4f5");
     t.menu_fg = t.text_primary;
     t.menu_bg = t.surface_panel;
     t.menu_section_fg = t.text_primary;
@@ -225,7 +229,7 @@ struct Theme {
       t.button_fg = c(0);
       t.button_bg = c(14);
       t.button_pressed_bg = eight ? c(4) : c(6);
-      t.row_pressed_bg = c(4);
+      t.row_selected_bg = t.row_pressed_bg = c(4);
     } else {
       t.surface_raised = t.surface_overlay = t.picker_bg = t.menu_section_bg = c(7);
       t.text_on_accent = c(15);
@@ -240,7 +244,7 @@ struct Theme {
       t.button_fg = c(15);
       t.button_bg = c(4);
       t.button_pressed_bg = eight ? c(6) : c(12);
-      t.row_pressed_bg = c(14);
+      t.row_selected_bg = t.row_pressed_bg = c(14);
     }
     t.dialog_radius_px = 0.0;
     return t;

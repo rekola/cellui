@@ -121,6 +121,7 @@ class PixelCharts : public Charts {
     size_t print = std::hash<unsigned>()(width * 31u + height) ^ std::hash<float>()(scale) ^ std::hash<bool>()(hdr);
     auto mix = [&](float v) { print = print * 1099511628211ull + std::hash<float>()(v); };
     for (float v : values) mix(v);
+    for (float v : look.light) mix(v);
     for (const Color * c : {&look.background, &look.line}) {
       mix(c->r());
       mix(c->g());
