@@ -97,7 +97,7 @@ Picture renderPicture(std::span<const float> values, const TraceLook & look, uns
     auto stroke = ctx.createLinearGradient(0, 0, w, 0);
     for (size_t x = 0; x < light.size(); x++) stroke.addColorStop(static_cast<float>(x_at(x) * scale / static_cast<double>(width)), toCanvas(lineColorAt(look, light[x], true)));
     ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1.5f;
+    ctx.lineWidth = look.line_width;
     ctx.stroke();
 
     if (look.cursor) {

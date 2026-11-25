@@ -43,6 +43,8 @@ struct TraceLook {
   // A cursor across the box, 0 (the left edge: the first value) to 1 (the right: the last): a hairline through the whole
   // height and, where the display draws pictures, a dot on the line. Unset: none.
   std::optional<float> cursor = std::nullopt;
+  // The line's width in logical pixels (scaled by the display scale): thicker for a chart of its own than for a table's cell.
+  float line_width = 1.5f;
 };
 
 namespace trace_image {
