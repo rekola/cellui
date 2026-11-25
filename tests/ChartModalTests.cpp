@@ -118,10 +118,10 @@ TEST(chart_modal_the_cursor_is_drawn_where_it_is) {
 TEST(chart_modal_the_pointer_over_the_chart_moves_the_cursor_and_a_click_away_closes_it) {
   Fixture f;
   ChartModal chart(f.root, f.screen, f.loop, *f.charts, prices());
-  // The chart fills most of the 30 x 90 screen: its middle is about the screen's.
-  f.hover(15, 3 + 8);
+  // The chart is in the middle of the 30 x 90 screen, its left end after the margin and the value labels (columns 18 to 75).
+  f.hover(15, 19);
   f.then([&] { CHECK(chart.cursor() == 0); });
-  f.click(15, 45);
+  f.click(15, 47);
   f.then([&] { CHECK(chart.cursor() >= 2 && chart.cursor() <= 3 && f.root.activeModal() != nullptr); });
   f.click(0, 0);  // away from it
   CHECK(chart.showModal() == 0);
