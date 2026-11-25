@@ -971,6 +971,39 @@ TEST(gtk_window_draws_the_emphasised_parts_of_a_text_run) {
   CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
 }
 
+// A run of text shown again as it was (a table that redraws, or scrolls by whole rows) is not laid out again; one that
+// differs in its text, its colour or its box is.
+TEST(gtk_window_lays_a_text_run_out_once_however_often_it_is_shown) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  auto present = [&](int row, const char * text, const Color & fg, int cols) {
+    CellBuffer screen(w->rows(), w->cols());
+    BufferPlane root(screen, styles);
+    root.setProportionalText(true);
+    root.setFgColor(fg);
+    root.putText(row, 2, cols, text, TextStyle{ TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS });
+    root.refresh();
+    FrameInfo info;
+    info.text_runs = root.takeTextRuns();
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images(), &info);
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  };
+  const Color white(230, 230, 230);
+  present(1, "Cached headline", white, 20);
+  const size_t laid = w->stats().text_runs_laid_out;
+  present(1, "Cached headline", white, 20);
+  present(3, "Cached headline", white, 20);  // another row: the same run at another place
+  CHECK(w->stats().text_runs_laid_out == laid);
+  present(1, "Another headline", white, 20);
+  CHECK(w->stats().text_runs_laid_out == laid + 1);
+  present(1, "Cached headline", Color(200, 40, 40), 20);
+  CHECK(w->stats().text_runs_laid_out == laid + 2);
+  present(1, "Cached headline", white, 9);
+  CHECK(w->stats().text_runs_laid_out == laid + 3);
+}
+
 // A glyph is shaped once; another colour of it, and its glow in that colour, are made from that.
 TEST(gtk_window_makes_another_colour_of_a_glyph_without_shaping_it_again) {
   gtk::Window * w = theWindow();

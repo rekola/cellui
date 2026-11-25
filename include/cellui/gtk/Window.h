@@ -26,6 +26,7 @@ struct FrameStats {
   size_t glows = 0;  // the last frame's bands with cells lit past white
   size_t blooms = 0;  // pictures' light past white blurred into textures so far, once per picture version and size
   size_t glyphs_shaped = 0;  // glyphs laid out by Pango so far; a glyph in another colour is not
+  size_t text_runs_laid_out = 0;  // runs of proportional text laid out by Pango so far; one shown again is kept, not laid out again
   size_t zoom_runs = 0;  // pieces of cells zoomed as one, counted as the band holding them is built
   size_t glyphs_zoomed = 0;  // lit glyphs drawn larger, counted as the band holding them is built
   size_t link_readings = 0;  // frame rates the link class was updated from so far
