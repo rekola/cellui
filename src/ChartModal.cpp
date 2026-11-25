@@ -16,6 +16,7 @@ constexpr int kMaxCols = 110, kMaxRows = 30;
 constexpr int kMarginCols = 3, kMarginRows = 1;
 constexpr float kLineWidth = 2.0f;
 constexpr double kBorderWidth = 1.0;  // logical pixels
+constexpr float kBorderAlpha = 0.35f;  // faint: the line is what the eye is meant to go to
 constexpr int kMinChartRows = 3;
 
 // A short number: five significant digits, a point whatever the locale.
@@ -84,7 +85,7 @@ void ChartModal::layout(Plane & screen, int rows, int cols) {
     plane_->setElevation(screen.getStyles().theme.elevation.modal);
     plane_->setElevationArea(false);
     plane_->setCornerRadius(screen.getStyles().theme.dialog_radius_px);
-    plane_->setBorder(color_.value_or(screen.getStyles().line_high_color), kBorderWidth);
+    plane_->setBorder(color_.value_or(screen.getStyles().line_high_color), kBorderWidth, kBorderAlpha);
   }
   plane_->resize(rows_, cols_);
   const StyleProvider & styles = plane_->getStyles();
