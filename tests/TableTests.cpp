@@ -217,7 +217,7 @@ TEST(trace_cursor_is_a_hairline_through_the_whole_height) {
   CHECK(plain[2 * 41 + 30] == marked[2 * 41 + 30]);
 }
 
-TEST(trace_in_cells_has_a_cursor_that_tints_a_cell_and_does_not_change_the_line) {
+TEST(trace_in_cells_shows_no_cursor) {
   StyleProvider styles;
   CellBuffer plain_buffer(4, 20), marked_buffer(4, 20);
   BufferPlane plain(plain_buffer, styles), marked(marked_buffer, styles);
@@ -229,11 +229,9 @@ TEST(trace_in_cells_has_a_cursor_that_tints_a_cell_and_does_not_change_the_line)
   charts->drawTrace(marked, 0, 0, 4, 20, values, look, 0, 4);
   plain.refresh();
   marked.refresh();
-  CHECK(plain_buffer.toPlainText() == marked_buffer.toPlainText());  // the same dots: no line of them down the end
-  for (int row = 0; row < 4; row++) {
-    CHECK(marked_buffer.at(row, 19).bg != plain_buffer.at(row, 19).bg);  // the last cell is tinted
-    CHECK(marked_buffer.at(row, 5).bg == plain_buffer.at(row, 5).bg);
-  }
+  CHECK(plain_buffer.toPlainText() == marked_buffer.toPlainText());  // no dots down the end, which read as a spike
+  for (int row = 0; row < 4; row++)
+    for (int col = 0; col < 20; col++) CHECK(marked_buffer.at(row, col).bg == plain_buffer.at(row, col).bg);
 }
 
 TEST(trace_in_cells_keeps_the_light_past_white_for_the_terminals_tone_map) {
