@@ -1107,3 +1107,43 @@ TEST(gtk_window_selects_text_with_the_pointer_and_copies_it_while_the_native_sel
   for (auto & e : w->poll()) key |= e.type == BackendEvent::Type::INPUT && e.input.getId() == 'c' && e.input.hasCtrl();
   CHECK(key);
 }
+
+TEST(gtk_window_keeps_a_selection_inside_the_raised_plane_it_began_in) {
+  gtk::Window * w = theWindow();
+  if (!w || !haveXdotool() || std::system("command -v xclip > /dev/null 2>&1") != 0) return;
+  pumpUntil(*w, [] { return false; }, 500);
+  w->poll();
+  xdotool("search --name cellui-test windowfocus");
+  pumpUntil(*w, [] { return false; }, 200);
+
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.putstr(1, 0, "outside left");
+  auto card = root.createChild();
+  card->setElevation(styles.theme.elevation.modal);
+  card->resize(4, 12);
+  card->move(5, 20);
+  card->putstr(0, 1, "first line");
+  card->putstr(1, 1, "second line");
+  card->putstr(2, 1, "third line");
+  root.refresh();
+  FrameInfo info;
+  info.elevations = root.takeElevations();
+  CHECK(!info.elevations.empty());
+  w->present(screen, {}, root.images(), &info);
+  pumpUntil(*w, [] { return false; }, 300);
+
+  const int cw = w->display().cell_px_width, ch = w->display().cell_px_height;
+  const int margin = 2;
+  auto at = [&](int row, int col) { return std::to_string(margin + cw * col + cw / 2) + " " + std::to_string(margin + ch * row + ch / 2); };
+  w->setNativeSelection(true);
+  // From the card's first line to well past the card's right edge, two rows down: the rows stop at the card.
+  xdotool("search --name cellui-test mousemove --window %1 " + at(5, 22) + " mousedown 1 mousemove --window %1 " + at(7, 50) + " mouseup 1");
+  pumpUntil(*w, [] { return false; }, 400);
+  xdotool("key ctrl+c");
+  pumpUntil(*w, [] { return false; }, 300);
+  CHECK(clipboardText(*w) == "irst line\n second line\n third line");
+  w->setNativeSelection(false);
+}
+
