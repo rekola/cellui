@@ -554,7 +554,7 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
   const bool selected = model_row == selected_;
   const bool pressed = position == pressed_position_;
   // The selected row is tinted (as a pressed one is); the cursor's cell on it is the bar.
-  Color bg = pressed || selected ? styles.row_pressed_bg_color : styles.window_bg_color;
+  Color bg = pressed ? styles.row_pressed_bg_color : selected ? styles.row_selected_bg_color : styles.window_bg_color;
   Color fg = pressed ? styles.window_accent_fg_color : styles.window_fg_color;
   const Color bar_bg = focused_ ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
   const Color bar_fg = focused_ ? styles.highlight_fg_color : styles.window_fg_color;
