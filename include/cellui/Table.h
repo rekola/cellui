@@ -69,6 +69,9 @@ class TableModel {
   // How bright the line is at each value of trace(), 0 to 1 (TraceLook::light): as many numbers as the
   // trace has values, or none for a line of one medium brightness throughout.
   virtual std::span<const float> traceLight(int /*row*/, int /*column*/) const { return {}; }
+  // How much of the cell's width the trace's values cover, 0 to 1 (default 1): a series of a period that has only part of it is drawn that
+  // wide at the right end, so the chart does not claim a span it does not have. The rest of the cell is blank.
+  virtual double traceSpan(int /*row*/, int /*column*/) const { return 1.0; }
   // The picture of a cell in an icon column; null for none (not there yet, or the row has none). Read while the cell
   // is drawn, so it must not wait for anything.
   virtual std::shared_ptr<const TableIcon> icon(int /*row*/, int /*column*/) const { return nullptr; }
@@ -98,7 +101,8 @@ class TableModel {
 // pressed look while it is held (moving off cancels); the wheel scrolls and the arrow, page, Home and End keys move the selection.
 // A trace column shows each row's series as a small line chart in the
 // display's own version (pictures where it has them, braille dots where it
-// has not).
+// has not), with the area under the line filled in the line's colour; a series that
+// covers only part of the span (`traceSpan()`) takes that part of the cell, at its right end.
 //
 // It lays out with the plane's own position in the parent, so a table sits on
 // the screen's root plane, as a SpinBox does. Redraws itself whenever

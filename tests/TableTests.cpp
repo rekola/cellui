@@ -17,6 +17,8 @@ struct Quotes : TableModel {
   int rowCount() const override { return static_cast<int>(rows.size()); }
   std::string text(int r, int c) const override { return c == 0 ? rows[static_cast<size_t>(r)].name : rows[static_cast<size_t>(r)].price; }
   std::span<const float> trace(int r, int) const override { return rows[static_cast<size_t>(r)].history; }
+  double span = 1.0;
+  double traceSpan(int, int) const override { return span; }
 };
 
 struct Fixture {
@@ -140,6 +142,27 @@ TEST(table_trace_column_draws_braille_dots) {
   std::string t = f.text();
   // A rising series has dots, none of them blank-braille.
   CHECK(t.find("\xe2\xa0") != std::string::npos || t.find("\xe2\xa1") != std::string::npos || t.find("\xe2\xa3") != std::string::npos);
+}
+
+TEST(a_trace_that_covers_part_of_the_span_takes_that_part_of_its_cell_at_the_right_end) {
+  // The glyphs the trend column wrote on the Nokia row, counted in characters of the row's text (the trace has no text: its cells are braille).
+  const auto drawn = [](double span) {
+    Fixture f;
+    f.model->span = span;
+    f.table.modelChanged();
+    const std::string t = f.text();
+    const size_t at = t.find("Nokia");
+    std::string row = t.substr(at, t.find('\n', at) - at);
+    size_t count = 0, spaces = 0;
+    for (const char c : row) {
+      const auto ch = static_cast<unsigned char>(c);
+      if ((ch & 0xC0) != 0x80) (ch == ' ' ? spaces : count)++;
+    }
+    return std::pair{count, spaces};
+  };
+  const auto whole = drawn(1.0), half = drawn(0.5), none = drawn(0.0);
+  CHECK(half.first < whole.first && half.second > whole.second);  // a narrower trace: fewer glyphs drawn, more blank
+  CHECK(none.first <= half.first);                                  // at least a cell, never none at all, but never wider
 }
 
 TEST(table_sorts_by_its_headings_and_leaves_letter_keys_to_others) {
