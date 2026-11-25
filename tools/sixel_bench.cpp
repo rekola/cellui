@@ -3,7 +3,7 @@
 #include <cellui/BufferPlane.h>
 #include <cellui/HeatmapImage.h>
 #include <cellui/Image.h>
-#include <cellui/LineImage.h>
+#include <cellui/TraceImage.h>
 #include <cellui/StageStats.h>
 #include <cellui/StyleProvider.h>
 #include <cellui/term/ImageEncoder.h>
@@ -46,6 +46,8 @@ int main(int argc, char ** argv) {
   int rounds = argc > 1 ? std::atoi(argv[1]) : 20;
   StageStats::enable();
   StyleProvider styles(Theme::dark());
+  TraceLook spectrum_look{styles.window_bg_color, styles.line_high_color, styles.line_high_color};
+  spectrum_look.range = std::pair<float, float>{0.0f, 1.0f};
   {
     // What drawing the pictures costs, a call each.
     std::vector<float> levels(328, 0.5f);
@@ -56,14 +58,14 @@ int main(int argc, char ** argv) {
       for (int r = 0; r < rounds; r++) draw();
       return std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / rounds;
     };
-    std::printf("draw: spectrum 328x80 %.0f us, heatmap 232x80 %.0f us\n", time_us([&] { line_image::render(levels, 328, 80, styles); }),
+    std::printf("draw: spectrum 328x80 %.0f us, heatmap 232x80 %.0f us\n", time_us([&] { trace_image::render(levels, spectrum_look, 328, 80); }),
                 time_us([&] { heatmap_image::render(bright, sat, cols, rows, {}, {}, 232, 80, styles, 0.0f); }));
   }
   std::vector<SixelPicture> pictures;
   {
     std::vector<float> levels(328);
     for (size_t i = 0; i < levels.size(); i++) levels[i] = 0.35f + 0.3f * std::sin(static_cast<float>(i) * 0.07f) + 0.1f * std::sin(static_cast<float>(i) * 0.4f);
-    pictures.push_back({"spectrum 328x80", fromPixels(line_image::render(levels, 328, 80, styles), 328, 80)});
+    pictures.push_back({"spectrum 328x80", fromPixels(trace_image::render(levels, spectrum_look, 328, 80), 328, 80)});
   }
   {
     const int cols = 24, rows = 12;

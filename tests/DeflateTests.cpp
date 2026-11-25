@@ -4,7 +4,7 @@
 
 #include <cellui/HeatmapImage.h>
 #include <cellui/Image.h>
-#include <cellui/LineImage.h>
+#include <cellui/TraceImage.h>
 #include <cellui/StyleProvider.h>
 #include <cellui/term/Deflate.h>
 
@@ -86,7 +86,9 @@ std::vector<uint8_t> spectrumPicture(unsigned w, unsigned h) {
     float t = static_cast<float>(x) / static_cast<float>(w);
     levels[x] = 0.5f + 0.3f * std::sin(t * 17.0f) * std::exp(-t * 2.0f) + 0.1f * std::sin(t * 90.0f) * t;
   }
-  return rgb(line_image::render(levels, w, h, styles));
+  TraceLook look{styles.window_bg_color, styles.line_high_color, styles.line_high_color};
+  look.range = std::pair<float, float>{0.0f, 1.0f};
+  return rgb(trace_image::render(levels, look, w, h));
 }
 
 #endif

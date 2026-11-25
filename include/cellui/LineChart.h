@@ -1,46 +1,39 @@
 #pragma once
 
+#include <cellui/Charts.h>
 #include <cellui/Widget.h>
 
+#include <utility>
 #include <vector>
 
 namespace cellui {
 
-// A curve over the plane's width, filled below it: a series of values
-// 0..1 spaced evenly from left to right. What the values mean (a spectrum on
-// a log-frequency axis, a history, a profile) is the application's; how the
-// curve is drawn is the display's (Charts::lineChart()).
+// A curve over the plane's width, filled below it: a series of values spaced evenly from left to right, drawn by the
+// display's Charts::drawTrace() - the same line a table's trace column and a ChartModal draw, so there is one line
+// chart. What the values mean (a spectrum, a history, a profile) is the application's.
 class LineChart : public Widget {
 public:
-  explicit LineChart(Plane & parent) : Widget(parent) { }
+  LineChart(Plane & parent, const Charts & charts) : Widget(parent), charts_(charts) { }
   ~LineChart() override = default;
 
-  // A fresh curve through `values` (each clamped to 0..1). Redraws, unless
-  // the curve is where it was drawn; returns whether it did.
-  bool setValues(const std::vector<float> & values);
-
-  // A number of values that gives the display a point for every half cell
-  // across the plane. More are fine, and fewer are smoothed between.
-  size_t suggestedPoints() const;
+  // A fresh curve through `values`, the bottom of the plane standing for `range.first` and the top for `range.second`
+  // (a value outside is drawn at the edge). Redraws, unless the curve is where it was drawn; returns whether it did.
+  bool setValues(const std::vector<float> & values, std::pair<float, float> range = {0.0f, 1.0f});
 
   // Shows no curve at all. Redraws.
   void clear();
 
  protected:
-  // How many samples the display draws across `cols` cells.
-  virtual size_t sampleCount(int cols) = 0;
+  void onResize() override;
 
-  // Draws the curve, one 0..1 sample per column of the display (same size as
-  // sampleCount()). Clears and redraws the whole plane.
-  virtual void drawSamples(const std::vector<float> & samples) = 0;
+ private:
+  void draw();
 
-  static std::vector<float> splineSample(const std::vector<float> & knots, size_t count);
-
-private:
-  // What was last drawn: the values (to 1/512), and the size.
-  std::vector<float> last_knots_;  // as last drawn
+  const Charts & charts_;
+  // What was last drawn: the values, their range and the size.
+  std::vector<float> last_values_;
+  std::pair<float, float> last_range_{0.0f, 1.0f};
   int last_rows_ = 0, last_cols_ = 0;
-  size_t last_samples_ = 0;
 };
 
 }  // namespace cellui

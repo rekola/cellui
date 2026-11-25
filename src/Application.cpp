@@ -24,7 +24,6 @@ class Application::DisplayCharts : public Charts {
  public:
   void reset(const DisplayInfo & display) { inner_ = chartsFor(display); }
 
-  std::shared_ptr<LineChart> lineChart(Plane & parent) const override { return inner_->lineChart(parent); }
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return inner_->heatmap(parent, grid_cols, grid_rows);
   }

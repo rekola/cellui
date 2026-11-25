@@ -78,8 +78,8 @@ Color readableOn(const Color & bg) {
 }  // namespace
 
 Gallery::Gallery(Plane & plane, const Theme & theme, const DisplayInfo & display) {
-  auto charts_for_display = chartsFor(display);
-  const Charts & charts = *charts_for_display;
+  charts_ = chartsFor(display);
+  const Charts & charts = *charts_;
   const StyleProvider & styles = plane.getStyles();
   int width = plane.getDim().second;
 
@@ -247,7 +247,7 @@ Gallery::Gallery(Plane & plane, const Theme & theme, const DisplayInfo & display
       float t = static_cast<float>(i) / static_cast<float>(values.size());
       values[i] = std::clamp(0.85f - 0.7f * std::sqrt(t) + 0.1f * std::sin(static_cast<float>(i) * 0.9f), 0.0f, 1.0f);
     }
-    spectrum_ = charts.lineChart(plane);
+    spectrum_ = std::make_shared<LineChart>(plane, charts);
     spectrum_->resize(4, 40);
     spectrum_->move(page.row(), 0);
     spectrum_->setValues(values);

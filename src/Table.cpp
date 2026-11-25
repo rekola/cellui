@@ -64,6 +64,7 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
     hitAt(e.row, e.col, heading, position);
     pressing_ = true;
     press_on_heading_ = heading >= 0;
+    press_position_ = position;
     press_button_ = position >= 0 ? buttonAt(e.col - getPosition().second, order_[static_cast<size_t>(position)]) : std::pair<int, int>{-1, -1};
     setPressed(heading, position);
     return Handled::yes;
@@ -109,12 +110,15 @@ Table::Table(Plane & parent, const Charts & charts) : Widget(parent), charts_(ch
       }
     } else if (position >= 0) {
       const int column = columnAt(e.col - getPosition().second);
-      if (column >= 0 && columns_[static_cast<size_t>(column)].buttons.empty()) {
+      const bool plain_cell = column >= 0 && columns_[static_cast<size_t>(column)].buttons.empty();
+      if (plain_cell) {
         cursor_column_ = column;
         cursor_button_ = 0;
       }
       selectPosition(position);
       render();
+      // Pressed and released on the same row: a click, not the end of a drag across rows.
+      if (plain_cell && position == press_position_) cell_clicked.emit(order_[static_cast<size_t>(position)], column);
     }
     return Handled::yes;
   }));

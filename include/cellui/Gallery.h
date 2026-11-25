@@ -36,6 +36,7 @@ class Gallery {
   InfoDialog dialog_;
   ChoiceDialog choice_;
   int octave_ = 4;
+  std::unique_ptr<Charts> charts_;  // what the widgets below draw with: declared first, so it outlives them
   std::shared_ptr<LineChart> spectrum_;
   std::unique_ptr<SpinBox> spin_;
   std::vector<std::unique_ptr<Dial>> dials_;
