@@ -1067,10 +1067,17 @@ TEST(gtk_window_selects_text_with_the_pointer_and_copies_it_while_the_native_sel
   StyleProvider styles;
   CellBuffer screen(w->rows(), w->cols());
   BufferPlane root(screen, styles);
-  root.putstr(2, 3, "alpha beta");
-  root.putstr(3, 3, "gamma delta");
+  // The text is in a raised plane, as a dialog's is: a selection begins only on one.
+  auto card = root.createChild();
+  card->setElevation(styles.theme.elevation.modal);
+  card->resize(5, 30);
+  card->move(1, 1);
+  card->putstr(1, 2, "alpha beta");
+  card->putstr(2, 2, "gamma delta");
   root.refresh();
-  w->present(screen, {}, root.images());
+  FrameInfo info;
+  info.elevations = root.takeElevations();
+  w->present(screen, {}, root.images(), &info);
   pumpUntil(*w, [] { return false; }, 300);
 
   const int cw = w->display().cell_px_width, ch = w->display().cell_px_height;
@@ -1096,7 +1103,7 @@ TEST(gtk_window_selects_text_with_the_pointer_and_copies_it_while_the_native_sel
   pumpUntil(*w, [] { return false; }, 300);
   // From the 'h' of "alpha" (col 6) to col 4 of the next row.
   const std::string copied = clipboardText(*w);
-  CHECK(copied == "ha beta\n   ga");  // reading order, as a terminal selects: the next row from its first cell
+  CHECK(copied == "ha beta\n  ga");  // reading order, as a terminal selects: the next row from the plane's left edge
 
   // Turning it off drops the selection, and Ctrl+C is the application's again.
   w->setNativeSelection(false);
@@ -1138,6 +1145,12 @@ TEST(gtk_window_keeps_a_selection_inside_the_raised_plane_it_began_in) {
   const int margin = 2;
   auto at = [&](int row, int col) { return std::to_string(margin + cw * col + cw / 2) + " " + std::to_string(margin + ch * row + ch / 2); };
   w->setNativeSelection(true);
+  // What lies behind the card is disabled: a drag over it selects nothing.
+  xdotool("search --name cellui-test mousemove --window %1 " + at(1, 0) + " mousedown 1 mousemove --window %1 " + at(1, 10) + " mouseup 1");
+  pumpUntil(*w, [] { return false; }, 400);
+  xdotool("key ctrl+c");
+  pumpUntil(*w, [] { return false; }, 300);
+  CHECK(clipboardText(*w).find("outside") == std::string::npos);
   // From the card's first line to well past the card's right edge, two rows down: the rows stop at the card.
   xdotool("search --name cellui-test mousemove --window %1 " + at(5, 22) + " mousedown 1 mousemove --window %1 " + at(7, 50) + " mouseup 1");
   pumpUntil(*w, [] { return false; }, 400);

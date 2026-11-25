@@ -366,8 +366,8 @@ struct Window::Impl {
   // The display's own text selection (Backend::setNativeSelection): a drag with the left button selects the cells
   // between where it began and where it is, in reading order, and Ctrl+C copies their text. The application is
   // told nothing of the pointer or the selection meanwhile.
-  // A selection stays inside the raised plane (a dialog) it began in, or the screen where none is there: the rows
-  // between its ends run from that plane's left edge to its right, not the window's.
+  // A selection begins only on a raised plane (a dialog) and stays inside it: the rows between its ends run from that
+  // plane's left edge to its right, not the window's. A press on what lies behind it begins none.
   struct Selection {
     bool has = false, dragging = false;
     int from_row = 0, from_col = 0, to_row = 0, to_col = 0;
@@ -1859,18 +1859,18 @@ Window::Impl::Selection Window::Impl::beginSelection(int row, int col) const {
   s.min_row = s.min_col = 0;
   s.max_row = std::max(0, rows - 1);
   s.max_col = std::max(0, cols - 1);
-  // The highest plane that casts a shadow over the cell it began on.
+  // The highest plane that casts a shadow over the cell it began on. A dialog that asks for the selection is one,
+  // and all of the screen behind it is disabled: a press anywhere else selects nothing.
   const ElevatedArea * top = nullptr;
   for (const ElevatedArea & area : elevations) {
     if (area.scrim || !area.shadow || row < area.row || row >= area.row + area.rows || col < area.col || col >= area.col + area.cols) continue;
     if (!top || area.elevation >= top->elevation) top = &area;
   }
-  if (top) {
-    s.min_row = std::max(s.min_row, top->row);
-    s.min_col = std::max(s.min_col, top->col);
-    s.max_row = std::min(s.max_row, top->row + top->rows - 1);
-    s.max_col = std::min(s.max_col, top->col + top->cols - 1);
-  }
+  if (!top) return Selection{};
+  s.min_row = std::max(s.min_row, top->row);
+  s.min_col = std::max(s.min_col, top->col);
+  s.max_row = std::min(s.max_row, top->row + top->rows - 1);
+  s.max_col = std::min(s.max_col, top->col + top->cols - 1);
   return s;
 }
 

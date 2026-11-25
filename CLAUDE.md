@@ -490,8 +490,9 @@ dialog that `wantsNativeSelection()` is up, as a terminal's mouse reporting is
 off then): the window takes the left button itself, so the application hears no
 press, motion or release. A drag selects the cells between its ends in reading
 order (tinted in the text colour), inside the raised plane it began in (the
-rows between its ends run from that plane's left edge to its right) or the
-screen where there is none, the wheel or turning it off clears it, and
+rows between its ends run from that plane's left edge to its right); a press
+on what lies behind the dialog selects nothing, since all of that is disabled.
+The wheel or turning it off clears it, and
 Ctrl+C puts the text on the clipboard. The text is read from what is shown
 (`spotAt()`: the frame's cells, then the scrolled planes above the last
 backdrop, never the blurred screen behind it); a proportional text run gives the
