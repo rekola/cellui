@@ -613,9 +613,15 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
     if (cursor_here) paintCursorCell(l.x[c], l.width[c]);
     std::optional<Color> color = model_->color(model_row, col);
     if (columns_[c].trace) {
-      TraceLook look{cell_bg, color.value_or(cell_fg), color ? color : std::nullopt, 4.0f, model_->traceLight(model_row, col)};
+      // The area under the line is filled in the line's colour, whether or not the row has a trend colour.
+      const Color line = color.value_or(cell_fg);
+      TraceLook look{cell_bg, line, line, 4.0f, model_->traceLight(model_row, col)};
       uint64_t id = (static_cast<uint64_t>(model_row) + 1) * 64 + static_cast<uint64_t>(c) + 1;
-      charts_.drawTrace(getPlane(), y, l.x[c], row_height_, l.width[c], model_->trace(model_row, col), look, 0, getDim().first + 1, id);
+      // A series that covers part of the span is that part of the cell, at the right end.
+      const double span = std::clamp(model_->traceSpan(model_row, col), 0.0, 1.0);
+      const int width = l.width[c];
+      const int shown = span >= 1.0 ? width : std::clamp(static_cast<int>(std::lround(span * width)), 1, width);
+      charts_.drawTrace(getPlane(), y, l.x[c] + (width - shown), row_height_, shown, model_->trace(model_row, col), look, 0, getDim().first + 1, id);
       setBgColor(bg);
     } else {
       setBgColor(cell_bg);
