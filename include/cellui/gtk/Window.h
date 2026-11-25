@@ -22,6 +22,8 @@ struct FrameStats {
   size_t late_ticks = 0;  // ticks of a run more than 25 ms after the one before (a missed vsync at 60 Hz)
   double draw_ms_total = 0, draw_ms_max = 0;      // the whole snapshot
   double raster_ms_total = 0, raster_ms_max = 0;  // the cells rasterized into pixels
+  size_t paints = 0;  // frames the frame clock painted: the snapshot above and GSK's rendering of it, to the call that hands it to the GPU
+  double paint_ms_total = 0, paint_ms_max = 0;
   size_t shadows = 0;  // the last frame's, under raised planes
   size_t glows = 0;  // the last frame's bands with cells lit past white
   size_t blooms = 0;  // pictures' light past white blurred into textures so far, once per picture version and size

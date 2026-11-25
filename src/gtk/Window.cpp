@@ -137,6 +137,10 @@ struct Window::Impl {
   guint tick_id = 0;
   static gboolean onTick(GtkWidget *, GdkFrameClock * clock, gpointer data);
   void noteTick(GdkFrameClock * clock, bool drew);
+  // The frame clock's paint phase, which holds the snapshot and GSK's rendering of it: FrameStats::paint_ms_*.
+  bool paint_watched = false;
+  gint64 paint_start_us = 0;
+  void watchPaint(GdkFrameClock * clock);
   // The link: the frame rate the window keeps up with, against the rate its display refreshes at.
   // A window that draws nothing reads nothing, and its class holds.
   LinkMonitor link;
@@ -471,8 +475,24 @@ void Window::Impl::noteTick(GdkFrameClock * clock, bool drew) {
   link.setDescription(vsyncText(hz) + ", " + std::to_string(static_cast<int>(*fps + 0.5)) + " fps", true);
 }
 
+void Window::Impl::watchPaint(GdkFrameClock * clock) {
+  if (paint_watched) return;
+  paint_watched = true;
+  g_signal_connect(clock, "before-paint", G_CALLBACK(+[](GdkFrameClock *, gpointer data) { static_cast<Impl *>(data)->paint_start_us = g_get_monotonic_time(); }), this);
+  g_signal_connect(clock, "after-paint", G_CALLBACK(+[](GdkFrameClock *, gpointer data) {
+    auto * self = static_cast<Impl *>(data);
+    if (self->paint_start_us == 0) return;  // the clock was already painting when it was watched
+    const double ms = static_cast<double>(g_get_monotonic_time() - self->paint_start_us) / 1000.0;
+    self->stats.paints++;
+    self->stats.paint_ms_total += ms;
+    self->stats.paint_ms_max = std::max(self->stats.paint_ms_max, ms);
+    self->paint_start_us = 0;
+  }), this);
+}
+
 gboolean Window::Impl::onTick(GtkWidget *, GdkFrameClock * clock, gpointer data) {
   auto * self = static_cast<Impl *>(data);
+  self->watchPaint(clock);
   // A tick that nobody asked for (one of the few that linger) runs nothing.
   bool wanted = self->frame_dirty;
   self->frame_dirty = false;
@@ -2045,6 +2065,19 @@ Window::Window() : impl_(new Impl) { }
 
 Window::~Window() {
   if (!impl_) return;
+  // CELLUI_WINDOW_STATS=<file>: a line of what the frames cost, appended when the window closes.
+  if (const char * path = std::getenv("CELLUI_WINDOW_STATS"); path && *path) {
+    const FrameStats & st = impl_->stats;
+    const double frames = static_cast<double>(std::max<size_t>(st.frames, 1)), paints = static_cast<double>(std::max<size_t>(st.paints, 1));
+    if (FILE * out = std::fopen(path, "a")) {
+      std::fprintf(out,
+                   "frames %zu ticks %zu late_ticks %zu | snapshot ms avg %.2f max %.2f | paint ms (snapshot + render) avg %.2f max %.2f over %zu | raster ms avg %.2f | "
+                   "text runs laid out %zu glyphs shaped %zu | link readings %zu\n",
+                   st.frames, st.ticks, st.late_ticks, st.draw_ms_total / frames, st.draw_ms_max, st.paint_ms_total / paints, st.paint_ms_max, st.paints,
+                   st.raster_ms_total / frames, st.text_runs_laid_out, st.glyphs_shaped, st.link_readings);
+      std::fclose(out);
+    }
+  }
   if (impl_->tick_id) gtk_widget_remove_tick_callback(impl_->view, impl_->tick_id);
   if (impl_->view) reinterpret_cast<CelluiView *>(impl_->view)->impl = nullptr;
   if (impl_->window) gtk_window_destroy(GTK_WINDOW(impl_->window));
