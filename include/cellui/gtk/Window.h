@@ -76,6 +76,10 @@ class Window : public Backend {
   void setLinkHandler(LinkHandler handler) override;
   void setLinkPin(std::optional<LinkClass> pin) override;
 
+  // The window selects text itself while this is on: a drag with the left button selects, Ctrl+C copies, and
+  // the application sees neither the pointer nor the selection (a terminal does the same by itself).
+  void setNativeSelection(bool on) override;
+
   // Makes wakeFd() readable; any thread may call it.
   void wake();
 
