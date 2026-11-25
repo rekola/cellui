@@ -388,6 +388,8 @@ void Application::resizeTo(int rows, int cols) {
   buffer_ = CellBuffer(rows, cols);
   root_plane_.resize(rows, cols);
   layoutPalette();
+  // Before the program's own layout: what is open over it (a modal dialog) follows the screen too.
+  root_widget_->postToRoot(Resize{rows, cols});
   resized.emit(rows, cols);
 }
 

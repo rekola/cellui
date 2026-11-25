@@ -19,6 +19,12 @@ void ModalDialog::connect() {
   connections_.push_back(root_.on<MouseDown>([this](const MouseDown & e, EventContext &) { mouseDown(e); return Handled::yes; }, Phase::capture));
   connections_.push_back(root_.on<MouseUp>([this](const MouseUp & e, EventContext &) { mouseUp(e); return Handled::yes; }, Phase::capture));
   connections_.push_back(root_.on<MouseMove>([this](const MouseMove & e, EventContext &) { mouseMove(e); return Handled::yes; }, Phase::capture));
+  // The screen changed size: a dialog is laid out for the size it was opened at, so it lays itself out again (and a
+  // dialog that wraps its text wraps it for the new width). Not taken, so every handler of the tree hears it.
+  connections_.push_back(root_.on<Resize>([this](const Resize &, EventContext &) {
+    relayout();
+    return Handled::no;
+  }));
   connections_.push_back(root_.on<Wheel>([this](const Wheel & e, EventContext &) { wheel(e); return Handled::yes; }, Phase::capture));
 }
 

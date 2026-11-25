@@ -121,6 +121,10 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   its owner (`LineEditor::key()`, `ChoiceDialog::click()`, `Dial::press()`),
   never an `Input`. `Input` is what a display reports; only the root
   (`InputDispatcher::offer()`) and the key reader see it.
+  `Application` posts `Resize{rows, cols}` to the root (`postToRoot()`) when the
+  screen changes size, after the root plane has and before `resized`; an open
+  `ModalDialog` lays itself out again on it (a dialog that wraps its text wraps
+  it for the new width), so a program need not know which dialog is up.
 - `InputDispatcher.h`: keys go to the focused widget; pointer events to the
   topmost widget in `BufferPlane::takeHitAreas()`, with a grab from press to
   release, `Enter`/`Leave` from successive hit tests, and focus traversal.
