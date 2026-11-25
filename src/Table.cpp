@@ -333,7 +333,9 @@ std::pair<int, int> Table::buttonAt(int local_col, int model_row) const {
   int x = layout().x[static_cast<size_t>(c)];
   for (size_t i = 0; i < columns_[static_cast<size_t>(c)].buttons.size(); i++) {
     const int w = columns_[static_cast<size_t>(c)].buttons[i].width();
-    if (local_col >= x && local_col < x + w) {
+    // The cell after a face (the gap) is part of it: a terminal draws some glyphs (circled operators, U+1F6C8) two cells
+    // wide though they measure one, and the half that spills over is where a person clicks too.
+    if (local_col >= x && local_col < x + w + 1) {
       if (model_row >= 0 && model_ && !model_->buttonShown(model_row, c, static_cast<int>(i))) return {-1, -1};
       return {c, static_cast<int>(i)};
     }
