@@ -19,6 +19,9 @@ struct ChartData {
   // What each value is at (a date, a time), one for each value, or none. They are the chart's x axis: the first and the
   // last under its ends, and the one the cursor is at beside the title.
   std::vector<std::string> labels;
+  // How bright the line is at each value, 0 to 1, one for each value (TraceLook::light: the volume traded at each point, say), or none
+  // for an even line. A value left out takes its brightness with it.
+  std::vector<float> light;
   // A value as text, for the axis and the reading under the cursor; a short number by default. The chart knows no unit.
   std::function<std::string(float)> format;
   // The line's colour (the theme's by default).
@@ -59,6 +62,7 @@ class ChartModal : public ModalDialog {
   std::string title_;
   std::vector<float> values_;
   std::vector<std::string> labels_;
+  std::vector<float> light_;  // as bright as the values are long, or empty; the chart draws from it while it is up
   std::function<std::string(float)> format_;
   std::optional<Color> color_;
   size_t cursor_ = 0;

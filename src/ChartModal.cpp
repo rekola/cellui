@@ -11,7 +11,10 @@ namespace cellui {
 
 namespace {
 
-constexpr int kMaxCols = 140, kMaxRows = 36;
+// The chart takes this much of the screen, at most so many cells, and keeps a margin of cells round what it draws.
+constexpr int kMaxCols = 110, kMaxRows = 30;
+constexpr int kMarginCols = 3, kMarginRows = 1;
+constexpr float kLineWidth = 2.0f;
 constexpr int kMinChartRows = 3;
 
 // A short number: five significant digits, a point whatever the locale.
@@ -31,11 +34,12 @@ const TextStyle kTitle{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kBoldFace
 
 ChartModal::ChartModal(Widget & root, Plane & screen, EventLoop & loop, const Charts & charts, ChartData data)
     : ModalDialog(root, screen, loop), charts_(charts), title_(std::move(data.title)), format_(std::move(data.format)), color_(data.color) {
-  const bool labelled = data.labels.size() == data.values.size();
+  const bool labelled = data.labels.size() == data.values.size(), lit = data.light.size() == data.values.size();
   for (size_t i = 0; i < data.values.size(); i++) {
     if (!std::isfinite(data.values[i])) continue;
     values_.push_back(data.values[i]);
     if (labelled) labels_.push_back(std::move(data.labels[i]));
+    if (lit) light_.push_back(data.light[i]);
   }
   if (!values_.empty()) cursor_ = values_.size() - 1;
 }
@@ -69,8 +73,8 @@ int ChartModal::indexAt(int screen_row, int screen_col) const {
 }
 
 void ChartModal::layout(Plane & screen, int rows, int cols) {
-  rows_ = std::min(std::max(rows - 4, 8), std::min(rows, kMaxRows));
-  cols_ = std::min(std::max(cols - 8, 24), std::min(cols, kMaxCols));
+  rows_ = std::min(std::min(std::max(rows * 7 / 10, 10), kMaxRows), rows);
+  cols_ = std::min(std::min(std::max(cols * 3 / 4, 30), kMaxCols), cols);
   if (!plane_) {
     plane_ = screen.createChild();
     plane_->setMouseCursor(MouseCursor::DEFAULT);
@@ -87,16 +91,17 @@ void ChartModal::layout(Plane & screen, int rows, int cols) {
 
   // The title and the reading on the top row, the chart under them with its value labels at the left, the first and the last
   // label of the x axis on the bottom row.
-  const int inner = cols_ - 2;
+  const int inner = cols_ - 2 * kMarginCols;
   const std::string text = reading();
   const int reading_cols = std::min(inner / 2, utf8::displayWidth(text) + 2);
   plane_->setFgColor(strong);
-  plane_->putText(0, 1, std::max(1, inner - reading_cols - 1), title_, kTitle);
+  plane_->putText(kMarginRows, kMarginCols, std::max(1, inner - reading_cols - 1), title_, kTitle);
   plane_->setFgColor(fg);
-  plane_->putText(0, cols_ - 1 - reading_cols, reading_cols, text, kRight);
+  plane_->putText(kMarginRows, cols_ - kMarginCols - reading_cols, reading_cols, text, kRight);
 
-  chart_row_ = 1;
-  chart_rows_ = std::max(kMinChartRows, rows_ - 2);
+  chart_row_ = kMarginRows + 1;
+  chart_rows_ = std::max(kMinChartRows, rows_ - 2 * kMarginRows - 2);
+  const int axis_row = chart_row_ + chart_rows_;  // the x labels, under the chart
   if (values_.empty()) {
     chart_cols_ = 0;
   } else {
@@ -110,24 +115,26 @@ void ChartModal::layout(Plane & screen, int rows, int cols) {
     int gutter = std::max(utf8::displayWidth(top), utf8::displayWidth(bottom));
     if (flat) gutter = utf8::displayWidth(top);
     gutter = std::min(gutter + 1, inner / 3);
-    chart_col_ = 1 + gutter + 1;
-    chart_cols_ = std::max(1, cols_ - 1 - chart_col_);
+    chart_col_ = kMarginCols + gutter + 1;
+    chart_cols_ = std::max(1, cols_ - kMarginCols - chart_col_);
 
     plane_->setFgColor(quiet);
     if (flat) {
-      plane_->putText(chart_row_ + chart_rows_ / 2, 1, gutter, top, kRight);
+      plane_->putText(chart_row_ + chart_rows_ / 2, kMarginCols, gutter, top, kRight);
     } else {
-      plane_->putText(chart_row_, 1, gutter, top, kRight);
-      if (chart_rows_ >= 7) plane_->putText(chart_row_ + chart_rows_ / 2, 1, gutter, middle, kRight);
-      plane_->putText(chart_row_ + chart_rows_ - 1, 1, gutter, bottom, kRight);
+      plane_->putText(chart_row_, kMarginCols, gutter, top, kRight);
+      if (chart_rows_ >= 7) plane_->putText(chart_row_ + chart_rows_ / 2, kMarginCols, gutter, middle, kRight);
+      plane_->putText(chart_row_ + chart_rows_ - 1, kMarginCols, gutter, bottom, kRight);
     }
     if (!labels_.empty()) {
       const int half = chart_cols_ / 2;
-      plane_->putText(rows_ - 1, chart_col_, std::max(1, half), labels_.front(), kLeft);
-      if (values_.size() > 1) plane_->putText(rows_ - 1, chart_col_ + chart_cols_ - std::max(1, half), std::max(1, half), labels_.back(), kRight);
+      plane_->putText(axis_row, chart_col_, std::max(1, half), labels_.front(), kLeft);
+      if (values_.size() > 1) plane_->putText(axis_row, chart_col_ + chart_cols_ - std::max(1, half), std::max(1, half), labels_.back(), kRight);
     }
 
     TraceLook look{bg, color_.value_or(styles.line_high_color), color_.value_or(styles.line_high_color)};
+    look.light = light_;
+    look.line_width = kLineWidth;
     look.cursor = values_.size() > 1 ? static_cast<float>(cursor_) / static_cast<float>(values_.size() - 1) : 0.5f;
     charts_.drawTrace(*plane_, chart_row_, chart_col_, chart_rows_, chart_cols_, values_, look, 0, rows_, 1);
   }
