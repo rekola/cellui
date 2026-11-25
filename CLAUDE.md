@@ -347,8 +347,10 @@ serves the terminal and `TestBackend`; `GlibEventLoop` the GTK window;
 `--ui auto|terminal|window|headless`: `auto` tries the window when built with
 GTK and a display is there (`WAYLAND_DISPLAY` or `DISPLAY`), else the
 terminal; a named backend that cannot start is an error; the choice is made
-once (`cellui/BackendChoice.h`). `SYNTH_WINDOW_STATS=<file>` appends frame
-timing (and missed-vsync counts) at exit.
+once (`cellui/BackendChoice.h`). `CELLUI_WINDOW_STATS=<file>` appends a line at
+exit (`Window` closing): frames, late ticks, the snapshot's time, the whole paint's (`FrameStats::paint_ms_*`, from the frame clock's
+before-paint to after-paint: the snapshot and GSK's rendering of it, the part a slow GPU or renderer shows in) and the counts of text
+runs and glyphs laid out.
 
 ## Terminal backend (`cellui/term/`)
 

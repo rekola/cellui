@@ -1004,6 +1004,20 @@ TEST(gtk_window_lays_a_text_run_out_once_however_often_it_is_shown) {
   CHECK(w->stats().text_runs_laid_out == laid + 3);
 }
 
+// The frame clock's paint, which holds GSK's rendering of the snapshot, is timed: what a slow renderer shows in.
+TEST(gtk_window_times_the_paint_of_its_frames) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.putstr(2, 2, "paint");
+  root.refresh();
+  w->present(screen, {}, root.images());
+  CHECK(pumpUntil(*w, [&] { return w->stats().paints > 0; }));
+  CHECK(w->stats().paint_ms_total > 0.0 && w->stats().paint_ms_max >= w->stats().paint_ms_total / static_cast<double>(w->stats().paints));
+}
+
 // A glyph is shaped once; another colour of it, and its glow in that colour, are made from that.
 TEST(gtk_window_makes_another_colour_of_a_glyph_without_shaping_it_again) {
   gtk::Window * w = theWindow();
