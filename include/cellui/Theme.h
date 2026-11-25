@@ -138,8 +138,8 @@ struct Theme {
     t.line_low = Color("#2b5fa8");
     t.line_high = t.accent;
     t.button_fg = t.text_on_accent;
-    t.button_bg = t.accent;
-    t.button_pressed_bg = Color("#4f9fb4");
+    t.button_bg = Color("#c3a6f5");  // not the accent: that is the selection's colour
+    t.button_pressed_bg = Color("#9a78d6");
     t.row_selected_bg = Color("#2f6b78");
     t.row_pressed_bg = Color("#24535d");
     t.menu_fg = t.text_primary;
@@ -176,8 +176,8 @@ struct Theme {
     t.line_low = Color("#4f4dd0");
     t.line_high = Color("#0071e3");
     t.button_fg = t.text_on_accent;
-    t.button_bg = t.accent;
-    t.button_pressed_bg = Color("#0058b8");
+    t.button_bg = Color("#6b4fd8");  // not the accent: that is the selection's colour
+    t.button_pressed_bg = Color("#4f37b0");
     t.row_selected_bg = Color("#b9d8ff");
     t.row_pressed_bg = Color("#9cc4f5");
     t.menu_fg = t.text_primary;
@@ -227,8 +227,8 @@ struct Theme {
       t.line_low = c(12);
       t.line_high = c(14);
       t.button_fg = c(0);
-      t.button_bg = c(14);
-      t.button_pressed_bg = eight ? c(4) : c(6);
+      t.button_bg = c(13);  // not the accent (bright cyan): that is the selection's colour
+      t.button_pressed_bg = c(5);
       t.row_selected_bg = t.row_pressed_bg = c(4);
     } else {
       t.surface_raised = t.surface_overlay = t.picker_bg = t.menu_section_bg = c(7);
@@ -242,8 +242,8 @@ struct Theme {
       t.line_low = c(4);
       t.line_high = c(6);
       t.button_fg = c(15);
-      t.button_bg = c(4);
-      t.button_pressed_bg = eight ? c(6) : c(12);
+      t.button_bg = c(5);  // not the accent (blue): that is the selection's colour
+      t.button_pressed_bg = eight ? c(1) : c(13);
       t.row_selected_bg = t.row_pressed_bg = c(14);
     }
     t.dialog_radius_px = 0.0;
