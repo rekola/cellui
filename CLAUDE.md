@@ -471,6 +471,16 @@ weak glow makes none, screened over the picture (`GSK_BLEND_MODE_SCREEN`). The c
 brightest: what is near a bright line reaches full strength, so the line looks wider the more light it
 carries, as an overexposed filament does. The glow has a clip of its own, wider than the picture's cells: a
 lamp at the picture's edge glows past it. A frame without light past white costs only the first texture.
+Native selection (`setNativeSelection(true)`, which an application sets while a
+dialog that `wantsNativeSelection()` is up, as a terminal's mouse reporting is
+off then): the window takes the left button itself, so the application hears no
+press, motion or release. A drag selects the cells between its ends in reading
+order (tinted in the text colour), the wheel or turning it off clears it, and
+Ctrl+C puts the text on the clipboard. The text is read from what is shown
+(`spotAt()`: the frame's cells, then the scrolled planes above the last
+backdrop, never the blurred screen behind it); a proportional text run gives the
+part over the selected cells by where Pango puts each character, and each row
+loses its trailing blanks.
 Not done yet:
 per-plane render nodes, input methods, HiDPI, native dialogs and menus.
 

@@ -318,6 +318,24 @@ struct Window::Impl {
   }
   void allocated(int width, int height);
   void pasteClipboard();
+  // The display's own text selection (Backend::setNativeSelection): a drag with the left button selects the cells
+  // between where it began and where it is, in reading order, and Ctrl+C copies their text. The application is
+  // told nothing of the pointer or the selection meanwhile.
+  struct Selection {
+    bool has = false, dragging = false;
+    int from_row = 0, from_col = 0, to_row = 0, to_col = 0;
+  };
+  struct Spot {
+    const CellBuffer * cells = nullptr;
+    int row = 0, col = 0;
+  };
+  bool native_selection = false;
+  Selection selection;
+  void clearSelection();
+  Spot spotAt(int row, int col) const;
+  std::string runPiece(const TextRun & run, int box_cols, int from, int to) const;
+  std::string rowText(int row, int from, int to) const;
+  std::string selectedText() const;
   bool keyEvent(GtkEventController * controller, guint keyval, GdkModifierType state, bool pressed, guint keycode);
   void commitText(const char * text);
   void buttonEvent(int button, double x, double y, bool pressed, GdkModifierType state);
@@ -1603,6 +1621,21 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
       it = image_textures.erase(it);
     }
   }
+  if (native_selection && selection.has) {
+    int r0 = selection.from_row, c0 = selection.from_col, r1 = selection.to_row, c1 = selection.to_col;
+    if (std::tie(r1, c1) < std::tie(r0, c0)) {
+      std::swap(r0, r1);
+      std::swap(c0, c1);
+    }
+    // Over whatever the cells show, in the text's own colour so it reads on a light theme and a dark one.
+    GdkRGBA tint = channel(fg, 0.28f);
+    for (int row = r0; row <= r1; row++) {
+      const int from = row == r0 ? c0 : 0, to = row == r1 ? c1 : std::max(0, cols - 1);
+      graphene_rect_t box = GRAPHENE_RECT_INIT(static_cast<float>(from * cell_w), static_cast<float>(row * cell_h), static_cast<float>((to - from + 1) * cell_w),
+                                               static_cast<float>(cell_h));
+      gtk_snapshot_append_color(snap, &tint, &box);
+    }
+  }
   if (cursor.visible) {
     graphene_rect_t bar = GRAPHENE_RECT_INIT(static_cast<float>(cursor.x * cell_w), static_cast<float>(cursor.y * cell_h), 2.0f, static_cast<float>(cell_h));
     GdkRGBA ink = channel(fg);
@@ -1612,6 +1645,111 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
   stats.frames++;
   stats.draw_ms_total += ms;
   stats.draw_ms_max = std::max(stats.draw_ms_max, ms);
+}
+
+void Window::Impl::clearSelection() {
+  if (!selection.has && !selection.dragging) return;
+  selection = Selection{};
+  gtk_widget_queue_draw(view);
+}
+
+// Where the text shown at a cell is kept: the frame's own cells, then (lower) the planes that are drawn apart from it,
+// whose cells are what the window shows by the nearest whole cell while they are shifted by part of one. What lies
+// under a backdrop is the blurred screen behind a dialog, which has nothing to select.
+Window::Impl::Spot Window::Impl::spotAt(int row, int col) const {
+  auto live = [](const CellBuffer::Cell & cell) { return cell.text_run || cell.text != " "; };
+  auto inside = [](const CellBuffer & cells, int r, int c) { return r >= 0 && c >= 0 && r < cells.rows() && c < cells.cols(); };
+  if (inside(frame, row, col) && live(frame.at(row, col))) return {&frame, row, col};
+  size_t first = 0;
+  for (size_t i = layers.size(); i-- > 0;) {
+    if (layers[i].backdrop.active()) {
+      first = i + 1;
+      break;
+    }
+  }
+  for (size_t i = layers.size(); i-- > first;) {
+    const BackdropLayer & layer = layers[i];
+    if (layer.scroll) {
+      const ScrollContent & s = *layer.scroll;
+      if (row >= s.row && row < s.row + s.rows && col >= s.col && col < s.col + s.cols) {
+        int r = static_cast<int>(std::floor(row - s.row + 0.5 + s.shift_rows)), c = static_cast<int>(std::floor(col - s.col + 0.5 + s.shift_cols));
+        if (inside(s.cells, r, c) && live(s.cells.at(r, c))) return {&s.cells, r, c};
+      }
+    }
+    if (inside(layer.cells, row, col) && live(layer.cells.at(row, col))) return {&layer.cells, row, col};
+  }
+  return {};
+}
+
+// The part of a laid-out run that lies over cells `from` to `to` (counted from the run's first cell, both ends
+// included), by where the display puts each character.
+std::string Window::Impl::runPiece(const TextRun & run, int box_cols, int from, int to) const {
+  if (from <= 0 && to >= box_cols - 1) return run.text;
+  if (!proportional) return run.text;
+  PangoFontDescription * font = pango_font_description_copy(proportional);
+  pango_font_description_set_weight(font, static_cast<PangoWeight>(run.weight));
+  if (run.italic) pango_font_description_set_style(font, PANGO_STYLE_ITALIC);
+  PangoLayout * layout = gtk_widget_create_pango_layout(view, run.text.c_str());
+  pango_layout_set_font_description(layout, font);
+  pango_layout_set_single_paragraph_mode(layout, TRUE);
+  int text_w = 0, text_h = 0;
+  pango_layout_get_pixel_size(layout, &text_w, &text_h);
+  const double slack = std::max(0.0, static_cast<double>(box_cols) * cell_w - text_w);
+  const double dx = run.align == TextAlign::RIGHT ? slack : run.align == TextAlign::CENTER ? slack / 2.0 : 0.0;
+  auto indexAt = [&](double x) {
+    int index = 0, trailing = 0;
+    pango_layout_xy_to_index(layout, static_cast<int>((x - dx) * PANGO_SCALE), 0, &index, &trailing);
+    // The nearer edge of the character: past its middle is after it.
+    if (trailing > 0) index = static_cast<int>(g_utf8_offset_to_pointer(run.text.c_str() + index, trailing) - run.text.c_str());
+    return std::clamp(index, 0, static_cast<int>(run.text.size()));
+  };
+  const int start = indexAt(static_cast<double>(from) * cell_w), end = indexAt(static_cast<double>(to + 1) * cell_w);
+  g_object_unref(layout);
+  pango_font_description_free(font);
+  return end > start ? run.text.substr(static_cast<size_t>(start), static_cast<size_t>(end - start)) : std::string();
+}
+
+// The text of one screen row from column `from` to `to`, both included, without the blanks at its end.
+std::string Window::Impl::rowText(int row, int from, int to) const {
+  std::string out;
+  for (int col = from; col <= to;) {
+    Spot spot = spotAt(row, col);
+    if (!spot.cells) {
+      out += ' ';
+      col++;
+      continue;
+    }
+    const CellBuffer::Cell & cell = spot.cells->at(spot.row, spot.col);
+    if (cell.text_run && static_cast<size_t>(cell.text_run) <= text_runs.size()) {
+      auto same = [&](int c) { return spot.cells->at(spot.row, c).text_run == cell.text_run; };
+      int start = spot.col, end = spot.col;
+      while (start > 0 && same(start - 1)) start--;
+      while (end + 1 < spot.cells->cols() && same(end + 1)) end++;
+      const int last = std::min(end, spot.col + (to - col));
+      out += runPiece(text_runs[static_cast<size_t>(cell.text_run - 1)], end - start + 1, spot.col - start, last - start);
+      col += last - spot.col + 1;
+      continue;
+    }
+    if (!cell.continuation) out += cell.text;
+    col++;
+  }
+  while (!out.empty() && out.back() == ' ') out.pop_back();
+  return out;
+}
+
+std::string Window::Impl::selectedText() const {
+  if (!selection.has) return {};
+  int r0 = selection.from_row, c0 = selection.from_col, r1 = selection.to_row, c1 = selection.to_col;
+  if (std::tie(r1, c1) < std::tie(r0, c0)) {
+    std::swap(r0, r1);
+    std::swap(c0, c1);
+  }
+  std::string out;
+  for (int row = r0; row <= r1; row++) {
+    if (row > r0) out += '\n';
+    out += rowText(row, row == r0 ? c0 : 0, row == r1 ? c1 : std::max(0, cols - 1));
+  }
+  return out;
 }
 
 void Window::Impl::pasteClipboard() {
@@ -1644,6 +1782,11 @@ bool Window::Impl::keyEvent(GtkEventController * controller, guint keyval, GdkMo
   }
   if (pressed && ((keyval == GDK_KEY_Insert && (mods & kModShift)) || ((keyval == GDK_KEY_V || keyval == GDK_KEY_v) && (mods & kModCtrl) && (mods & kModShift)))) {
     pasteClipboard();
+    return true;
+  }
+  if (pressed && native_selection && selection.has && (keyval == GDK_KEY_c || keyval == GDK_KEY_C) && (mods & kModCtrl) && !(mods & (kModAlt | kModMeta))) {
+    const std::string text = selectedText();
+    if (!text.empty()) gdk_clipboard_set_text(gtk_widget_get_clipboard(view), text.c_str());
     return true;
   }
   int key = keyFor(keyval, mods);
@@ -1680,6 +1823,17 @@ void Window::Impl::buttonEvent(int button, double x, double y, bool pressed, Gdk
   last_col = col;
   last_fy = fy;
   last_fx = fx;
+  if (native_selection && button == 1) {
+    if (pressed) {
+      selection = Selection{true, true, row, col, row, col};
+    } else if (selection.dragging) {
+      selection.dragging = false;
+      // A click that went nowhere selects nothing.
+      if (selection.from_row == selection.to_row && selection.from_col == selection.to_col) selection.has = false;
+    }
+    gtk_widget_queue_draw(view);
+    return;
+  }
   Input input(Key::Button1 + button - 1, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper),
               pressed ? Input::Kind::PRESS : Input::Kind::RELEASE);
   push(BackendEvent::makeInput(input.withPosition(fy, fx)));
@@ -1705,6 +1859,14 @@ void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
   last_fy = fy;
   last_fx = fx;
   updateMouseCursor();
+  if (native_selection) {
+    if (selection.dragging) {
+      selection.to_row = row;
+      selection.to_col = col;
+      gtk_widget_queue_draw(view);
+    }
+    return;
+  }
   unsigned mods = modsFrom(state);
   // The pointer moving, with a button held or not: the dispatcher knows the held buttons.
   Input input(Key::Motion, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper), Input::Kind::RELEASE);
@@ -1724,6 +1886,8 @@ bool Window::Impl::scrollEvent(double dx, double dy, bool surface_units, GdkModi
     dy /= per_notch;
   }
   // A notch is reported once half of it has come, so the first movement is not held back.
+  // What shows under a selection moves or goes: it is not what was selected any more.
+  if (native_selection) clearSelection();
   scroll_x += dx;
   scroll_y += dy;
   unsigned mods = modsFrom(state);
@@ -1943,6 +2107,13 @@ LinkStatus Window::linkStatus() const {
 }
 void Window::setLinkHandler(LinkHandler handler) { impl_->link.setHandler(std::move(handler)); }
 void Window::setLinkPin(std::optional<LinkClass> pin) { impl_->link.pin(pin); }
+
+void Window::setNativeSelection(bool on) {
+  if (on == impl_->native_selection) return;
+  impl_->native_selection = on;
+  // Whatever was selected goes with the dialog it was in, and the app is not left with a button it was told is held.
+  impl_->clearSelection();
+}
 
 void Window::redraw() {
   impl_->forgetTextures();

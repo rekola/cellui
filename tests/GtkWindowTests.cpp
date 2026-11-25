@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <functional>
+#include <future>
 #include <thread>
 #include <poll.h>
 #include <unistd.h>
@@ -918,4 +919,70 @@ TEST(gtk_window_makes_another_colour_of_a_glyph_without_shaping_it_again) {
   present(Color::linear(2.0f, 1.2f, 1.2f));
   present(Color::linear(1.6f, 2.4f, 1.3f));
   CHECK(w->stats().glyphs_shaped == shaped);  // no glyph shaped again, its glow included
+}
+
+// The text the X clipboard holds, read by another process while the window's loop runs (it owns the selection).
+static std::string clipboardText(gtk::Window & w) {
+  auto reader = std::async(std::launch::async, [] {
+    FILE * pipe = popen("xclip -selection clipboard -o 2>/dev/null", "r");
+    std::string out;
+    char buffer[256];
+    while (pipe && std::fgets(buffer, sizeof buffer, pipe)) out += buffer;
+    if (pipe) pclose(pipe);
+    return out;
+  });
+  pumpUntil(w, [&] { return reader.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready; }, 4000);
+  return reader.get();
+}
+
+TEST(gtk_window_selects_text_with_the_pointer_and_copies_it_while_the_native_selection_is_on) {
+  gtk::Window * w = theWindow();
+  if (!w || !haveXdotool() || std::system("command -v xclip > /dev/null 2>&1") != 0) return;
+  pumpUntil(*w, [] { return false; }, 500);
+  w->poll();
+  xdotool("search --name cellui-test windowfocus");
+  pumpUntil(*w, [] { return false; }, 200);
+
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.putstr(2, 3, "alpha beta");
+  root.putstr(3, 3, "gamma delta");
+  root.refresh();
+  w->present(screen, {}, root.images());
+  pumpUntil(*w, [] { return false; }, 300);
+
+  const int cw = w->display().cell_px_width, ch = w->display().cell_px_height;
+  const int margin = 2;
+  auto at = [&](int row, int col) { return std::to_string(margin + cw * col + cw / 2) + " " + std::to_string(margin + ch * row + ch / 2); };
+  const std::string window = "search --name cellui-test ";
+
+  // The application sees the drag until the display is asked to select.
+  w->poll();
+  xdotool(window + "mousemove --window %1 " + at(2, 3) + " mousedown 1 mousemove --window %1 " + at(2, 7) + " mouseup 1");
+  pumpUntil(*w, [] { return false; }, 400);
+  bool pressed = false;
+  for (auto & e : w->poll()) pressed |= e.type == BackendEvent::Type::INPUT && e.input.getId() == Key::Button1;
+  CHECK(pressed);
+
+  w->setNativeSelection(true);
+  xdotool(window + "mousemove --window %1 " + at(2, 6) + " mousedown 1 mousemove --window %1 " + at(3, 4) + " mouseup 1");
+  pumpUntil(*w, [] { return false; }, 400);
+  bool told = false;
+  for (auto & e : w->poll()) told |= e.type == BackendEvent::Type::INPUT && (e.input.getId() == Key::Button1 || e.input.getId() == Key::Motion);
+  CHECK(!told);  // the window took the pointer
+  xdotool("key ctrl+c");
+  pumpUntil(*w, [] { return false; }, 300);
+  // From the 'h' of "alpha" (col 6) to col 4 of the next row.
+  const std::string copied = clipboardText(*w);
+  CHECK(copied == "ha beta\n   ga");  // reading order, as a terminal selects: the next row from its first cell
+
+  // Turning it off drops the selection, and Ctrl+C is the application's again.
+  w->setNativeSelection(false);
+  w->poll();
+  xdotool("key ctrl+c");
+  pumpUntil(*w, [] { return false; }, 300);
+  bool key = false;
+  for (auto & e : w->poll()) key |= e.type == BackendEvent::Type::INPUT && e.input.getId() == 'c' && e.input.hasCtrl();
+  CHECK(key);
 }
