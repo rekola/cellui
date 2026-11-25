@@ -218,8 +218,7 @@ void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, std::spa
   // A dot column for each half cell, a level for each quarter of a row; level 0 is the bottom one.
   const int dot_cols = 2 * cols, levels = 4 * rows;
   std::vector<float> points = trace_image::resample(values, static_cast<size_t>(dot_cols), look.range);
-  // The cursor is a dotted hairline in the dot column it falls on.
-  const int cursor_dot = look.cursor && !points.empty() ? static_cast<int>(std::lround(std::clamp(*look.cursor, 0.0f, 1.0f) * static_cast<float>(dot_cols - 1))) : -1;
+  // No cursor in cells: a terminal shows the reading beside the title, and a mark in the line would only read as part of the series.
   // Each column's dots run from its point toward the middle of the way to
   // each neighbour, so a steep stretch is a connected line, not scattered dots.
   std::vector<int> low(static_cast<size_t>(dot_cols), 1), high(static_cast<size_t>(dot_cols), 0);  // empty: low > high
@@ -251,12 +250,13 @@ void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, std::spa
         int level = (rows - 1 - i) * 4 + (3 - sub);  // sub 0 is the cell's top dot row
         for (int dx = 0; dx < 2; dx++) {
           size_t x = static_cast<size_t>(2 * c + dx);
-          if ((level >= low[x] && level <= high[x]) || static_cast<int>(x) == cursor_dot) mask |= 1 << (sub * 2 + dx);
+          if ((level >= low[x] && level <= high[x])) mask |= 1 << (sub * 2 + dx);
         }
       }
-      // A cell has one colour: the brighter of its two dot columns, with no light past white.
+      // A cell has one colour: the brighter of its two dot columns. Light past white is kept in it: the display's tone map
+      // (Color::toSrgb8()) washes it toward white, as it does a picture's.
       const size_t x = static_cast<size_t>(2 * c);
-      plane.setFgColor(trace_image::lineColorAt(look, std::max(light[x], light[x + 1]), false));
+      plane.setFgColor(trace_image::lineColorAt(look, std::max(light[x], light[x + 1]), true));
       plane.putstr(y, col + c, utf8::encodeCodepoint(brailleCodepoint(mask)));
     }
   }

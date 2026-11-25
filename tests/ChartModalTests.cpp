@@ -103,16 +103,26 @@ TEST(chart_modal_arrow_keys_move_the_cursor_and_the_reading_follows) {
   CHECK(f.widget_keys == 0);  // the chart took every key
 }
 
-TEST(chart_modal_the_cursor_is_drawn_where_it_is) {
+TEST(chart_modal_draws_no_cursor_in_cells_but_the_reading_follows_it) {
   Fixture f;
   ChartModal chart(f.root, f.screen, f.loop, *f.charts, prices());
+  // The chart's own cells are the same wherever the cursor is: only the reading above it changes.
+  auto chartRows = [&] {
+    std::string text = f.screenText(), out;
+    int row = 0;
+    for (size_t i = 0; i < text.size(); i++) {
+      if (text[i] == '\n') row++;
+      else if (row >= 7 && row <= 22) out += text[i];  // under the title row, above the axis labels
+    }
+    return out;
+  };
   std::string at_end, at_start;
-  f.then([&] { at_end = f.screenText(); });
+  f.then([&] { at_end = chartRows(); });
   f.key(Key::Home);
-  f.then([&] { at_start = f.screenText(); });
+  f.then([&] { at_start = chartRows(); });
   f.key(Key::Escape);
   chart.showModal();
-  CHECK(!at_end.empty() && at_end != at_start);
+  CHECK(!at_end.empty() && at_end == at_start);
 }
 
 TEST(chart_modal_the_pointer_over_the_chart_moves_the_cursor_and_a_click_away_closes_it) {

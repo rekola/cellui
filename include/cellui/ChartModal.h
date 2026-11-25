@@ -29,7 +29,7 @@ struct ChartData {
 };
 
 // A series drawn large over the dimmed screen, and nothing else: no window around it, only the line with its axis labels, the
-// title and a cursor with a reading. It is drawn by the display's Charts::drawTrace(), the same line a table's trace
+// title and a cursor with a reading (where the display draws pictures the cursor is a hairline and a dot on the line; in cells only the reading shows it). It is drawn by the display's Charts::drawTrace(), the same line a table's trace
 // column draws, so it is pictures where the display has them and braille where it has not. The cursor starts at the latest
 // value; Left and Right (Ctrl+B, Ctrl+F) move it, Page Up and Page Down by a tenth, Home and End to the ends, and the pointer
 // moves it over the chart. Escape, Enter, q or Ctrl+G close it, and so does a click outside the chart.

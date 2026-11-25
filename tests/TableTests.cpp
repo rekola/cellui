@@ -217,6 +217,45 @@ TEST(trace_cursor_is_a_hairline_through_the_whole_height) {
   CHECK(plain[2 * 41 + 30] == marked[2 * 41 + 30]);
 }
 
+TEST(trace_in_cells_shows_no_cursor) {
+  StyleProvider styles;
+  CellBuffer plain_buffer(4, 20), marked_buffer(4, 20);
+  BufferPlane plain(plain_buffer, styles), marked(marked_buffer, styles);
+  auto charts = cellCharts();
+  TraceLook look{Color(10, 10, 10), Color(60, 180, 80), std::nullopt};
+  const std::vector<float> values{1, 2, 3, 2, 1, 2, 3, 4};
+  charts->drawTrace(plain, 0, 0, 4, 20, values, look, 0, 4);
+  look.cursor = 1.0f;  // at the last value: the end of the line
+  charts->drawTrace(marked, 0, 0, 4, 20, values, look, 0, 4);
+  plain.refresh();
+  marked.refresh();
+  CHECK(plain_buffer.toPlainText() == marked_buffer.toPlainText());  // no dots down the end, which read as a spike
+  for (int row = 0; row < 4; row++)
+    for (int col = 0; col < 20; col++) CHECK(marked_buffer.at(row, col).bg == plain_buffer.at(row, col).bg);
+}
+
+TEST(trace_in_cells_keeps_the_light_past_white_for_the_terminals_tone_map) {
+  StyleProvider styles;
+  CellBuffer buffer(2, 10);
+  BufferPlane root(buffer, styles);
+  auto charts = cellCharts();
+  const std::vector<float> values{1, 2, 3, 4, 5};
+  const std::vector<float> bright(values.size(), 1.0f), dim(values.size(), 0.0f);
+  TraceLook look{Color(10, 10, 10), Color(60, 180, 80), std::nullopt};
+  auto strongest = [&](const std::vector<float> & light) {
+    look.light = light;
+    charts->drawTrace(root, 0, 0, 2, 10, values, look, 0, 2);
+    root.refresh();
+    float most = 0.0f;
+    for (int row = 0; row < 2; row++)
+      for (int col = 0; col < 10; col++)
+        if (const auto & fg = buffer.at(row, col).fg) most = std::max({most, fg->r(), fg->g(), fg->b()});
+    return most;
+  };
+  CHECK(strongest(dim) <= 1.0f);
+  CHECK(strongest(bright) > 1.0f);  // lit past white; Color::toSrgb8() washes it toward white
+}
+
 TEST(table_click_on_a_cell_says_which_and_a_drag_across_rows_is_no_click) {
   Fixture f;
   std::vector<std::pair<int, int>> clicks;

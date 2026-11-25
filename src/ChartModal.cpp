@@ -15,6 +15,7 @@ namespace {
 constexpr int kMaxCols = 110, kMaxRows = 30;
 constexpr int kMarginCols = 3, kMarginRows = 1;
 constexpr float kLineWidth = 2.0f;
+constexpr double kBorderWidth = 1.0;  // logical pixels
 constexpr int kMinChartRows = 3;
 
 // A short number: five significant digits, a point whatever the locale.
@@ -78,9 +79,12 @@ void ChartModal::layout(Plane & screen, int rows, int cols) {
   if (!plane_) {
     plane_ = screen.createChild();
     plane_->setMouseCursor(MouseCursor::DEFAULT);
-    // Over the scrim, with no raised area of its own: no shadow and no corners, only the chart.
+    // Over the scrim, with no raised area of its own (no shadow): only the chart, in a box with rounded corners and a thin border in
+    // the line's colour where the display draws them (the window; a terminal shows neither).
     plane_->setElevation(screen.getStyles().theme.elevation.modal);
     plane_->setElevationArea(false);
+    plane_->setCornerRadius(screen.getStyles().theme.dialog_radius_px);
+    plane_->setBorder(color_.value_or(screen.getStyles().line_high_color), kBorderWidth);
   }
   plane_->resize(rows_, cols_);
   const StyleProvider & styles = plane_->getStyles();
