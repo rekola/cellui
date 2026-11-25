@@ -178,6 +178,9 @@ class Table : public Widget {
   Signal<int> activated;
   // Enter on a cell that is not a button: the model row and the column the cursor is in (activated says the row alone).
   Signal<int, int> cell_activated;
+  // A click on a cell that is not a button, after the row is selected and the cursor is in the cell: the model row and the
+  // column (a click on a trace cell opens its chart). A drag that ends elsewhere is no click.
+  Signal<int, int> cell_clicked;
   Signal<int, SortOrder> sort_changed;
   // A click on a button of a buttons column (TableColumn::buttons): the model row, the column and the button's index.
   // The selection does not move: the click is about that row, not a choice of it.
@@ -250,6 +253,7 @@ class Table : public Widget {
   int pressed_heading_ = -1, pressed_position_ = -1;
   bool press_on_heading_ = false;
   std::pair<int, int> press_button_{-1, -1};  // the button the press went down on
+  int press_position_ = -1;                   // the row it went down on (-1: none, or a heading)
   bool pressing_ = false;
   ScrollbarDrag thumb_drag_;
   std::vector<Connection> connections_;

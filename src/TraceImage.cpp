@@ -18,7 +18,7 @@ canvas::Color toCanvas(const Color & c, float alpha = 1.0f) { return canvas::Col
 
 }  // namespace
 
-std::vector<float> resample(std::span<const float> values, size_t count) {
+std::vector<float> resample(std::span<const float> values, size_t count, std::optional<std::pair<float, float>> range) {
   std::vector<float> finite;
   finite.reserve(values.size());
   for (float v : values) {
@@ -27,7 +27,7 @@ std::vector<float> resample(std::span<const float> values, size_t count) {
   std::vector<float> out;
   if (finite.empty() || count == 0) return out;
   auto [lo, hi] = std::minmax_element(finite.begin(), finite.end());
-  const float low = *lo, span = *hi - *lo;
+  const float low = range ? range->first : *lo, span = range ? range->second - range->first : *hi - *lo;
   out.reserve(count);
   for (size_t i = 0; i < count; i++) {
     // The position in the series of point i: the first point is the first
@@ -36,7 +36,7 @@ std::vector<float> resample(std::span<const float> values, size_t count) {
     size_t k = static_cast<size_t>(at);
     double t = at - static_cast<double>(k);
     float v = k + 1 < finite.size() ? static_cast<float>(finite[k] * (1.0 - t) + finite[k + 1] * t) : finite[k];
-    out.push_back(span > 0.0f ? (v - low) / span : 0.5f);
+    out.push_back(span > 0.0f ? std::clamp((v - low) / span, 0.0f, 1.0f) : 0.5f);
   }
   return out;
 }
@@ -73,7 +73,7 @@ Picture renderPicture(std::span<const float> values, const TraceLook & look, uns
 
   // One point per pixel column, a little in from the top and bottom edges so
   // the stroke is not cut off.
-  std::vector<float> levels = resample(values, width);
+  std::vector<float> levels = resample(values, width, look.range);
   if (!levels.empty()) {
     const float inset = std::min(2.0f, h / 4.0f);
     auto x_at = [&](size_t x) { return (static_cast<double>(x) + 0.5) / scale; };
@@ -99,6 +99,18 @@ Picture renderPicture(std::span<const float> values, const TraceLook & look, uns
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.5f;
     ctx.stroke();
+
+    if (look.cursor) {
+      // A hairline through the whole height, softer than the line, and a dot where it crosses.
+      const size_t x = static_cast<size_t>(std::lround(std::clamp(*look.cursor, 0.0f, 1.0f) * static_cast<float>(levels.size() - 1)));
+      ctx.beginPath().moveTo(x_at(x), 0).lineTo(x_at(x), h);
+      ctx.strokeStyle = toCanvas(look.background.blend(0.6f, look.line));
+      ctx.lineWidth = 1.0f;
+      ctx.stroke();
+      ctx.beginPath().arc(x_at(x), y_at(x), 3.0, 0.0, 6.2831853);
+      ctx.fillStyle = toCanvas(lineColorAt(look, 1.0f, false));
+      ctx.fill();
+    }
   }
 
   Picture out = readPicture(drawn, width, height, scale);

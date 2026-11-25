@@ -3,7 +3,6 @@
 #include "HeatmapGrid.h"
 
 #include <cellui/HeatmapImage.h>
-#include <cellui/LineImage.h>
 #include <cellui/StyleProvider.h>
 #include <cellui/Plane.h>
 #include <cellui/SparklineImage.h>
@@ -65,47 +64,8 @@ private:
   std::vector<Label> labels_;
 };
 
-// The spectrum as the plane's image: one level per pixel column, drawn
-// with canvas.
-class PixelLineChart : public term::CellLineChart {
-public:
-  using term::CellLineChart::CellLineChart;
-
-protected:
-  size_t sampleCount(int cols) override {
-    int pxy = 0, pxx = 0;
-    if (getPlane().pixelSize(pxy, pxx)) return static_cast<size_t>(pxx);
-    return term::CellLineChart::sampleCount(cols);
-  }
-
-  void drawSamples(const std::vector<float> & samples) override {
-    int pxy = 0, pxx = 0;
-    if (!getPlane().pixelSize(pxy, pxx) || samples.size() != static_cast<size_t>(pxx)) {
-      term::CellLineChart::drawSamples(samples);
-      return;
-    }
-    // Pixels are made lazily: until a level is above zero, only the
-    // background, in cells.
-    if (!has_pixels_) {
-      if (std::all_of(samples.begin(), samples.end(), [](float v) { return v <= 0.0f; })) {
-        setBgColor(getPlane().getStyles().window_bg_color);
-        fill();
-        return;
-      }
-      has_pixels_ = true;
-    }
-    // Opaque, so a pixel never composites against the raw terminal background.
-    drawPicture(getPlane(), line_image::renderPicture(samples, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
-                                                      static_cast<float>(getPlane().displayScale()), getPlane().hdrPictures()));
-  }
-
- private:
-  bool has_pixels_ = false;
-};
-
 class PixelCharts : public Charts {
  public:
-  std::shared_ptr<LineChart> lineChart(Plane & parent) const override { return std::make_shared<PixelLineChart>(parent); }
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<PixelHeatmapChart>(parent, grid_cols, grid_rows);
   }
@@ -169,6 +129,9 @@ class PixelCharts : public Charts {
     }
     mix(look.fill ? look.fill->r() + 1.0f : 0.0f);
     mix(look.hdr_gain);
+    mix(look.range ? look.range->first : -1.0f);
+    mix(look.range ? look.range->second : -2.0f);
+    mix(look.cursor ? *look.cursor : -1.0f);
     auto key = std::make_pair(&plane, id);
     auto found = traces_.find(key);
     if (found == traces_.end() || found->second.print != print) {

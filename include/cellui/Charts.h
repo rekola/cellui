@@ -2,7 +2,6 @@
 
 #include <cellui/DisplayInfo.h>
 #include <cellui/HeatmapChart.h>
-#include <cellui/LineChart.h>
 #include <cellui/SparklineImage.h>
 #include <cellui/TraceImage.h>
 
@@ -23,13 +22,12 @@ struct WaveformLook {
   Color guide;
 };
 
-// The charts - a line chart, a heatmap, sparklines and a waveform - in the versions a backend can show. An application asks its
+// The charts - a heatmap, sparklines, traces (the one line chart, see LineChart and ChartModal) and a waveform - in the versions a backend can show. An application asks its
 // backend's Charts for a chart and never knows how it is drawn.
 class Charts {
  public:
   virtual ~Charts() = default;
 
-  virtual std::shared_ptr<LineChart> lineChart(Plane & parent) const = 0;
   // A heatmap of a grid_cols x grid_rows grid.
   virtual std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const = 0;
   // A sparkline drawn into a widget's own plane: a compact bar chart `rows` cells tall from
@@ -46,7 +44,8 @@ class Charts {
     drawSparkline(plane, row, col, rows, std::vector<SparklineReading>{reading}, look, clip_top, clip_bottom, id);
   }
   // A line through `values` from the left of a box of `rows` x `cols` cells at (row, col), scaled
-  // from the lowest value to the highest (a price history, in a table cell), drawn only in the plane
+  // from the lowest value to the highest, or between the ends of look.range (a price history, in a table cell;
+  // a spectrum or a larger chart with a cursor, TraceLook::cursor), drawn only in the plane
   // rows from clip_top up to clip_bottom (one partly scrolled out of view). `id` names it for
   // the plane's images (see Plane::drawImageAt()); 0 for none.
   virtual void drawTrace(Plane & plane, int row, int col, int rows, int cols, std::span<const float> values, const TraceLook & look,

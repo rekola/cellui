@@ -217,7 +217,9 @@ void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, std::spa
   if (rows <= 0 || cols <= 0) return;
   // A dot column for each half cell, a level for each quarter of a row; level 0 is the bottom one.
   const int dot_cols = 2 * cols, levels = 4 * rows;
-  std::vector<float> points = trace_image::resample(values, static_cast<size_t>(dot_cols));
+  std::vector<float> points = trace_image::resample(values, static_cast<size_t>(dot_cols), look.range);
+  // The cursor is a dotted hairline in the dot column it falls on.
+  const int cursor_dot = look.cursor && !points.empty() ? static_cast<int>(std::lround(std::clamp(*look.cursor, 0.0f, 1.0f) * static_cast<float>(dot_cols - 1))) : -1;
   // Each column's dots run from its point toward the middle of the way to
   // each neighbour, so a steep stretch is a connected line, not scattered dots.
   std::vector<int> low(static_cast<size_t>(dot_cols), 1), high(static_cast<size_t>(dot_cols), 0);  // empty: low > high
@@ -249,29 +251,13 @@ void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, std::spa
         int level = (rows - 1 - i) * 4 + (3 - sub);  // sub 0 is the cell's top dot row
         for (int dx = 0; dx < 2; dx++) {
           size_t x = static_cast<size_t>(2 * c + dx);
-          if (level >= low[x] && level <= high[x]) mask |= 1 << (sub * 2 + dx);
+          if ((level >= low[x] && level <= high[x]) || static_cast<int>(x) == cursor_dot) mask |= 1 << (sub * 2 + dx);
         }
       }
       // A cell has one colour: the brighter of its two dot columns, with no light past white.
       const size_t x = static_cast<size_t>(2 * c);
       plane.setFgColor(trace_image::lineColorAt(look, std::max(light[x], light[x + 1]), false));
       plane.putstr(y, col + c, utf8::encodeCodepoint(brailleCodepoint(mask)));
-    }
-  }
-}
-
-void CellLineChart::drawSamples(const std::vector<float> & samples) {
-  auto [rows, cols] = getDim();
-  auto & styles = getPlane().getStyles();
-  setBgColor(styles.window_bg_color);
-  fill();
-  for (int c = 0; c < cols; c++) {
-    auto column = [&](size_t bin) { return glyph_meter::BarColumn{glyph_meter::barSteps(samples[bin], rows), 0}; };
-    auto bar = glyph_meter::verticalBar(glyph_meter::Glyphs::BRAILLE, rows, column(static_cast<size_t>(2 * c)), column(static_cast<size_t>(2 * c + 1)));
-    for (int i = 0; i < rows; i++) {
-      // Shaded by the height of this cell; i = 0 is the top one.
-      setFgColor(styles.lineColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows)));
-      putstr(i, c, bar[static_cast<size_t>(i)]);
     }
   }
 }
@@ -364,7 +350,6 @@ class CellCharts : public Charts {
   CellCharts(bool sextants, bool octants)
     : sextants_(sextants), meter_glyphs_(octants ? glyph_meter::Glyphs::OCTANTS : sextants ? glyph_meter::Glyphs::BLOCKS : glyph_meter::Glyphs::BRAILLE) { }
 
-  std::shared_ptr<LineChart> lineChart(Plane & parent) const override { return std::make_shared<CellLineChart>(parent); }
   std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<CellHeatmapChart>(parent, grid_cols, grid_rows, sextants_);
   }

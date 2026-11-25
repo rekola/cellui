@@ -8,60 +8,46 @@
 
 namespace cellui {
 
-size_t
-LineChart::suggestedPoints() const {
-  auto [ rows, cols ] = getDim();
-  (void)rows;
-  return std::max<size_t>(static_cast<size_t>(2 * std::max(cols, 0)), 8);
-}
-
-bool
-LineChart::setValues(const std::vector<float> & values) {
-  auto [ rows, cols ] = getDim();
+bool LineChart::setValues(const std::vector<float> & values, std::pair<float, float> range) {
+  auto [rows, cols] = getDim();
   if (rows <= 0 || cols <= 0 || values.empty()) return false;
 
-  std::vector<float> knots(values.size());
-  for (size_t i = 0; i < values.size(); i++) knots[i] = std::clamp(values[i], 0.0f, 1.0f);
-  // The curve passes through these points: if none has moved by a step the chart can draw (a pixel, or a
-  // dot of a glyph cell) from where it was drawn, what is drawn would be the same.
+  // If no value has moved by a step the chart can draw (a pixel, or a dot of a glyph cell) from where it was drawn,
+  // what is drawn would be the same.
   int cell_h = 0, cell_w = 0;
-  float levels = static_cast<float>(rows * (getPlane().cellPixelSize(cell_h, cell_w) && cell_h > 0 ? cell_h : 4));
-  auto samples = sampleCount(cols);
-  bool same = knots.size() == last_knots_.size() && rows == last_rows_ && cols == last_cols_ && samples == last_samples_;
-  for (size_t i = 0; same && i < knots.size(); i++) same = std::fabs(knots[i] - last_knots_[i]) * levels < 1.0f;
+  const float steps = static_cast<float>(rows * (getPlane().cellPixelSize(cell_h, cell_w) && cell_h > 0 ? cell_h : 4));
+  const float span = range.second - range.first;
+  bool same = values.size() == last_values_.size() && rows == last_rows_ && cols == last_cols_ && range == last_range_;
+  for (size_t i = 0; same && i < values.size(); i++) same = std::fabs(values[i] - last_values_[i]) * steps < std::fabs(span);
   if (same) return false;
-  last_knots_ = knots;
-  last_rows_ = rows;
-  last_cols_ = cols;
-  last_samples_ = samples;
-  drawSamples(splineSample(knots, samples));
+  last_values_ = values;
+  last_range_ = range;
+  draw();
   return true;
 }
 
-// Samples a Catmull-Rom spline through `knots` (evenly spaced) at `count`
-// evenly spaced positions, clamped to 0..1.
-std::vector<float>
-LineChart::splineSample(const std::vector<float> & knots, size_t count) {
-  std::vector<float> out(count, 0.0f);
-  if (knots.empty() || count == 0) return out;
-  auto at = [&](long i) { return knots[static_cast<size_t>(std::clamp<long>(i, 0, static_cast<long>(knots.size()) - 1))]; };
-  for (size_t i = 0; i < count; i++) {
-    // Knots sit at cell centres of an n-wide axis.
-    float pos = (static_cast<float>(i) + 0.5f) / static_cast<float>(count) * static_cast<float>(knots.size()) - 0.5f;
-    long k = static_cast<long>(std::floor(pos));
-    float t = pos - static_cast<float>(k);
-    float p0 = at(k - 1), p1 = at(k), p2 = at(k + 1), p3 = at(k + 2);
-    float v = 0.5f * (2.0f * p1 + (p2 - p0) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t * t + (3.0f * (p1 - p2) + p3 - p0) * t * t * t);
-    out[i] = std::clamp(v, 0.0f, 1.0f);
-  }
-  return out;
+void LineChart::draw() {
+  auto [rows, cols] = getDim();
+  last_rows_ = rows;
+  last_cols_ = cols;
+  const StyleProvider & styles = getPlane().getStyles();
+  setBgColor(styles.window_bg_color);
+  fill();
+  if (rows <= 0 || cols <= 0 || last_values_.empty()) return;
+  TraceLook look{styles.window_bg_color, styles.line_high_color, styles.line_high_color};
+  look.range = last_range_;
+  // Opaque, so a picture never composites against the raw terminal background.
+  charts_.drawTrace(getPlane(), 0, 0, rows, cols, last_values_, look, 0, rows, 0);
+}
+
+void LineChart::onResize() {
+  auto [rows, cols] = getDim();
+  if (!last_values_.empty() && (rows != last_rows_ || cols != last_cols_)) draw();
 }
 
 void LineChart::clear() {
-  auto [rows, cols] = getDim();
-  last_knots_.clear(); // what is drawn is no longer the last curve
-  if (rows <= 0 || cols <= 0) return;
-  drawSamples(std::vector<float>(sampleCount(cols), 0.0f));
+  last_values_.clear();
+  draw();
 }
 
 }  // namespace cellui

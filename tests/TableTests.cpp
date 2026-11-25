@@ -199,6 +199,37 @@ TEST(tagbar_click_and_arrows_choose) {
   CHECK(buffer.toPlainText().find(" Nasdaq Helsinki ") != std::string::npos);
 }
 
+TEST(trace_resample_between_the_ends_of_a_range_clamps_what_is_outside) {
+  auto v = trace_image::resample(std::vector<float>{-1, 0.25f, 0.5f, 2}, 4, std::pair<float, float>{0.0f, 1.0f});
+  CHECK(v.size() == 4 && v[0] == 0.0f && v[1] == 0.25f && v[2] == 0.5f && v[3] == 1.0f);
+  auto one = trace_image::resample(std::vector<float>{0.75f}, 3, std::pair<float, float>{0.0f, 1.0f});
+  CHECK(one.size() == 3 && one[0] == 0.75f);  // a lone value stands where it is, not in the middle
+}
+
+TEST(trace_cursor_is_a_hairline_through_the_whole_height) {
+  TraceLook look{Color(10, 10, 10), Color(60, 180, 80), std::nullopt};
+  const std::vector<float> values{1, 2, 3, 2, 1};
+  auto plain = trace_image::render(values, look, 41, 30);
+  look.cursor = 0.0f;
+  auto marked = trace_image::render(values, look, 41, 30);
+  // At the left edge the line starts at the bottom; high up in the first column there is only the hairline.
+  CHECK(plain[2 * 41] != marked[2 * 41]);
+  CHECK(plain[2 * 41 + 30] == marked[2 * 41 + 30]);
+}
+
+TEST(table_click_on_a_cell_says_which_and_a_drag_across_rows_is_no_click) {
+  Fixture f;
+  std::vector<std::pair<int, int>> clicks;
+  auto connection = f.table.cell_clicked.connect([&](int row, int column) { clicks.push_back({row, column}); });
+  f.click(3, 25);  // the second row's trace cell (the heading is on row 1)
+  CHECK(clicks == (std::vector<std::pair<int, int>>{{1, 2}}));
+  f.press(2, 3);
+  f.release(4, 3);  // ends on another row
+  CHECK(clicks.size() == 1);
+  f.click(1, 12);  // a heading sorts, it is no cell
+  CHECK(clicks.size() == 1);
+}
+
 TEST(trace_resample_scales_lowest_to_highest) {
   auto v = trace_image::resample(std::vector<float>{10, 20, 30}, 5);
   CHECK(v.size() == 5u);
