@@ -187,6 +187,26 @@ struct Window::Impl {
   // for the glyph. This takes a GL renderer.
   // How far a glow reaches past its cell on every side, in pixels.
   GskRenderNode * glyphNode(const CellBuffer::Cell & cell, const Color & fg);
+  // A laid-out run of text, in its box, as one node at the box's corner: everything that shapes it is the key, so a
+  // table that scrolls or redraws lays out only the runs it did not show a frame ago. Two generations: a run not
+  // asked for since the generation before last is let go, so what is kept is about a screenful, whatever scrolled by.
+  struct RunKey {
+    std::string text;
+    uint32_t color, emphasis_color;
+    int weight, w, h;
+    std::vector<std::pair<int, int>> emphasis;
+    bool italic, underline, ellipsis, has_emphasis_color, single_row;
+    int align;
+    bool operator<(const RunKey & o) const {
+      return std::tie(text, color, emphasis_color, weight, w, h, emphasis, italic, underline, ellipsis, has_emphasis_color, single_row, align) <
+             std::tie(o.text, o.color, o.emphasis_color, o.weight, o.w, o.h, o.emphasis, o.italic, o.underline, o.ellipsis, o.has_emphasis_color,
+                      o.single_row, o.align);
+    }
+  };
+  std::map<RunKey, GskRenderNode *> run_nodes, run_nodes_old;
+  static constexpr size_t kRunNodesPerGeneration = 1024;
+  GskRenderNode * runNode(const TextRun & run, int box_rows, int box_cols);
+  void forgetRuns();
   GskRenderNode * textNode(const CellBuffer & cells, int r0, int r1);
   GskRenderNode * glowNode(const CellBuffer & cells, int r0, int r1);
 
@@ -1235,6 +1255,13 @@ void Window::Impl::appendImages(GtkSnapshot * snap, const CellBuffer & cells, co
   for (auto & [spill, spilled] : spills) gtk_snapshot_append_scaled_texture(snap, spill, GSK_SCALING_FILTER_LINEAR, &spilled);
 }
 
+template <typename Map>
+static void forgetRunsOf(Map & nodes) {
+  for (auto & entry : nodes)
+    if (entry.second) gsk_render_node_unref(entry.second);
+  nodes.clear();
+}
+
 // The text the display lays out, each run over the cells marked with it: set
 // in the proportional face, centred in the rows, cut to the box (with an
 // ellipsis when asked, by the layout itself).
@@ -1244,60 +1271,96 @@ void Window::Impl::appendTextRuns(GtkSnapshot * snap, const CellBuffer & cells) 
   for (const auto & [index, list] : runs) {
     if (static_cast<size_t>(index) > text_runs.size()) continue;
     const TextRun & run = text_runs[static_cast<size_t>(index - 1)];
-    auto rgb = run.fg.value_or(*display_info.default_fg).toSrgb8();
-    GdkRGBA color = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 1.0f };
-    PangoFontDescription * font = pango_font_description_copy(proportional);
-    pango_font_description_set_weight(font, static_cast<PangoWeight>(run.weight));
-    if (run.italic) pango_font_description_set_style(font, PANGO_STYLE_ITALIC);
     for (const MarkedRun & box : list) {
-      float x = static_cast<float>(box.col * cell_w), y = static_cast<float>(box.row * cell_h);
-      float w = static_cast<float>(box.cols * cell_w), h = static_cast<float>(box.rows * cell_h);
-      PangoLayout * layout = gtk_widget_create_pango_layout(view, run.text.c_str());
-      pango_layout_set_font_description(layout, font);
-      pango_layout_set_single_paragraph_mode(layout, TRUE);
-      if (run.overflow == TextOverflow::ELLIPSIS) {
-        pango_layout_set_width(layout, static_cast<int>(w) * PANGO_SCALE);
-        pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
-      }
-      if (run.underline || !run.emphasis.empty()) {
-        PangoAttrList * attrs = pango_attr_list_new();
-        if (run.underline) pango_attr_list_insert(attrs, pango_attr_underline_new(PANGO_UNDERLINE_SINGLE));
-        // The emphasised parts, by byte, bold and in their colour.
-        auto mark = [&](PangoAttribute * attribute, int from, int to) {
-          attribute->start_index = static_cast<guint>(from);
-          attribute->end_index = static_cast<guint>(to);
-          pango_attr_list_insert(attrs, attribute);
-        };
-        for (auto & [from, to] : run.emphasis) {
-          mark(pango_attr_weight_new(PANGO_WEIGHT_BOLD), from, to);
-          if (run.emphasis_fg) {
-            auto e = run.emphasis_fg->toSrgb8();
-            mark(pango_attr_foreground_new(static_cast<guint16>(e[0] * 257), static_cast<guint16>(e[1] * 257), static_cast<guint16>(e[2] * 257)), from, to);
-          }
-        }
-        pango_layout_set_attributes(layout, attrs);
-        pango_attr_list_unref(attrs);
-      }
-      int text_w = 0, text_h = 0;
-      pango_layout_get_pixel_size(layout, &text_w, &text_h);
-      graphene_rect_t clip = GRAPHENE_RECT_INIT(x, y, w, h);
-      // Shorter text sits in its box as asked; longer is cut where the box ends.
-      float slack = std::max(0.0f, w - static_cast<float>(text_w));
-      float dx = run.align == TextAlign::RIGHT ? slack : run.align == TextAlign::CENTER ? slack / 2.0f : 0.0f;
-      // The baseline stays where the face puts it; a fallback font's taller line must not move it.
-      float baseline = static_cast<float>(pango_layout_get_baseline(layout)) / PANGO_SCALE;
-      float row_top = box.rows == 1 ? proportional_baseline - baseline : std::max(0.0f, (h - static_cast<float>(text_h)) / 2.0f);
-      graphene_point_t at = GRAPHENE_POINT_INIT(x + dx, y + row_top);
-      gtk_snapshot_push_clip(snap, &clip);
+      GskRenderNode * node = runNode(run, box.rows, box.cols);
+      if (!node) continue;
+      graphene_point_t at = GRAPHENE_POINT_INIT(static_cast<float>(box.col * cell_w), static_cast<float>(box.row * cell_h));
       gtk_snapshot_save(snap);
       gtk_snapshot_translate(snap, &at);
-      gtk_snapshot_append_layout(snap, layout, &color);
+      gtk_snapshot_append_node(snap, node);
       gtk_snapshot_restore(snap);
-      gtk_snapshot_pop(snap);
-      g_object_unref(layout);
     }
-    pango_font_description_free(font);
   }
+}
+
+// The run laid out in its box, clipped to it, with the box's corner as the origin.
+GskRenderNode * Window::Impl::runNode(const TextRun & run, int box_rows, int box_cols) {
+  const float w = static_cast<float>(box_cols * cell_w), h = static_cast<float>(box_rows * cell_h);
+  const auto rgb = run.fg.value_or(*display_info.default_fg).toSrgb8();
+  RunKey key{run.text, static_cast<uint32_t>(rgb[0]) << 16 | static_cast<uint32_t>(rgb[1]) << 8 | rgb[2], 0, run.weight, static_cast<int>(w), static_cast<int>(h),
+             run.emphasis, run.italic, run.underline, run.overflow == TextOverflow::ELLIPSIS, run.emphasis_fg.has_value(), box_rows == 1,
+             static_cast<int>(run.align)};
+  if (run.emphasis_fg) {
+    const auto e = run.emphasis_fg->toSrgb8();
+    key.emphasis_color = static_cast<uint32_t>(e[0]) << 16 | static_cast<uint32_t>(e[1]) << 8 | e[2];
+  }
+  if (auto found = run_nodes.find(key); found != run_nodes.end()) return found->second;
+  if (auto old = run_nodes_old.find(key); old != run_nodes_old.end()) {
+    GskRenderNode * node = old->second;  // asked for again: it moves to this generation
+    run_nodes_old.erase(old);
+    run_nodes.emplace(std::move(key), node);
+    return node;
+  }
+  stats.text_runs_laid_out++;
+  GdkRGBA color = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 1.0f };
+  PangoFontDescription * font = pango_font_description_copy(proportional);
+  pango_font_description_set_weight(font, static_cast<PangoWeight>(run.weight));
+  if (run.italic) pango_font_description_set_style(font, PANGO_STYLE_ITALIC);
+  PangoLayout * layout = gtk_widget_create_pango_layout(view, run.text.c_str());
+  pango_layout_set_font_description(layout, font);
+  pango_font_description_free(font);
+  pango_layout_set_single_paragraph_mode(layout, TRUE);
+  if (run.overflow == TextOverflow::ELLIPSIS) {
+    pango_layout_set_width(layout, static_cast<int>(w) * PANGO_SCALE);
+    pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
+  }
+  if (run.underline || !run.emphasis.empty()) {
+    PangoAttrList * attrs = pango_attr_list_new();
+    if (run.underline) pango_attr_list_insert(attrs, pango_attr_underline_new(PANGO_UNDERLINE_SINGLE));
+    // The emphasised parts, by byte, bold and in their colour.
+    auto mark = [&](PangoAttribute * attribute, int from, int to) {
+      attribute->start_index = static_cast<guint>(from);
+      attribute->end_index = static_cast<guint>(to);
+      pango_attr_list_insert(attrs, attribute);
+    };
+    for (auto & [from, to] : run.emphasis) {
+      mark(pango_attr_weight_new(PANGO_WEIGHT_BOLD), from, to);
+      if (run.emphasis_fg) {
+        auto e = run.emphasis_fg->toSrgb8();
+        mark(pango_attr_foreground_new(static_cast<guint16>(e[0] * 257), static_cast<guint16>(e[1] * 257), static_cast<guint16>(e[2] * 257)), from, to);
+      }
+    }
+    pango_layout_set_attributes(layout, attrs);
+    pango_attr_list_unref(attrs);
+  }
+  int text_w = 0, text_h = 0;
+  pango_layout_get_pixel_size(layout, &text_w, &text_h);
+  graphene_rect_t clip = GRAPHENE_RECT_INIT(0.0f, 0.0f, w, h);
+  // Shorter text sits in its box as asked; longer is cut where the box ends.
+  float slack = std::max(0.0f, w - static_cast<float>(text_w));
+  float dx = run.align == TextAlign::RIGHT ? slack : run.align == TextAlign::CENTER ? slack / 2.0f : 0.0f;
+  // The baseline stays where the face puts it; a fallback font's taller line must not move it.
+  float baseline = static_cast<float>(pango_layout_get_baseline(layout)) / PANGO_SCALE;
+  float row_top = box_rows == 1 ? proportional_baseline - baseline : std::max(0.0f, (h - static_cast<float>(text_h)) / 2.0f);
+  graphene_point_t at = GRAPHENE_POINT_INIT(dx, row_top);
+  GtkSnapshot * snap = gtk_snapshot_new();
+  gtk_snapshot_push_clip(snap, &clip);
+  gtk_snapshot_translate(snap, &at);
+  gtk_snapshot_append_layout(snap, layout, &color);
+  gtk_snapshot_pop(snap);
+  GskRenderNode * node = gtk_snapshot_free_to_node(snap);
+  g_object_unref(layout);
+  if (run_nodes.size() >= kRunNodesPerGeneration) {
+    forgetRunsOf(run_nodes_old);
+    run_nodes_old.swap(run_nodes);
+  }
+  run_nodes.emplace(std::move(key), node);
+  return node;
+}
+
+void Window::Impl::forgetRuns() {
+  forgetRunsOf(run_nodes);
+  forgetRunsOf(run_nodes_old);
 }
 
 void Window::Impl::appendPainted(GtkSnapshot * snap, const Painted & p, const CellBuffer * cells, int row, int col) {
@@ -1993,6 +2056,7 @@ Window::~Window() {
   for (auto & entry : impl_->glyph_shapes) {
     if (entry.second) gsk_render_node_unref(entry.second);
   }
+  impl_->forgetRuns();
   for (auto & entry : impl_->cell_fonts) pango_font_description_free(entry.second);
   if (impl_->cell_base) pango_font_description_free(impl_->cell_base);
   if (impl_->text_context) g_object_unref(impl_->text_context);

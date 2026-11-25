@@ -409,6 +409,17 @@ TEST(table_jumps_where_the_display_does_not_scroll_smoothly_and_with_taller_rows
   CHECK(!tall.table.animating());
 }
 
+// A view put back as it was (a context switched back to) is there at once: easing from the top would be a scroll nobody asked for.
+TEST(table_puts_a_view_back_where_it_was_without_easing) {
+  SmoothFixture f(true);
+  f.table.setModel(std::make_shared<Quotes>());  // another model, as a switched context has: a view at the top
+  f.table.scrollToPosition(2);
+  CHECK(f.table.firstVisiblePosition() == 2);
+  CHECK(!f.table.animating() && f.table.scrollPosition() == 2.0);
+  f.wheelDown();  // the wheel still eases
+  CHECK(f.table.animating() || f.table.scrollPosition() == 2.0);
+}
+
 TEST(table_rows_are_under_the_pointer_by_where_they_are_shown_while_easing) {
   SmoothFixture f(true);
   f.wheelDown();

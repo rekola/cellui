@@ -408,7 +408,7 @@ std::pair<int, int> Table::cursorStop() const {
 
 void Table::scrollToPosition(int position) {
   rows_.setExtent(static_cast<int>(order_.size()), visibleRows());
-  rows_.scrollTo(position);
+  rows_.jumpTo(position);  // a view put back as it was, not a scroll the person asked for: no easing
   render();
 }
 
