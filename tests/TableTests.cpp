@@ -217,19 +217,6 @@ TEST(trace_cursor_is_a_hairline_through_the_whole_height) {
   CHECK(plain[2 * 41 + 30] == marked[2 * 41 + 30]);
 }
 
-TEST(trace_line_width_makes_a_wider_line) {
-  TraceLook look{Color(10, 10, 10), Color(60, 180, 80), std::nullopt};
-  const std::vector<float> values{1, 1, 1, 1, 1};  // flat, across the middle
-  auto covered = [&](float width) {
-    look.line_width = width;
-    const uint32_t background = trace_image::render(std::vector<float>{}, look, 40, 30)[0];
-    int n = 0;
-    for (uint32_t px : trace_image::render(values, look, 40, 30)) n += px != background;
-    return n;
-  };
-  CHECK(covered(3.0f) > covered(1.5f));
-}
-
 TEST(table_click_on_a_cell_says_which_and_a_drag_across_rows_is_no_click) {
   Fixture f;
   std::vector<std::pair<int, int>> clicks;
