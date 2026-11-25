@@ -45,6 +45,7 @@ class StyleProvider {
     button_fg_color = t.button_fg;
     button_bg_color = t.button_bg;
     button_pressed_bg_color = t.button_pressed_bg;
+    row_selected_bg_color = t.row_selected_bg;
     row_pressed_bg_color = t.row_pressed_bg;
     menu_fg_color = t.menu_fg;
     menu_bg_color = t.menu_bg;
@@ -146,7 +147,9 @@ class StyleProvider {
   Color button_bg_color;
   // While the mouse is held down on a button, all of it.
   Color button_pressed_bg_color;
-  // While the mouse is held down on a list row.
+  // The selected row of a table.
+  Color row_selected_bg_color;
+  // While the mouse is held down on a list row (a bit darker than the selected one).
   Color row_pressed_bg_color;
 
   // The menu bar, and the sections that drop down from it.
