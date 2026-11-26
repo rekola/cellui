@@ -55,7 +55,7 @@ void ModalDialog::done(int result) {
 
 void ModalDialog::relayout() {
   auto [rows, cols] = screen_.getDim();
-  scrim_.show(screen_, rows, cols, screen_.getStyles().theme.modal_backdrop);
+  if (dimsScreen()) scrim_.show(screen_, rows, cols, screen_.getStyles().theme.modal_backdrop);
   layout(screen_, rows, cols);
 }
 

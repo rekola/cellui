@@ -110,6 +110,7 @@ add_library(cellui STATIC
   src/ChoiceModal.cpp
   src/ScrollBody.cpp
   src/ModalDialog.cpp
+  src/PopupMenu.cpp
   src/CommandPalette.cpp
   src/FuzzyMatch.cpp
   src/KeyStrokeNames.cpp
