@@ -96,7 +96,7 @@ void FormModal::setText(size_t field, const std::string & text) {
 
 std::vector<std::string> FormModal::texts() const {
   std::vector<std::string> out;
-  for (const LineEditor & e : editors_) out.push_back(e.text());
+  for (const TextField & e : editors_) out.push_back(e.text());
   return out;
 }
 
@@ -204,23 +204,15 @@ void FormModal::layout(Plane & screen, int rows, int cols) {
     field_spots_[static_cast<size_t>(i)] = {y, x, field_width};
     paint(bad ? wrong : strong, here ? styles.theme.surface_raised : styles.window_bg_color);
     plane_->putstr(y, x, std::string(static_cast<size_t>(field_width), ' '));
-    const LineEditor::View view = const_cast<LineEditor &>(editors_[static_cast<size_t>(i)]).view(field_width - 1);
+    TextField & field = editors_[static_cast<size_t>(i)];
+    const TextField::Drawn view = field.draw(*plane_, y, x, field_width - 1);
     if (view.text.empty() && !here && !fields_[static_cast<size_t>(i)].hint.empty()) {
       paint(quiet, styles.window_bg_color);
       plane_->putstr(y, x, utf8::truncateToWidth(fields_[static_cast<size_t>(i)].hint, field_width));
     } else {
-      plane_->putstr(y, x, view.text);
       if (here) {
         // The cell the cursor is on, in the cursor's colours, with the character that is there.
-        std::string under = " ";
-        int at = 0;
-        for (const std::string & cluster : utf8::clusters(view.text)) {
-          if (at == view.cursor_column) {
-            under = cluster;
-            break;
-          }
-          at += utf8::displayWidth(cluster);
-        }
+        const std::string under = TextField::cellUnder(view);
         paint(styles.highlight_fg_color, styles.highlight_bg_color);
         plane_->putstr(y, x + view.cursor_column, under);
       }
@@ -292,18 +284,12 @@ void FormModal::keyDown(const KeyDown & e) {
     }
     return;
   }
-  LineEditor & editor = editors_[focus_];
-  if (editor.key(e)) {
-    changed();
-  } else if (!e.mods.ctrl && !e.mods.alt && !e.mods.meta && !e.text.empty()) {
-    editor.insert(e.text);
-    changed();
-  }
+  if (editors_[focus_].key(e)) changed();
 }
 
 void FormModal::paste(const Paste & e) {
   if (focus_ >= fields_.size()) return;
-  editors_[focus_].insert(e.text);
+  editors_[focus_].paste(e.text);
   changed();
 }
 

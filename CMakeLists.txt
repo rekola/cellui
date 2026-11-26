@@ -126,6 +126,7 @@ add_library(cellui STATIC
   src/LinkStatus.cpp
   src/KeyReader.cpp
   src/LineEditor.cpp
+  src/TextField.cpp
   src/Markdown.cpp
   src/MenuBar.cpp
   src/Table.cpp
@@ -349,6 +350,7 @@ add_executable(cellui_tests
   tests/EscapeCoalescerTests.cpp
   tests/KeyReaderTests.cpp
   tests/LineEditorTests.cpp
+  tests/TextFieldTests.cpp
   tests/MenuBarTests.cpp
   tests/TableTests.cpp
   tests/LayoutTests.cpp

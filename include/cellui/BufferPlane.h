@@ -3,7 +3,7 @@
 #include <cellui/BackdropLayer.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/Image.h>
-#include <cellui/LineEditor.h>
+#include <cellui/TextField.h>
 #include <cellui/PlaneInfo.h>
 #include <cellui/Plane.h>
 
@@ -278,7 +278,7 @@ class BufferPlane : public Plane {
   std::string name_;
 
   // The reader: the text, the plane it shows in, its colour and column.
-  std::unique_ptr<LineEditor> editor_;
+  std::unique_ptr<TextField> editor_;
   std::unique_ptr<BufferPlane> reader_plane_;
   Color reader_color_;
   std::optional<Color> reader_backdrop_;
