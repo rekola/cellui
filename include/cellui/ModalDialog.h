@@ -44,6 +44,8 @@ class ModalDialog {
   // Whether the display's own text selection should work over it, instead of
   // the application getting the pointer.
   virtual bool wantsNativeSelection() const { return false; }
+  // Whether the screen is dimmed (and blurred, where the theme says) behind it: a dialog is, a menu that opens in place is not.
+  virtual bool dimsScreen() const { return true; }
 
  protected:
   // (Re)draws the dialog on a screen of `rows` x `cols`, above the scrim.
