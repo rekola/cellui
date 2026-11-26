@@ -68,6 +68,16 @@ ChartData prices() {
 
 }  // namespace
 
+TEST(chart_modal_reading_ends_with_the_note_of_the_value_and_the_axis_has_none) {
+  Fixture f;
+  ChartData d = prices();
+  d.notes = {"vol 1", "", "vol 3", "vol 4", "vol 5", "vol 6"};
+  ChartModal chart(f.root, f.screen, f.loop, *f.charts, std::move(d));
+  CHECK(chart.reading() == "2026-08-06  350  vol 6");
+  chart.setCursor(1);
+  CHECK(chart.reading() == "2026-08-02  450");
+}
+
 TEST(chart_modal_shows_the_title_the_axis_and_the_latest_value_and_nothing_else) {
   Fixture f;
   ChartModal chart(f.root, f.screen, f.loop, *f.charts, prices());

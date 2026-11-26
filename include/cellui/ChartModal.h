@@ -19,6 +19,9 @@ struct ChartData {
   // What each value is at (a date, a time), one for each value, or none. They are the chart's x axis: the first and the
   // last under its ends, and the one the cursor is at beside the title.
   std::vector<std::string> labels;
+  // What else to say of each value, one for each value, or none (the volume traded, say): shown after the value in the reading under
+  // the cursor, and nowhere else. A value left out takes its note with it.
+  std::vector<std::string> notes;
   // How bright the line is at each value, 0 to 1, one for each value (TraceLook::light: the volume traded at each point, say), or none
   // for an even line. A value left out takes its brightness with it.
   std::vector<float> light;
@@ -42,7 +45,7 @@ class ChartModal : public ModalDialog {
   size_t cursor() const { return cursor_; }
   size_t size() const { return values_.size(); }
   void setCursor(size_t index);
-  // The reading under the cursor as the chart shows it: "2026-11-20  4.52".
+  // The reading under the cursor as the chart shows it: "2026-11-20  4.52", and a note after the value ("2026-11-20  4.52  vol 1.2M").
   std::string reading() const;
 
  protected:
@@ -62,6 +65,7 @@ class ChartModal : public ModalDialog {
   std::string title_;
   std::vector<float> values_;
   std::vector<std::string> labels_;
+  std::vector<std::string> notes_;  // as many as the values, or empty
   std::vector<float> light_;  // as bright as the values are long, or empty; the chart draws from it while it is up
   std::function<std::string(float)> format_;
   std::optional<Color> color_;
