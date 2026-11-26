@@ -291,6 +291,10 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   Where the display scrolls smoothly both lists ease: their rows are on a plane of their own that the display shifts
   by the fraction of a row (`ChoiceList::firstShown()`/`fraction()`), `Application` ticks the open palette each frame
   and `ChoiceModal` its dialog.
+  `Plane::textWidth(text, face)` is how wide the display makes text set with `putText()`, in cells and not whole
+  ones (`Backend::textWidth()`: Pango's in the GTK window; the cells' own count where text is cells), for a
+  dialog that wraps its text: a proportional face is narrower than the cells it is given, so counting them breaks
+  the lines far short of the box.
 - The pointer shape is a plane attribute (`Plane::setMouseCursor()`:
   `INHERIT`/`DEFAULT`/`POINTER`/`TEXT`/`GRABBING`/`NOT_ALLOWED`); `refresh()` lists the requesting
   planes' rectangles in drawing order (`FrameInfo::mouse_cursors`) and the

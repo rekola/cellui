@@ -103,6 +103,9 @@ class Plane {
   virtual KeymapProfile keymapProfile() const { return KeymapProfile::TERMINAL; }
   // Whether setScrollOffset() shifts a plane here.
   virtual bool smoothScroll() const { return false; }
+  // How wide `text` comes out in cells when putText() sets it in `face`: the display lays text out in a proportional
+  // face itself, so it is not the count of cells it takes as cell text. The application measures nothing else.
+  virtual double textWidth(const std::string & text, const TextFace &) const { return utf8::displayWidth(text); }
   // What to add to a position inside this plane to give the move() of a plane made from it (createChild()): in a tree
   // that is flat (BufferPlane::setFlatChildren()) every plane's position is the root's, so it is this plane's own
   // position; otherwise a child is placed in its parent, and it is nothing.

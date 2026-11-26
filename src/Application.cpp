@@ -357,6 +357,7 @@ void Application::configurePlane() {
   root_plane_.setDisplayScale(display.display_scale);
   root_plane_.setHdrPictures(display.hdr_pictures);
   root_plane_.setProportionalText(display.proportional_text);
+  root_plane_.setTextMeasure([this](const std::string & text, const TextFace & face) { return backend_->textWidth(text, face); });
   root_plane_.setSmoothScroll(display.smooth_scroll);
   root_plane_.setCellBorders(display.cell_borders);
   root_plane_.setKeymapProfile(keymap_override_.value_or(display.keymap_profile));

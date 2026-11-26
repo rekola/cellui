@@ -95,6 +95,11 @@ class BufferPlane : public Plane {
   // are shown unshifted otherwise (root only).
   void setSmoothScroll(bool smooth) { smooth_scroll_ = smooth; }
   bool smoothScroll() const override { return root().smooth_scroll_; }
+  // How the display measures text it lays out itself (Backend::textWidth()); unset, cells' own width.
+  void setTextMeasure(std::function<double(const std::string &, const TextFace &)> measure) { text_measure_ = std::move(measure); }
+  double textWidth(const std::string & text, const TextFace & face) const override {
+    return root().text_measure_ && root().proportional_text_ ? root().text_measure_(text, face) : Plane::textWidth(text, face);
+  }
   std::pair<int, int> childOrigin() const override { return root().flat_ ? getPosition() : std::pair<int, int>{ 0, 0 }; }
   void setCellBorders(bool on) { cell_borders_ = on; }
   bool cellBorders() const override { return root().cell_borders_ || root().smooth_scroll_; }
@@ -288,6 +293,7 @@ class BufferPlane : public Plane {
   bool hdr_pictures_ = false;
   KeymapProfile keymap_profile_ = KeymapProfile::TERMINAL;
   bool smooth_scroll_ = false;
+  std::function<double(const std::string &, const TextFace &)> text_measure_;
   bool cell_borders_ = false;
   bool proportional_text_ = false;
   // The runs this plane's cells are marked with, by local index; the frame's,

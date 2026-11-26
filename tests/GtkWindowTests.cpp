@@ -1160,3 +1160,16 @@ TEST(gtk_window_keeps_a_selection_inside_the_raised_plane_it_began_in) {
   w->setNativeSelection(false);
 }
 
+
+TEST(gtk_window_measures_text_in_its_proportional_face_in_cells) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  CHECK(w->display().proportional_text);
+  const double hello = w->textWidth("hello", kPlainFace), longer = w->textWidth("hello world", kPlainFace);
+  CHECK(hello > 0);
+  CHECK(longer > hello);
+  CHECK(w->textWidth("", kPlainFace) == 0);
+  // Heavier text is not narrower, and the measure is what putText() lays out, in cells and not whole ones.
+  CHECK(w->textWidth("hello world", kBoldFace) >= longer);
+  CHECK(w->textWidth("iiiiiiiiii", kPlainFace) < w->textWidth("WWWWWWWWWW", kPlainFace));
+}
