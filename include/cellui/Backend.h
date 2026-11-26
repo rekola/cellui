@@ -7,11 +7,14 @@
 #include <cellui/Image.h>
 #include <cellui/LinkStatus.h>
 #include <cellui/PlaneInfo.h>
+#include <cellui/TextStyle.h>
+#include <cellui/Utf8.h>
 
 #include <chrono>
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace cellui {
@@ -80,6 +83,9 @@ class Backend {
   // Whether the user selects text with the mouse instead of the application
   // getting the clicks. Default no-op.
   virtual void setNativeSelection(bool) { }
+  // How wide `text` is when the display lays it out in `face` (Plane::putText() in a proportional face), in cells
+  // and not whole ones: what a wrapping dialog needs to fill its lines. The default is the cells' own width.
+  virtual double textWidth(const std::string & text, const TextFace &) const { return utf8::displayWidth(text); }
   // How much of the pointer the application wants reported, for a link that cannot afford all of
   // it: `hover` is motion with no button held (a terminal then asks for drag motion only), `shapes`
   // is the pointer's shape following what it is over. A window ignores both.

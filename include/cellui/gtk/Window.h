@@ -79,6 +79,8 @@ class Window : public Backend {
   // The window selects text itself while this is on: a drag with the left button selects, Ctrl+C copies, and
   // the application sees neither the pointer nor the selection (a terminal does the same by itself).
   void setNativeSelection(bool on) override;
+  // The width Pango gives the text in the proportional face, in cells.
+  double textWidth(const std::string & text, const TextFace & face) const override;
 
   // Makes wakeFd() readable; any thread may call it.
   void wake();

@@ -2369,6 +2369,22 @@ LinkStatus Window::linkStatus() const {
 void Window::setLinkHandler(LinkHandler handler) { impl_->link.setHandler(std::move(handler)); }
 void Window::setLinkPin(std::optional<LinkClass> pin) { impl_->link.pin(pin); }
 
+double Window::textWidth(const std::string & text, const TextFace & face) const {
+  const Impl & i = *impl_;
+  if (!i.proportional || i.cell_w <= 0) return utf8::displayWidth(text);
+  PangoFontDescription * font = pango_font_description_copy(i.proportional);
+  pango_font_description_set_weight(font, static_cast<PangoWeight>(face.weight));
+  if (face.slant == TextSlant::ITALIC) pango_font_description_set_style(font, PANGO_STYLE_ITALIC);
+  PangoLayout * layout = gtk_widget_create_pango_layout(i.view, text.c_str());
+  pango_layout_set_font_description(layout, font);
+  pango_layout_set_single_paragraph_mode(layout, TRUE);
+  int w = 0, h = 0;
+  pango_layout_get_pixel_size(layout, &w, &h);
+  g_object_unref(layout);
+  pango_font_description_free(font);
+  return static_cast<double>(w) / i.cell_w;
+}
+
 void Window::setNativeSelection(bool on) {
   if (on == impl_->native_selection) return;
   impl_->native_selection = on;
