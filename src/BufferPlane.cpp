@@ -281,7 +281,7 @@ void BufferPlane::refresh() {
     }
     if (bordered) {
       // The border goes with the plane's area, or is an area of its own that casts nothing.
-      if (!has_area) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size(), false, 0.0, 0.0, p.plane->corner_radius_, {}, false });
+      if (!has_area) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size(), false, 0.0, 0.0, p.plane->corner_radius_, corner_bg, false });
       ElevatedArea & area = top.elevations_.back();
       area.border_px = p.plane->border_px_;
       area.border_color = p.plane->border_color_;

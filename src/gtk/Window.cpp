@@ -1512,8 +1512,10 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRen
         GdkRGBA fill = { rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, 1.0f };
         gtk_snapshot_append_color(snap, &fill, &ear);
       }
-      gtk_snapshot_append_outset_shadow(snap, &outline, &ambient, 0, 0, 0, ambient_blur);
-      gtk_snapshot_append_outset_shadow(snap, &outline, &key, dx, dy, 0, blur);
+      if (a.shadow) {
+        gtk_snapshot_append_outset_shadow(snap, &outline, &ambient, 0, 0, 0, ambient_blur);
+        gtk_snapshot_append_outset_shadow(snap, &outline, &key, dx, dy, 0, blur);
+      }
       gtk_snapshot_pop(snap);
     }
   };
@@ -1603,6 +1605,17 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRen
         GdkRGBA colors[4] = { highlight, highlight, edge, edge };
         gtk_snapshot_append_border(snap, &outline, widths, colors);
       }
+    }
+    // A rounded area that casts no shadow (a bordered chart box) still has its corners cut: what lay under them shows, the body is clipped.
+    for (size_t k = i; k < level_end; k++) {
+      if (!shown(elevations[k]) || elevations[k].shadow || elevations[k].scrim || radiusOf(elevations[k]) <= 0.0f) continue;
+      graphene_rect_t rect = rectOf(elevations[k]);
+      GskRoundedRect outline;
+      gsk_rounded_rect_init_from_rect(&outline, &rect, radiusOf(elevations[k]));
+      fillCorners(elevations[k], outline, dx, dy, blur, ambient_blur);
+      gtk_snapshot_push_rounded_clip(snap, &outline);
+      redraw(elevations[k]);
+      gtk_snapshot_pop(snap);
     }
     i = level_end;
   }
