@@ -5,12 +5,18 @@
 #include <cellui/InputDispatcher.h>
 #include <cellui/PlatformEventLoop.h>
 
+#include <set>
+
 using namespace cellui;
 
 namespace {
 
 Input press(int id, unsigned mods = 0) { return keyInput(id, mods, Input::Kind::PRESS); }
 Input mouse(int id, int row, int col, Input::Kind kind) { return Input(id, row, col, false, false, false, false, kind); }
+
+Input mouseAt(int id, int row, int col, float fy, float fx, Input::Kind kind) {
+  return Input(id, row, col, false, false, false, false, kind).withPosition(fy, fx);
+}
 
 // A widget tree under a screen and a loop that turns without waiting; each turn runs one step and the loop ends when they run out.
 struct Fixture {
@@ -171,4 +177,22 @@ TEST(chart_modal_a_series_with_nothing_in_it_is_a_title_and_still_closes) {
   f.key(Key::Right);
   f.key(Key::Escape);
   CHECK(chart.showModal() == 0);
+}
+
+TEST(chart_modal_a_precise_pointer_reaches_every_point_not_one_per_cell) {
+  Fixture f;
+  ChartData d = prices();
+  d.values.clear();
+  for (int i = 0; i < 300; i++) d.values.push_back(static_cast<float>(i % 17));
+  d.labels.clear();
+  ChartModal chart(f.root, f.screen, f.loop, *f.charts, std::move(d));
+  // Several positions inside one cell (column 40) give several points.
+  std::set<size_t> seen;
+  for (int k = 0; k < 8; k++) {
+    const float x = 40.0f + 0.125f * static_cast<float>(k) + 0.0625f;
+    f.steps.push_back([&f, x] { f.dispatcher.offer(mouseAt(Key::Motion, 15, 40, 15.5f, x, Input::Kind::UNKNOWN)); });
+    f.then([&] { seen.insert(chart.cursor()); });
+  }
+  f.then([&] { CHECK(seen.size() >= 4); });
+  chart.showModal();
 }

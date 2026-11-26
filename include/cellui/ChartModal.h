@@ -58,7 +58,7 @@ class ChartModal : public ModalDialog {
  private:
   std::string formatted(float v) const;
   // The value under a screen column of the chart, or -1 where the chart is not.
-  int indexAt(int screen_row, int screen_col) const;
+  int indexAt(int screen_row, int screen_col, float screen_x) const;
   bool inside(int screen_row, int screen_col) const;
 
   const Charts & charts_;

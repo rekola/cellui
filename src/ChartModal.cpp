@@ -69,10 +69,14 @@ bool ChartModal::inside(int screen_row, int screen_col) const {
   return screen_row >= top_ && screen_row < top_ + rows_ && screen_col >= left_ && screen_col < left_ + cols_;
 }
 
-int ChartModal::indexAt(int screen_row, int screen_col) const {
+int ChartModal::indexAt(int screen_row, int screen_col, float screen_x) const {
   const int row = screen_row - top_, col = screen_col - left_;
   if (values_.empty() || row < chart_row_ || row >= chart_row_ + chart_rows_ || col < chart_col_ || col >= chart_col_ + chart_cols_) return -1;
-  const double f = (static_cast<double>(col - chart_col_) + 0.5) / static_cast<double>(chart_cols_);
+  // The pointer's own position, not its cell's: with a fraction (where the display has a precise pointer) the points are told
+  // apart by less than a cell. A whole x is the pointer somewhere in its cell: take the middle.
+  double x = static_cast<double>(screen_x) - left_;
+  if (x == std::floor(x)) x += 0.5;
+  const double f = std::clamp((x - chart_col_) / static_cast<double>(chart_cols_), 0.0, 1.0);
   return static_cast<int>(std::clamp<long>(std::lround(f * static_cast<double>(values_.size() - 1)), 0, static_cast<long>(values_.size()) - 1));
 }
 
@@ -173,12 +177,12 @@ void ChartModal::keyDown(const KeyDown & e) {
 
 void ChartModal::mouseDown(const MouseDown & e) {
   if (e.button != 1) return;
-  if (const int i = indexAt(e.row, e.col); i >= 0) setCursor(static_cast<size_t>(i));
+  if (const int i = indexAt(e.row, e.col, e.x); i >= 0) setCursor(static_cast<size_t>(i));
   else if (!inside(e.row, e.col)) done(0);  // a click away from the chart puts it away
 }
 
 void ChartModal::mouseMove(const MouseMove & e) {
-  if (const int i = indexAt(e.row, e.col); i >= 0) setCursor(static_cast<size_t>(i));
+  if (const int i = indexAt(e.row, e.col, e.x); i >= 0) setCursor(static_cast<size_t>(i));
 }
 
 }  // namespace cellui
