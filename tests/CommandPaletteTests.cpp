@@ -106,6 +106,14 @@ TEST(palette_says_when_nothing_matches_and_enter_chooses_nothing) {
   CHECK(offer(f.palette, key(Key::Enter)) == CommandPalette::Result::NONE);
 }
 
+TEST(palette_a_paste_goes_into_the_query_as_one_line) {
+  Fixture f;
+  f.palette.paste("sav\ne");
+  CHECK(f.palette.query() == "sav e");
+  f.palette.paste("x");
+  CHECK(f.palette.query() == "sav ex");
+}
+
 TEST(palette_moves_edits_chooses_and_cancels) {
   Fixture f;
   CHECK(f.palette.chosen()->name == "save-buffer");

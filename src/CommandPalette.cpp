@@ -22,7 +22,7 @@ constexpr int kChromeRows = 2;
 
 void CommandPalette::open(vector<PaletteEntry> entries) {
   entries_ = std::move(entries);
-  query_.clear();
+  query_.setText("");
   pressing_ = false;
   open_ = true;
   refilter();
@@ -33,7 +33,7 @@ void CommandPalette::close() {
   list_plane_.reset();
   entries_.clear();
   shown_.clear();
-  query_.clear();
+  query_.setText("");
   open_ = false;
 }
 
@@ -42,11 +42,12 @@ void CommandPalette::close() {
 // nothing to add it only says why.
 void CommandPalette::complete() {
   auto same = [](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); };
+  const string query = query_.text();
   string common;
   int matches = 0;
   for (auto & entry : entries_) {
     auto & name = entry.name;
-    if (name.size() < query_.size() || !equal(query_.begin(), query_.end(), name.begin(), same)) continue;
+    if (name.size() < query.size() || !equal(query.begin(), query.end(), name.begin(), same)) continue;
     if (matches++ == 0) {
       common = name;
       continue;
@@ -57,8 +58,8 @@ void CommandPalette::complete() {
   }
   if (matches == 0) {
     note_ = "[No match]";
-  } else if (common.size() > query_.size()) {
-    query_ = common;
+  } else if (common.size() > query.size()) {
+    query_.setText(common);
     refilter();
   } else {
     note_ = matches == 1 ? "[Sole completion]" : "";
@@ -74,7 +75,7 @@ void CommandPalette::refilter() {
   };
   vector<Scored> scored;
   for (size_t i = 0; i < entries_.size(); i++) {
-    if (auto m = fuzzyMatch(query_, entries_[i].name)) scored.push_back({m->score, i, std::move(m->positions)});
+    if (auto m = fuzzyMatch(query_.text(), entries_[i].name)) scored.push_back({m->score, i, std::move(m->positions)});
   }
   stable_sort(scored.begin(), scored.end(), [&](const Scored & a, const Scored & b) {
     if (a.score != b.score) return a.score > b.score;
@@ -214,11 +215,11 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   plain(strong);
   plane_->putstr(rows_ - 1, 1, prompt, kBoldFace);
   plain(fg);
-  string shown_query = utf8::truncateToWidth(query_, inner - prompt_width - 1);
-  int query_width = utf8::displayWidth(shown_query);
-  plane_->putstr(rows_ - 1, 1 + prompt_width, shown_query);
+  const TextField::Drawn query_drawn = query_.draw(*plane_, rows_ - 1, 1 + prompt_width, inner - prompt_width - 1);
+  int query_width = utf8::displayWidth(query_drawn.text);
+  // The cursor is a block on the character it is before, a space at the end.
   set(cursor_fg, cursor_bg);
-  plane_->putstr(rows_ - 1, 1 + prompt_width + query_width, " ");
+  plane_->putstr(rows_ - 1, 1 + prompt_width + query_drawn.cursor_column, TextField::cellUnder(query_drawn));
   int hint_width = utf8::displayWidth(kHint);
   if (1 + prompt_width + query_width + 1 + hint_width + 2 <= width_) {
     plain(quiet);
@@ -314,18 +315,15 @@ CommandPalette::Result CommandPalette::key(const KeyDown & e) {
     list_.move(page);
   else if (id == Key::Tab)
     complete();
-  else if (id == Key::Backspace || (ctrl && id == 'h')) {
-    // Whole UTF-8 characters off the end.
-    while (!query_.empty() && (static_cast<unsigned char>(query_.back()) & 0xC0) == 0x80) query_.pop_back();
-    if (!query_.empty()) query_.pop_back();
+  else if (query_.key(e))
     refilter();
-  } else if (ctrl && id == 'u') {
-    query_.clear();
-    refilter();
-  } else if (!e.text.empty()) {
-    query_ += e.text;
-    refilter();
-  }
+  return Result::NONE;
+}
+
+CommandPalette::Result CommandPalette::paste(const std::string & text) {
+  if (!open_) return Result::CANCELLED;
+  query_.paste(text);
+  refilter();
   return Result::NONE;
 }
 

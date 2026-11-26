@@ -197,6 +197,12 @@ void Application::installRootHandlers() {
     return yes(prefixedKey(e));
   },
                                             Phase::capture));
+  root_handlers_.push_back(root.on<Paste>([this, yes](const Paste & e, EventContext &) {
+    if (!palette_.isOpen()) return Handled::no;
+    paletteResult(palette_.paste(e.text));
+    return Handled::yes;
+  },
+                                            Phase::capture));
   root_handlers_.push_back(root.on<KeyUp>([this, yes](const KeyUp &, EventContext &) { return yes(palette_.isOpen()); }, Phase::capture));
   root_handlers_.push_back(root.on<MouseDown>([this](const MouseDown & e, EventContext &) {
     if (!palette_.isOpen()) return Handled::no;

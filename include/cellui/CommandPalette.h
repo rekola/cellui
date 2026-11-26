@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cellui/TextField.h>
 #include <cellui/ChoiceList.h>
 #include <cellui/Input.h>
 #include <cellui/InputEvents.h>
@@ -65,6 +66,8 @@ class CommandPalette {
   // release outside it cancels. A release with no press seen before it is a whole click.
   // The wheel scrolls the list and leaves the selection where it is, even out of view.
   Result key(const KeyDown & e);
+  // Pasted text goes into the query, as one line.
+  Result paste(const std::string & text);
   Result press(int screen_y, int screen_x);
   Result drag(int screen_y, int screen_x);
   Result click(int screen_y, int screen_x);
@@ -72,7 +75,7 @@ class CommandPalette {
 
   // The selected command, nullptr when nothing matches.
   const PaletteEntry * chosen() const;
-  const std::string & query() const { return query_; }
+  std::string query() const { return query_.text(); }
   // What the last Tab had to say ("[No match]"), "" if nothing.
   const std::string & note() const { return note_; }
   // The names shown, best match first.
@@ -96,7 +99,7 @@ class CommandPalette {
   // the list is scrolled into while it eases.
   std::unique_ptr<Plane> list_plane_;
   std::vector<PaletteEntry> entries_;
-  std::string query_;
+  TextField query_;
   // "[No match]" or "[Sole completion]" after a Tab, until the next edit.
   std::string note_;
   std::vector<Shown> shown_;
