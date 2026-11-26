@@ -36,11 +36,12 @@ const TextStyle kTitle{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kBoldFace
 
 ChartModal::ChartModal(Widget & root, Plane & screen, EventLoop & loop, const Charts & charts, ChartData data)
     : ModalDialog(root, screen, loop), charts_(charts), title_(std::move(data.title)), format_(std::move(data.format)), color_(data.color) {
-  const bool labelled = data.labels.size() == data.values.size(), lit = data.light.size() == data.values.size();
+  const bool labelled = data.labels.size() == data.values.size(), lit = data.light.size() == data.values.size(), noted = data.notes.size() == data.values.size();
   for (size_t i = 0; i < data.values.size(); i++) {
     if (!std::isfinite(data.values[i])) continue;
     values_.push_back(data.values[i]);
     if (labelled) labels_.push_back(std::move(data.labels[i]));
+    if (noted) notes_.push_back(std::move(data.notes[i]));
     if (lit) light_.push_back(data.light[i]);
   }
   if (!values_.empty()) cursor_ = values_.size() - 1;
@@ -60,6 +61,7 @@ std::string ChartModal::reading() const {
   if (values_.empty()) return {};
   std::string text = formatted(values_[cursor_]);
   if (!labels_.empty() && !labels_[cursor_].empty()) text = labels_[cursor_] + "  " + text;
+  if (!notes_.empty() && !notes_[cursor_].empty()) text += "  " + notes_[cursor_];
   return text;
 }
 
