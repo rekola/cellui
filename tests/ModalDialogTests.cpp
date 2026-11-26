@@ -83,3 +83,36 @@ TEST(infomodal_closes_on_escape_and_ignores_releases) {
   CHECK(dialog.showModal() == 0);
   CHECK(f.turn == 2);
 }
+
+namespace {
+// A dialog that says how big the screen was each time it was laid out.
+class SizeDialog : public ModalDialog {
+ public:
+  using ModalDialog::ModalDialog;
+  std::vector<std::pair<int, int>> sizes;
+
+ protected:
+  void layout(Plane &, int rows, int cols) override { sizes.push_back({rows, cols}); }
+  void close() override {}
+};
+}  // namespace
+
+TEST(modaldialog_is_laid_out_again_when_the_screen_changes_size) {
+  Fixture f;
+  SizeDialog dialog(f.root, f.screen, f.loop);
+  bool resized = false;
+  // On the turn after it opens the screen grows, as Application does it: the plane first, then the event.
+  auto grow = f.loop.onFrame([&] {
+    if (resized || f.turn == 0) return;
+    resized = true;
+    f.buffer = CellBuffer(20, 60);
+    f.screen.resize(20, 60);
+    f.root.postToRoot(Resize{20, 60});
+  });
+  f.script = { key('x'), key('y') };
+  dialog.showModal();
+  CHECK(resized);
+  CHECK(dialog.sizes.size() >= 2);
+  CHECK((dialog.sizes.front() == std::pair<int, int>{12, 40}));
+  CHECK((dialog.sizes.back() == std::pair<int, int>{20, 60}));
+}
