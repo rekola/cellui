@@ -45,6 +45,8 @@ class ChartModal : public ModalDialog {
   size_t cursor() const { return cursor_; }
   size_t size() const { return values_.size(); }
   void setCursor(size_t index);
+  // Whether the cursor is drawn: not while the pointer is outside the box.
+  bool cursorShown() const { return !pointer_away_; }
   // The reading under the cursor as the chart shows it: "2026-11-20  4.52", and a note after the value ("2026-11-20  4.52  vol 1.2M").
   std::string reading() const;
 
@@ -60,6 +62,8 @@ class ChartModal : public ModalDialog {
   // The value under a screen column of the chart, or -1 where the chart is not.
   int indexAt(int screen_row, int screen_col, float screen_x) const;
   bool inside(int screen_row, int screen_col) const;
+  // Draws the cursor again after the pointer was away from the box (or a key moved it).
+  void showCursor();
 
   const Charts & charts_;
   std::string title_;
@@ -70,6 +74,7 @@ class ChartModal : public ModalDialog {
   std::function<std::string(float)> format_;
   std::optional<Color> color_;
   size_t cursor_ = 0;
+  bool pointer_away_ = false;  // the pointer is outside the box: the cursor is not drawn
   std::unique_ptr<Plane> plane_;
   // Where it is on the screen, and the chart's box in it, as the last layout left them.
   int top_ = 0, left_ = 0, rows_ = 0, cols_ = 0;

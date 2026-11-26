@@ -146,7 +146,8 @@ void ChartModal::layout(Plane & screen, int rows, int cols) {
     TraceLook look{bg, color_.value_or(styles.line_high_color), color_.value_or(styles.line_high_color)};
     look.light = light_;
     look.line_width = kLineWidth;
-    look.cursor = values_.size() > 1 ? static_cast<float>(cursor_) / static_cast<float>(values_.size() - 1) : 0.5f;
+    if (pointer_away_) look.cursor.reset();
+    else look.cursor = values_.size() > 1 ? static_cast<float>(cursor_) / static_cast<float>(values_.size() - 1) : 0.5f;
     charts_.drawTrace(*plane_, chart_row_, chart_col_, chart_rows_, chart_cols_, values_, look, 0, rows_, 1);
   }
 
@@ -157,6 +158,7 @@ void ChartModal::layout(Plane & screen, int rows, int cols) {
 }
 
 void ChartModal::keyDown(const KeyDown & e) {
+  showCursor();
   const bool plain = !e.mods.alt && !e.mods.meta;
   if (e.key == Key::Escape || e.key == Key::Enter || (plain && !e.mods.ctrl && e.key == 'q') || (e.mods.ctrl && e.key == 'g')) {
     done(0);
@@ -177,12 +179,25 @@ void ChartModal::keyDown(const KeyDown & e) {
 
 void ChartModal::mouseDown(const MouseDown & e) {
   if (e.button != 1) return;
+  if (inside(e.row, e.col)) showCursor();
   if (const int i = indexAt(e.row, e.col, e.x); i >= 0) setCursor(static_cast<size_t>(i));
   else if (!inside(e.row, e.col)) done(0);  // a click away from the chart puts it away
 }
 
 void ChartModal::mouseMove(const MouseMove & e) {
+  // The cursor is drawn while the pointer is over the box; away from it only the reading stays.
+  if (inside(e.row, e.col)) showCursor();
+  else if (!pointer_away_) {
+    pointer_away_ = true;
+    relayout();
+  }
   if (const int i = indexAt(e.row, e.col, e.x); i >= 0) setCursor(static_cast<size_t>(i));
+}
+
+void ChartModal::showCursor() {
+  if (!pointer_away_) return;
+  pointer_away_ = false;
+  relayout();
 }
 
 }  // namespace cellui

@@ -141,6 +141,20 @@ TEST(chart_modal_draws_no_cursor_in_cells_but_the_reading_follows_it) {
   CHECK(!at_end.empty() && at_end == at_start);
 }
 
+TEST(chart_modal_hides_the_cursor_while_the_pointer_is_outside_it) {
+  Fixture f;
+  ChartModal chart(f.root, f.screen, f.loop, *f.charts, prices());
+  f.hover(0, 0);
+  f.then([&] { CHECK(!chart.cursorShown()); });
+  f.hover(15, 47);
+  f.then([&] { CHECK(chart.cursorShown()); });
+  f.hover(0, 0);
+  f.key(Key::Left);
+  f.then([&] { CHECK(chart.cursorShown()); });
+  f.key(Key::Escape);
+  chart.showModal();
+}
+
 TEST(chart_modal_the_pointer_over_the_chart_moves_the_cursor_and_a_click_away_closes_it) {
   Fixture f;
   ChartModal chart(f.root, f.screen, f.loop, *f.charts, prices());
