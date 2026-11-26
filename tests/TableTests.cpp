@@ -222,6 +222,38 @@ TEST(tagbar_click_and_arrows_choose) {
   CHECK(buffer.toPlainText().find(" Nasdaq Helsinki ") != std::string::npos);
 }
 
+TEST(tagbar_puts_the_tags_that_do_not_fit_on_the_next_line) {
+  StyleProvider styles;
+  CellBuffer buffer(4, 20);
+  BufferPlane root(buffer, styles);
+  TagBar bar(root);
+  bar.setTags({"aaaa", "bbbb", "cccc", "dddd"});  // six columns each, five between
+  bar.resize(2, 20);
+  CHECK(bar.preferredWidth() == 27 && bar.lines(20) == 2 && bar.lines(30) == 1 && bar.lines(0) == 1);
+  CHECK(bar.tagAt(0, 0) == 0 && bar.tagAt(0, 7) == 1 && bar.tagAt(0, 14) == 2);
+  CHECK(bar.tagAt(0, 19) == 2 && bar.tagAt(0, 20) == -1 && bar.tagAt(1, 0) == 3 && bar.tagAt(1, 7) == -1);  // the fourth is the first of the second line
+  CHECK(bar.tagAt(7) == 1);  // without a row: the first line
+  int chosen = -2;
+  auto c = bar.chosen.connect([&](int i) { chosen = i; });
+  bar.post(MouseDown{2, 1, 1, 2, 1, {}});
+  CHECK(chosen == 3);
+  KeyDown up;
+  up.key = Key::Up;
+  bar.post(up);
+  CHECK(bar.selected() == 0);  // the nearest in column
+  KeyDown down;
+  down.key = Key::Down;
+  bar.post(down);
+  CHECK(bar.selected() == 3);
+  root.refresh();
+  const std::string text = buffer.toPlainText();
+  CHECK(text.find("\n dddd") != std::string::npos && text.find(" aaaa ") != std::string::npos);  // the fourth starts the second line
+  CHECK(bar.lines(20) == 2);
+  bar.resize(1, 20);  // no row for the second line: its tags are not drawn
+  root.refresh();
+  CHECK(bar.tagAt(0, 0) == 0);
+}
+
 TEST(trace_resample_between_the_ends_of_a_range_clamps_what_is_outside) {
   auto v = trace_image::resample(std::vector<float>{-1, 0.25f, 0.5f, 2}, 4, std::pair<float, float>{0.0f, 1.0f});
   CHECK(v.size() == 4 && v[0] == 0.0f && v[1] == 0.25f && v[2] == 0.5f && v[3] == 1.0f);
