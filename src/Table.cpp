@@ -185,6 +185,9 @@ int Table::visibleRows() const {
   return std::max(0, rows / row_height_);
 }
 
+// The scrollbar takes the last column only while the rows do not all fit; otherwise the rows reach the edge.
+bool Table::scrollable() const { return static_cast<int>(order_.size()) > visibleRows(); }
+
 void Table::resort() {
   int n = model_ ? model_->rowCount() : 0;
   order_.resize(static_cast<size_t>(n));
@@ -271,7 +274,7 @@ bool Table::beginThumbDrag(int screen_row, int screen_col) {
   auto [py, px] = getPosition();
   int y = screen_row - py, x = screen_col - px;
   const int track = std::max(0, getDim().first - 1), count = static_cast<int>(order_.size());
-  if (x != getDim().second - 1 || y < 1 || y > track) return false;
+  if (!scrollable() || x != getDim().second - 1 || y < 1 || y > track) return false;
   rows_.setExtent(count, visibleRows());
   auto jump = thumb_drag_.begin(track, count, visibleRows(), rows_.shown(), y - 1);
   if (!thumb_drag_.active()) return false;
@@ -448,7 +451,7 @@ void Table::cursorSpan(const Layout & l, std::pair<int, int> stop, int & x, int 
 Table::Layout Table::layout() const {
   Layout l;
   const int cols = getDim().second;
-  const int usable = std::max(0, cols - 1);  // the last column is the scrollbar
+  const int usable = scrollable() ? std::max(0, cols - 1) : cols;  // the last column is the scrollbar, if there is one
   int fixed = 0, flex = 0, count = 0;
   for (size_t i = 0; i < columns_.size(); i++) {
     if (!shown(i)) continue;
@@ -471,7 +474,7 @@ Table::Layout Table::layout() const {
     l.width.push_back(w);
     x += w + kGap;
   }
-  l.scrollbar_x = cols - 1;
+  l.scrollbar_x = scrollable() ? cols - 1 : -1;
   return l;
 }
 
@@ -512,7 +515,7 @@ void Table::render() {
   if (!body_) body_ = getPlane().createChild();
   auto [origin_row, origin_col] = getPlane().childOrigin();
   body_->move(origin_row + 1, origin_col);
-  body_->resize(view * row_height_, std::max(0, cols - 1));
+  body_->resize(view * row_height_, l.scrollbar_x < 0 ? cols : std::max(0, cols - 1));
   body_->setScrollOffset(smooth ? rows_.fraction() : 0.0, 0.0);
   body_->erase();
   swapPlane(body_);  // the drawing helpers now draw on the rows' plane; body_ holds the table's own
@@ -659,6 +662,7 @@ void Table::drawIcon(int y, int x, int width, const std::shared_ptr<const TableI
 }
 
 void Table::drawScrollbar(const Layout & l, const StyleProvider & styles) {
+  if (l.scrollbar_x < 0) return;
   cellui::drawScrollbar(getPlane(), 1, l.scrollbar_x, std::max(0, getDim().first - 1), static_cast<int>(order_.size()), visibleRows(), rows_.shown(),
                         styles.window_bg_color, styles.theme.surface_overlay, styles.window_accent_fg_color);
 }

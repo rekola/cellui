@@ -153,6 +153,7 @@ class Table : public Widget {
   int rowAt(int position) const { return position >= 0 && position < static_cast<int>(order_.size()) ? order_[static_cast<size_t>(position)] : -1; }
   // How many rows fit under the heading.
   int visibleRows() const;
+  bool scrollable() const;
 
   // Where the display scrolls smoothly (DisplayInfo::smooth_scroll), the rows ease to a new scroll position instead
   // of jumping to it (a row height of 1 only). The easing moves with time: call tick() for each frame, with the
@@ -199,7 +200,7 @@ class Table : public Widget {
  private:
   struct Layout {
     std::vector<int> x, width;
-    int scrollbar_x = 0;
+    int scrollbar_x = -1;  // -1: no scrollbar, all the rows fit
   };
   // Whether column `c` is drawn: an icon column only where the display shows pictures.
   bool shown(size_t c) const;
