@@ -905,7 +905,7 @@ void Window::Impl::pasteClipboard() {
 bool Window::Impl::keyEvent(WPARAM vk, LPARAM lparam, bool pressed) {
   unsigned mods = currentMods();
   bool extended = (lparam >> 24) & 1;
-  if (pressed && ((vk == VK_INSERT && (mods & kModShift)) || (vk == 'V' && (mods & kModCtrl) && (mods & kModShift)))) {
+  if (pressed && ((vk == VK_INSERT && (mods & kModShift)) || (vk == 'V' && (mods & kModCtrl) && !(mods & kModAlt)))) {
     pasteClipboard();
     return true;
   }
