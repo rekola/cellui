@@ -889,7 +889,7 @@ void BufferPlane::showReader(const std::string & prompt, int y, int x, int rows,
   auto [origin_y, origin_x] = readerOrigin();
   reader_plane_->move(origin_y + y, origin_x + reader_x_);
   reader_plane_->resize(std::max(1, reader_rows), reader_cols);
-  editor_ = std::make_unique<LineEditor>();
+  editor_ = std::make_unique<TextField>();
   editor_->setText(initial_text);
   root().active_reader_ = this;
   drawReader();
@@ -905,9 +905,7 @@ void BufferPlane::drawReader() {
     p.style_.bg = *reader_backdrop_;
     p.putstr(0, 0, std::string(static_cast<size_t>(p.getDim().second), ' '));
   }
-  LineEditor::View v = editor_->view(p.getDim().second);
-  p.putstr(0, 0, v.text);
-  reader_cursor_ = v.cursor_column;
+  reader_cursor_ = editor_->draw(p, 0, 0, p.getDim().second).cursor_column;
 }
 
 void BufferPlane::setReaderBackdrop(const Color & c) {
@@ -933,16 +931,14 @@ void BufferPlane::setReaderContents(const std::string & text) {
 
 void BufferPlane::insertReaderText(const std::string & text) {
   if (!editor_) return;
-  editor_->insert(text);
+  editor_->paste(text);
   drawReader();
 }
 
 bool BufferPlane::insertIntoReader(const std::string & text) {
   BufferPlane * reader = root().active_reader_;
   if (!reader) return false;
-  std::string line = text;
-  std::replace(line.begin(), line.end(), '\n', ' ');
-  reader->insertReaderText(line);
+  reader->insertReaderText(text);
   return true;
 }
 

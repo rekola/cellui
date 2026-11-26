@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cellui/LineEditor.h>
+#include <cellui/TextField.h>
 #include <cellui/ModalDialog.h>
 
 #include <functional>
@@ -106,7 +106,7 @@ class FormModal : public ModalDialog {
 
   std::string title_;
   std::vector<FormField> fields_;
-  std::vector<LineEditor> editors_;
+  std::vector<TextField> editors_;
   std::function<std::string(const std::vector<std::string> &)> summary_fn_, check_fn_;
   std::string summary_, error_;
   size_t focus_ = 0;

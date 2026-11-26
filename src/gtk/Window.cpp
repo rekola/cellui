@@ -2027,7 +2027,7 @@ bool Window::Impl::keyEvent(GtkEventController * controller, guint keyval, GdkMo
       return true;
     }
   }
-  if (pressed && ((keyval == GDK_KEY_Insert && (mods & kModShift)) || ((keyval == GDK_KEY_V || keyval == GDK_KEY_v) && (mods & kModCtrl) && (mods & kModShift)))) {
+  if (pressed && ((keyval == GDK_KEY_Insert && (mods & kModShift)) || ((keyval == GDK_KEY_V || keyval == GDK_KEY_v) && (mods & kModCtrl) && !(mods & kModAlt)))) {
     pasteClipboard();
     return true;
   }
