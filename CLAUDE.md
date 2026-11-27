@@ -477,7 +477,12 @@ itself. What is composed up to a backdrop (the stack, blurred and dimmed) is kep
 a texture once a print of everything it is made of (cells, runs of text, pictures,
 the layers' places) has been the same for two frames (`StackCache`,
 `FrameStats::stack_hits`), so a dialog scrolling over a blurred screen costs the
-layer above it and not a blur of the screen each frame. Shadows: two GSK outset shadows (a key light from the upper left,
+layer above it and not a blur of the screen each frame. A layer over a good part of
+the screen (a scrim) is kept at its first frame, and when only its cells change (live
+data under a dialog) the kept texture is drawn for up to 300 ms more and made again
+after that; a change of the layers' places or backdrops is never late. Text with no
+background of its own (`ElevatedArea::see_through`) is drawn again over the stack
+under it, not over itself. Shadows: two GSK outset shadows (a key light from the upper left,
 offset down by half the height, and a faint ambient one) around every
 `FrameInfo::elevations` area no later backdrop covers, then height by height
 the cells of every area as high or higher again over them (the frame's own

@@ -2,6 +2,7 @@
 
 #include <cellui/BufferPlane.h>
 #include <cellui/Charts.h>
+#include <cellui/Scrim.h>
 #include <cellui/FormModal.h>
 #include <cellui/InputDispatcher.h>
 #include <cellui/gtk/GlibEventLoop.h>
@@ -1205,15 +1206,26 @@ TEST(gtk_window_keeps_the_blurred_stack_while_only_the_layer_above_changes) {
   frame("two");
   frame("three");
   frame("four");
-  CHECK(w->stats().stacks_kept == kept + 1);
-  CHECK(w->stats().stack_hits >= hits + 2);
-  // A change under the backdrop makes the stack again, and the frame after it is drawn from the new one.
+  CHECK(w->stats().stacks_kept == kept + 1);  // the scrim covers the screen: kept at its first frame
+  CHECK(w->stats().stack_hits >= hits + 3);
+  // A change in the cells under the backdrop does not make the stack again at once (it is blurred and dimmed, and live
+  // data under a dialog would otherwise blur the screen every frame): the kept one is drawn for a moment more.
   hits = w->stats().stack_hits;
   root.putstr(1, 2, "changed under it");
   frame("five");
-  CHECK(w->stats().stack_hits == hits);
+  CHECK(w->stats().stack_hits == hits + 1);
+  CHECK(w->stats().stacks_kept == kept + 1);
+  // Older than that, it is made again from the changed cells in that frame, and drawn as it is after.
+  pumpUntil(*w, [] { return false; }, 400);
   frame("six");
-  frame("seven");
   CHECK(w->stats().stacks_kept == kept + 2);
-  CHECK(w->stats().stack_hits > hits);
+  hits = w->stats().stack_hits;
+  frame("seven");
+  CHECK(w->stats().stack_hits == hits + 1);
+  // A change in the layer itself (its backdrop) is never a moment late.
+  hits = w->stats().stack_hits;
+  scrim->setBackdrop(Backdrop{ 3, 0.5f });
+  for (int r = 0; r < w->rows(); r++) scrim->putstr(r, 0, std::string(static_cast<size_t>(w->cols()), ' '));
+  frame("eight");
+  CHECK(w->stats().stack_hits == hits);
 }

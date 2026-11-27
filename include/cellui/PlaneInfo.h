@@ -67,6 +67,9 @@ struct ElevatedArea {
   std::array<std::optional<Color>, 4> corner_bg{};
   // A scrim: blank cells with a backdrop, never drawn again over a shadow.
   bool scrim = false;
+  // The plane has cells with no background of their own (text over glass, Plane::setSeeThrough()): they cannot be
+  // drawn again over what is already there without drawing their text twice.
+  bool see_through = false;
   // The plane's border (Plane::setBorder()), inside the rectangle and rounded by `radius`. A plane that is
   // not elevated has an area for its border only: `shadow` is false and it casts nothing.
   double border_px = 0;
