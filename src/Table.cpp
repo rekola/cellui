@@ -588,7 +588,10 @@ void Table::drawRow(const Layout & l, const StyleProvider & styles, int position
         drawIcon(y, l.x[c], l.width[c], picture, cursor_here && focused_, styles.highlight_bg_color, styles.highlight_fg_color, lightIcons(styles));
       } else if (columns_[c].icon_fallback) {
         const std::string symbol = model_->iconFallback(model_row, col);
-        if (!symbol.empty()) putstr(y, l.x[c], symbol);
+        if (!symbol.empty()) {
+          if (const auto symbol_color = cursor_here ? std::nullopt : model_->iconFallbackColor(model_row, col)) setFgColor(*symbol_color);
+          putstr(y, l.x[c], symbol);
+        }
       }
       continue;
     }

@@ -77,6 +77,8 @@ class TableModel {
   virtual std::shared_ptr<const TableIcon> icon(int /*row*/, int /*column*/) const { return nullptr; }
   // The symbol (a short text, such as an emoji) an icon column with `icon_fallback` shows where the cell has no picture; empty for none.
   virtual std::string iconFallback(int /*row*/, int /*column*/) const { return {}; }
+  // The colour of that symbol. Unset is the row's text colour (and the cursor cell's own, which the symbol keeps whatever this says).
+  virtual std::optional<Color> iconFallbackColor(int /*row*/, int /*column*/) const { return std::nullopt; }
   // Whether button `button` of a buttons column is there on this row. All are by default (the buttons are the same in every
   // row); a model that has an action only some rows can take says no for the others: the button is not drawn, a click on its
   // place is a click on the row, and the cursor does not stop there. The column keeps its width.

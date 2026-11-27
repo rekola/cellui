@@ -580,7 +580,33 @@ struct IconFixture {
   }
 };
 
+// A model with a symbol for the first two rows' icons, the first in a colour of its own.
+struct SymbolModel : Quotes {
+  std::string iconFallback(int r, int c) const override { return c == 0 && r < 2 ? "\xE2\x82\xBF" : std::string(); }
+  std::optional<Color> iconFallbackColor(int r, int) const override { return r == 0 ? std::optional<Color>(Color("#d4a72c")) : std::nullopt; }
+};
+
 }  // namespace
+
+TEST(table_icon_symbol_has_the_colour_the_model_says_and_the_text_colour_otherwise) {
+  StyleProvider styles;
+  CellBuffer buffer{8, 30};
+  BufferPlane root{buffer, styles};
+  std::unique_ptr<Charts> charts = cellCharts();
+  Table table{root, *charts};
+  table.setColumns({{.title = "", .width = 2, .sortable = false, .icon = true, .icon_fallback = true}, {.title = "Name", .width = 10}, {.title = "Price", .width = 8}});
+  table.resize(6, 30);
+  table.move(1, 0);
+  table.setModel(std::make_shared<SymbolModel>());
+  root.refresh();
+  int shown = 0;
+  std::optional<Color> first, second;
+  for (int r = 0; r < 8; r++)
+    if (buffer.at(r, 0).text == "\xE2\x82\xBF") (shown++ == 0 ? first : second) = buffer.at(r, 0).fg;
+  CHECK(shown == 2);
+  CHECK(first && *first == Color("#d4a72c"));
+  CHECK(!second || *second != Color("#d4a72c"));
+}
 
 TEST(table_shows_an_icon_column_as_one_picture_for_every_row_that_has_it) {
   IconFixture f(true);
