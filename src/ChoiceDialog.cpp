@@ -71,10 +71,12 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
   auto bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color;
   auto cursor_bg = styles.highlight_bg_color;
   auto set_on = [](Plane & plane, const Color & foreground, const Color & background) {
+    plane.setSeeThrough(false);
     plane.setFgColor(foreground);
     plane.setBgColor(background);
   };
-  auto set = [&](const Color & foreground, const Color & background) { set_on(*plane_, foreground, background); };
+  // The box is glass where the display blurs pixels, the entries over it have no background of their own.
+  auto set = [&](const Color & foreground, const Color & background) { plane_->setInkOnGlass(foreground, background); };
 
   set(fg, bg);
   for (int row = 0; row < rows_; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
@@ -111,7 +113,7 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
   int count = static_cast<int>(labels_.size());
   // The scrollbar rides the right margin of the box, beside the list.
   for (int i = 0; i < rows; i++) plane_->putstr(kTopRows + i, width_ - 1, " ");
-  drawScrollbar(*plane_, kTopRows, width_ - 1, rows, count, rows, list_.shown(), bg, styles.theme.text_secondary, strong);
+  drawScrollbar(*plane_, kTopRows, width_ - 1, rows, count, rows, list_.shown(), bg, styles.theme.text_secondary, strong, plane_->frostedPopups());
 
   x_ = (screen_cols - width_) / 2;
   y_ = (screen_rows - rows_) / 2;
@@ -129,13 +131,13 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
   list_plane_->resize(rows, width_ - 1);
   list_plane_->setScrollOffset(list_.fraction(), 0);
   list_plane_->erase();
-  set_on(*list_plane_, fg, bg);
   int drawn = rows + (list_.smooth() ? 1 : 0);
   for (int i = 0; i < drawn; i++) {
     int index = list_.firstShown() + i;
     // The entry the button is held down on is drawn pressed.
     bool pressed = index == list_.pressed();
-    set_on(*list_plane_, pressed ? strong : fg, pressed ? styles.row_pressed_bg_color : bg);
+    if (pressed) set_on(*list_plane_, strong, styles.row_pressed_bg_color);
+    else list_plane_->setInkOverGlass(fg, bg);
     list_plane_->putstr(i, 0, string(static_cast<size_t>(width_ - 1), ' '));
     if (index >= count) continue;
     // A marker for the one in use, then the label in the display's proportional face; one that doesn't fit ends in

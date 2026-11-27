@@ -1180,6 +1180,7 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
   impl.display_info.display_scale = impl.dpi / 96.0;
   impl.display_info.smooth_scroll = true;
   impl.display_info.proportional_text = true;
+  impl.display_info.frosted_popups = true;
   impl.display_info.keymap_profile = KeymapProfile::DESKTOP;
   impl.display_info.escape_as_meta = false;
   impl.display_info.key_release = true;

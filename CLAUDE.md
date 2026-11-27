@@ -230,11 +230,13 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   version, so it is placed, not re-sent. A widget scrolled partly out of view
   draws its picture whole at its real position with a row clip, so the pixels
   don't change with the scroll.
-- Glass: where `DisplayInfo::frosted_popups` (the GTK window only; a terminal's cell blur cannot keep text
-  readable) menus and popups (`PopupMenu`, `MenuBar`'s section) are frosted, always: `Plane::setFrosted(tint)`
-  gives what is written next a backdrop and `Cell::see_through` (no background of its own, so the text is drawn
-  over the blurred planes below); `clearFrosted()` before an opaque row (the selected one). It says no where the
-  display does not, and the caller paints its opaque colour.
+- Glass: where `DisplayInfo::frosted_popups` (the GTK and Win32 windows; a terminal's cell blur cannot keep text
+  readable, so there they stay opaque) menus and popups (`PopupMenu`, `MenuBar`'s section, `CommandPalette`,
+  `ChoiceDialog`) are frosted, always: `Plane::setFrosted(tint)` (`setInkOnGlass()`) gives what is written next a
+  backdrop and `Cell::see_through` (no background of its own, so the text is drawn over the blurred planes below);
+  a plane laid over the glass (a scrolled list) uses `setInkOverGlass()`, and `drawScrollbar(..., glass)` draws
+  without a background. `clearFrosted()` before an opaque row (the selected or pressed one). All of it says no
+  where the display does not, and the caller paints its opaque colour.
 - `Plane::setCornerRadius()` (`Theme::dialog_radius_px`, 96-dpi pixels, scaled
   by the window) rounds an `ElevatedArea`: shadow outline and redrawn cells
   are rounded, and the cut-away corners show what lay under the corner cell

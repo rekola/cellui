@@ -389,3 +389,21 @@ TEST(palette_list_does_not_ease_where_the_display_does_not_scroll_smoothly) {
   palette.show(root, 20, 80);
   CHECK(!palette.animating());
 }
+
+TEST(palette_list_is_glass_where_the_display_blurs_pixels_and_opaque_elsewhere) {
+  for (bool frosted : {true, false}) {
+    StyleProvider styles;
+    CellBuffer buffer{20, 80};
+    BufferPlane root{buffer, styles};
+    root.setFrostedPopups(frosted);
+    CommandPalette palette;
+    palette.open(entries());
+    palette.show(root, 20, 80);
+    root.refresh();
+    CHECK(root.takeBackdropLayers().empty() != frosted);
+    bool see_through = false;
+    for (int r = 0; r < buffer.rows(); r++)
+      for (int c = 0; c < buffer.cols(); c++) see_through |= buffer.at(r, c).see_through;
+    CHECK(see_through == frosted);
+  }
+}

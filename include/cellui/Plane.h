@@ -258,6 +258,21 @@ class Plane {
     setBackdrop(Backdrop{});
     setSeeThrough(false);
   }
+  // Text in `fg` on glass tinted `bg` where the display has it, else on `bg` itself.
+  void setInkOnGlass(const Color & fg, const Color & bg) {
+    setFgColor(fg);
+    if (setFrosted(bg)) return;
+    clearFrosted();
+    setBgColor(bg);
+  }
+  // The same for a plane laid over a plane that is glass (a list on a box): no background of its own
+  // where the display has glass (the box's shows through), else `bg`.
+  void setInkOverGlass(const Color & fg, const Color & bg) {
+    setFgColor(fg);
+    setSeeThrough(frostedPopups());
+    if (frostedPopups()) setBgDefault();
+    else setBgColor(bg);
+  }
   static constexpr int kFrostedBlur = 2;
   static constexpr float kFrostedDim = 0.6f;
   // How far the cells drawn next stand above the plane, in cell widths, like
