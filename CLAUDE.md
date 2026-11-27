@@ -244,6 +244,10 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   where the display does not, and the caller paints its opaque colour. A backdrop hides what the window draws
   over the composed frame (borders, edges) only for the areas whose cells it overlaps (`areaCovered()`), so a
   popup's small glass leaves the borders of the planes elsewhere (tag chips) alone.
+- A raised plane hides the border of a bordered plane under it where it lies, unless it says
+  `setCoversBorders(false)` (`ScrollBody`'s plane, which starts at its dialog's edge column).
+  The window draws the stack under an elevated area again before the frame's cells over it
+  (`redraw()`), since text over glass has no background to cover what it is drawn on.
 - `Plane::setCornerRadius()` (`Theme::dialog_radius_px`, 96-dpi pixels, scaled
   by the window) rounds an `ElevatedArea`: shadow outline and redrawn cells
   are rounded, and the cut-away corners show what lay under the corner cell
@@ -469,7 +473,11 @@ the other keys never do, so their presses and releases stay as they are); the po
 without a button held (a drag), at each new cell; wheel is buttons 4-7; paste is Ctrl+Shift+V / Shift+Insert.
 Backdrops: each layer is drawn, then the stack so far again under a GSK blur
 node and a dim inside the backdrop's cells — the window never makes the blur
-itself. Shadows: two GSK outset shadows (a key light from the upper left,
+itself. What is composed up to a backdrop (the stack, blurred and dimmed) is kept as
+a texture once a print of everything it is made of (cells, runs of text, pictures,
+the layers' places) has been the same for two frames (`StackCache`,
+`FrameStats::stack_hits`), so a dialog scrolling over a blurred screen costs the
+layer above it and not a blur of the screen each frame. Shadows: two GSK outset shadows (a key light from the upper left,
 offset down by half the height, and a faint ambient one) around every
 `FrameInfo::elevations` area no later backdrop covers, then height by height
 the cells of every area as high or higher again over them (the frame's own

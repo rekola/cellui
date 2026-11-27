@@ -241,6 +241,9 @@ class Plane {
   // What putstr()/putText() write next has no background of its own where the display draws text over
   // the blurred planes below (DisplayInfo::frosted_popups); only the glass sets it (setFrosted()).
   virtual void setSeeThrough(bool) { }
+  // Whether this plane, raised over a bordered plane, hides the border where it lies (default). A plane that is
+  // part of the bordered one (a dialog's scrolling body, which starts at the box's edge) says no: the border stays.
+  virtual void setCoversBorders(bool) { }
   // Whether menus and popups are glass on this display (DisplayInfo::frosted_popups).
   virtual bool frostedPopups() const { return false; }
   // Makes what is written next glass tinted `tint`: the planes below show through it blurred, text and
