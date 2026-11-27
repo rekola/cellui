@@ -646,16 +646,9 @@ void Window::Impl::drawShadows() {
     int r1 = (static_cast<int>(std::ceil(bottom)) + cell_h - 1) / cell_h, c1 = (static_cast<int>(std::ceil(right)) + cell_w - 1) / cell_w;
     bands.push_back(LiftedBand{ D2D1::RectF(left, top, right, bottom), { r0, c0, r1 - r0, c1 - c0 }, content.elevation + band.lift });
   }
-  // Only a backdrop at or above an area's layer covers it (a plane scrolling
-  // by part of a cell is a layer too, and covers nothing). With a blur the
-  // stack cannot be drawn again as it is, so an area below the frame stays as
-  // it was drawn.
-  std::vector<bool> covered(layers.size() + 1, false);
-  for (size_t j = layers.size(); j-- > 0;) covered[j] = covered[j + 1] || layers[j].backdrop.active();
-  auto shown = [&](const ElevatedArea & a) {
-    if (blurring_ && a.layer < layers.size()) return false;
-    return !covered[std::min(a.layer, layers.size())];
-  };
+  // Only a backdrop at or above an area's layer, over some of its cells, covers it (areaCovered()): with a
+  // blur the stack cannot be drawn again as it is there, so such an area stays as it was drawn.
+  auto shown = [&](const ElevatedArea & a) { return !areaCovered(layers, a); };
   // An area's cells again: from the frame, or, when they were composed into a
   // layer below it, from the stack so far with the frame over it.
   auto redraw = [&](const ElevatedArea & a) {

@@ -1579,3 +1579,21 @@ TEST(a_fitted_picture_draws_nothing_where_the_display_has_no_pictures) {
   root.refresh();
   CHECK(root.images().empty());
 }
+
+TEST(areacovered_only_where_a_backdrop_at_or_above_its_layer_overlaps_its_cells) {
+  ElevatedArea chip;
+  chip.row = 0, chip.col = 0, chip.rows = 1, chip.cols = 10;
+  chip.layer = 0;
+  BackdropLayer glass{ CellBuffer(1, 1), Backdrop{ 2, 0.5f }, 5, 20, 4, 10, std::nullopt };
+  std::vector<BackdropLayer> layers;
+  layers.push_back(glass);
+  CHECK(!areaCovered(layers, chip));  // a popup elsewhere on the screen leaves it alone
+  layers[0].col = 5;
+  layers[0].row = 0;
+  CHECK(areaCovered(layers, chip));  // glass over it
+  chip.layer = 1;
+  CHECK(!areaCovered(layers, chip));  // an area composed above the glass is not under it
+  chip.layer = 0;
+  layers[0].backdrop = Backdrop{};
+  CHECK(!areaCovered(layers, chip));  // a layer with no backdrop (a scrolled plane) covers nothing
+}

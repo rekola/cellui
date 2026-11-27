@@ -66,6 +66,7 @@ void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
     plane_->setCornerRadius(plane_->getStyles().theme.dialog_radius_px);
   }
   plane_->resize(rows_, width_);
+  plane_->setPanelBorder();
   auto & styles = plane_->getStyles();
 
   auto bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color;

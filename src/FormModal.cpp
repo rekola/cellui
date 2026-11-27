@@ -180,26 +180,30 @@ void FormModal::layout(Plane & screen, int rows, int cols) {
     plane_->setCornerRadius(screen.getStyles().theme.dialog_radius_px);
   }
   plane_->resize(height, width);
+  plane_->setPanelBorder();
   const StyleProvider & styles = plane_->getStyles();
   const Color bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color, quiet = styles.theme.text_secondary;
   const Color wrong(0xf8, 0x51, 0x49);
   auto paint = [&](const Color & foreground, const Color & background) {
+    plane_->clearFrosted();
     plane_->setFgColor(foreground);
     plane_->setBgColor(background);
   };
-  paint(fg, bg);
+  // The dialog's own panel is glass where the display blurs pixels; the fields and buttons stay opaque.
+  auto panel = [&](const Color & foreground) { plane_->setInkOnGlass(foreground, bg); };
+  panel(fg);
   for (int y = 0; y < height; y++) plane_->putstr(y, 0, std::string(static_cast<size_t>(width), ' '));
   const int inner = width - 2;
   const TextStyle plain{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kPlainFace, TextAlign::LEFT};
 
-  paint(strong, bg);
+  panel(strong);
   plane_->putText(1, 1, inner, title_, TextStyle{TextFont::PROPORTIONAL, TextOverflow::ELLIPSIS, kBoldFace, TextAlign::LEFT});
 
   for (int i = 0; i < n; i++) {
     const int y = 3 + i, x = 1 + label_width + 2;
     const bool here = focus_ == static_cast<size_t>(i);
     const bool bad = !fieldError(static_cast<size_t>(i)).empty() && (attempted_ || !trimmed(text(static_cast<size_t>(i))).empty());
-    paint(here ? strong : quiet, bg);
+    panel(here ? strong : quiet);
     plane_->putText(y, 1, label_width, fields_[static_cast<size_t>(i)].label, plain);
     field_spots_[static_cast<size_t>(i)] = {y, x, field_width};
     paint(bad ? wrong : strong, here ? styles.theme.surface_raised : styles.window_bg_color);
@@ -220,9 +224,9 @@ void FormModal::layout(Plane & screen, int rows, int cols) {
   }
 
   const int error_row = 3 + n + 1, summary_row = error_row + 1, button_row = summary_row + 2, hint_row = button_row + 1;
-  paint(wrong, bg);
+  panel(wrong);
   plane_->putText(error_row, 1, inner, error_, plain);
-  paint(strong, bg);
+  panel(strong);
   plane_->putText(summary_row, 1, inner, summary_, plain);
 
   // OK and Cancel at the right, side by side; the focused one has the highlight, the pressed one the pressed look.
@@ -238,7 +242,7 @@ void FormModal::layout(Plane & screen, int rows, int cols) {
   button(cancel_x, kCancel, fields_.size() + 1, static_cast<int>(fields_.size()) + 1);
   ok_ = {button_row, ok_x, ok_w};
   cancel_ = {button_row, cancel_x, cancel_w};
-  paint(quiet, bg);
+  panel(quiet);
   plane_->putText(hint_row, 1, inner, kHint, plain);
 
   top_ = (rows - height) / 2;

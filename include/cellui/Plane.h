@@ -273,8 +273,10 @@ class Plane {
     if (frostedPopups()) setBgDefault();
     else setBgColor(bg);
   }
-  static constexpr int kFrostedBlur = 2;
-  static constexpr float kFrostedDim = 0.6f;
+  static constexpr int kFrostedBlur = 3;
+  static constexpr float kFrostedDim = 0.45f;
+  // The one thin outline of a menu, popup or dialog, instead of the edge a raised area otherwise has.
+  void setPanelBorder() { setBorder(getStyles().window_fg_color, 1.0, 0.3f); }
   // How far the cells drawn next stand above the plane, in cell widths, like
   // a card on it (0: flat). A run of them in a row is one piece; with
   // `joins_above` it is one with the run of the same height and columns

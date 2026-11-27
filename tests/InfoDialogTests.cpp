@@ -80,3 +80,20 @@ TEST(infodialog_italic_ends_with_its_run) {
   CHECK(b.at(3, 4).italic);
   CHECK(!b.at(3, 6).italic);
 }
+
+TEST(infodialog_is_glass_where_the_display_blurs_pixels_with_a_border_instead_of_an_edge) {
+  for (bool frosted : {true, false}) {
+    StyleProvider styles;
+    CellBuffer b(10, 24);
+    BufferPlane root(b, styles);
+    root.setFrostedPopups(frosted);
+    InfoDialog d;
+    d.show(root, "About", "Some words", 20, 8);
+    d.move(1, 2);
+    root.refresh();
+    bool bordered = false;
+    for (const ElevatedArea & a : root.takeElevations()) bordered |= a.border_px > 0;
+    CHECK(bordered);
+    CHECK(root.takeBackdropLayers().empty() != frosted);
+  }
+}
