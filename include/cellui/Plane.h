@@ -238,6 +238,43 @@ class Plane {
   // (blurred and dimmed); a space written with no colours is nothing but
   // that. Default no-op: a display that can't, shows them as they are.
   virtual void setBackdrop(const Backdrop &) { }
+  // What putstr()/putText() write next has no background of its own where the display draws text over
+  // the blurred planes below (DisplayInfo::frosted_popups); only the glass sets it (setFrosted()).
+  virtual void setSeeThrough(bool) { }
+  // Whether menus and popups are glass on this display (DisplayInfo::frosted_popups).
+  virtual bool frostedPopups() const { return false; }
+  // Makes what is written next glass tinted `tint`: the planes below show through it blurred, text and
+  // all, and its own background is left out. A menu or popup calls it for every row it writes, and
+  // paints an opaque background itself when it says no (the terminal). Selected rows stay opaque:
+  // clearFrosted() before them.
+  bool setFrosted(const Color & tint) {
+    if (!frostedPopups()) return false;
+    setBgDefault();
+    setBackdrop(Backdrop{kFrostedBlur, kFrostedDim, tint});
+    setSeeThrough(true);
+    return true;
+  }
+  void clearFrosted() {
+    setBackdrop(Backdrop{});
+    setSeeThrough(false);
+  }
+  // Text in `fg` on glass tinted `bg` where the display has it, else on `bg` itself.
+  void setInkOnGlass(const Color & fg, const Color & bg) {
+    setFgColor(fg);
+    if (setFrosted(bg)) return;
+    clearFrosted();
+    setBgColor(bg);
+  }
+  // The same for a plane laid over a plane that is glass (a list on a box): no background of its own
+  // where the display has glass (the box's shows through), else `bg`.
+  void setInkOverGlass(const Color & fg, const Color & bg) {
+    setFgColor(fg);
+    setSeeThrough(frostedPopups());
+    if (frostedPopups()) setBgDefault();
+    else setBgColor(bg);
+  }
+  static constexpr int kFrostedBlur = 2;
+  static constexpr float kFrostedDim = 0.6f;
   // How far the cells drawn next stand above the plane, in cell widths, like
   // a card on it (0: flat). A run of them in a row is one piece; with
   // `joins_above` it is one with the run of the same height and columns

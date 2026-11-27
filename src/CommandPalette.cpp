@@ -121,17 +121,21 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   auto quiet = styles.theme.text_secondary;
   auto cursor_fg = styles.highlight_fg_color, cursor_bg = styles.highlight_bg_color;
   auto set = [&](const Color & foreground, const Color & background) {
+    plane_->clearFrosted();
     plane_->setFgColor(foreground);
     plane_->setBgColor(background);
   };
+  // The list's panel is glass where the display blurs pixels, else `background`.
+  auto glass = [&](const Color & foreground, const Color & background) { plane_->setInkOnGlass(foreground, background); };
 
   // Text on the display's own background, for the description and the query.
   auto plain = [&](const Color & foreground) {
+    plane_->clearFrosted();
     plane_->setBgDefault();
     plane_->setFgColor(foreground);
   };
 
-  set(fg, bg);
+  glass(fg, bg);
   plane_->setUnderline(false);
   // The list is a raised panel; the description and the query are not.
   for (int row = 0; row < list_rows; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
@@ -143,7 +147,7 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   list_.setSmooth(parent.smoothScroll());
   list_.firstVisible(visibleRows());
   if (count == 0) {
-    set(quiet, bg);
+    glass(quiet, bg);
     plane_->putstr(0, 1, "No matching command");
   }
   y_ = screen_rows - rows_;
@@ -160,7 +164,13 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   list_plane_->setScrollOffset(list_.fraction(), 0);
   list_plane_->erase();
   Plane & body = *list_plane_;
+  // Over the glass panel the unselected rows have no background of their own; the selected and pressed rows are opaque.
   auto set_body = [&](const Color & foreground, const Color & background) {
+    if (background == bg) {
+      body.setInkOverGlass(foreground, background);
+      return;
+    }
+    body.setSeeThrough(false);
     body.setFgColor(foreground);
     body.setBgColor(background);
   };
@@ -197,7 +207,8 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
     }
   }
   // The scrollbar rides the right margin, beside the list.
-  drawScrollbar(*plane_, 0, width_ - 1, visibleRows(), count, visibleRows(), list_.shown(), bg, quiet, strong);
+  glass(quiet, bg);
+  drawScrollbar(*plane_, 0, width_ - 1, visibleRows(), count, visibleRows(), list_.shown(), bg, quiet, strong, plane_->frostedPopups());
 
   // The selected command's description, or what the last Tab had to say.
   // Quiet and italic on the display's background, so it is not taken for a

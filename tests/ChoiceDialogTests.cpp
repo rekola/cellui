@@ -223,3 +223,21 @@ TEST(choicedialog_press_on_an_entry_released_elsewhere_chooses_nothing) {
   g.dialog.press(0, 0);
   CHECK(g.dialog.click(0, 0) == R::CANCELLED);
 }
+
+TEST(choicedialog_is_glass_where_the_display_blurs_pixels_and_opaque_elsewhere) {
+  for (bool frosted : {true, false}) {
+    StyleProvider styles;
+    CellBuffer buffer{10, 40};
+    BufferPlane root{buffer, styles};
+    root.setFrostedPopups(frosted);
+    ChoiceDialog dialog;
+    dialog.open("Pick", {"alpha", "beta", "gamma"}, 0);
+    dialog.show(root, 10, 40);
+    root.refresh();
+    CHECK(root.takeBackdropLayers().empty() != frosted);  // the planes below, set aside to be blurred under it
+    bool see_through = false;
+    for (int r = 0; r < buffer.rows(); r++)
+      for (int c = 0; c < buffer.cols(); c++) see_through |= buffer.at(r, c).see_through;
+    CHECK(see_through == frosted);  // its text is drawn over the blur
+  }
+}

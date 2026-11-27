@@ -58,12 +58,15 @@ class ScrollbarDrag {
 };
 
 // Draws it in column `col` of `plane`, the track from row `row` down: a thin line with a heavy thumb on it, the
-// look every scrolling list shares. Nothing when the content fits.
+// look every scrolling list shares. Nothing when the content fits. `glass`: over glass, the track and thumb
+// have no background.
 inline void drawScrollbar(Plane & plane, int row, int col, int track, int content, int view, double shown, const Color & background,
-                          const Color & track_color, const Color & thumb_color) {
+                          const Color & track_color, const Color & thumb_color, bool glass = false) {
   auto thumb = scrollbarThumb(track, content, view, shown);
   if (!thumb) return;
-  plane.setBgColor(background);
+  // On glass the glyphs have no background of their own (the plane's ink is set for it).
+  if (glass) plane.setBgDefault();
+  else plane.setBgColor(background);
   plane.setFgColor(track_color);
   for (int y = 0; y < track; y++) plane.putstr(row + y, col, "│");
   plane.setFgColor(thumb_color);

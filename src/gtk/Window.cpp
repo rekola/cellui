@@ -613,6 +613,7 @@ void Window::Impl::measure(const WindowOptions & options) {
   display_info.hdr_pictures = true;
   display_info.smooth_scroll = true;
   display_info.proportional_text = true;
+  display_info.frosted_popups = true;
   display_info.keymap_profile = KeymapProfile::DESKTOP;
   display_info.escape_as_meta = false;
   display_info.key_release = true;
@@ -658,7 +659,7 @@ class Print {
 // of a wide character has the colour of the first (a selected row's tint runs under
 // the whole glyph).
 std::optional<Color> backgroundOf(const CellBuffer::Cell & cell, bool transparent, const Color & window_bg) {
-  if (transparent && CellBuffer::isBlank(cell)) return std::nullopt;
+  if (transparent && (CellBuffer::isBlank(cell) || (cell.see_through && cell.image == 0))) return std::nullopt;
   if (cell.image > 0) return window_bg;
   return cell.bg.value_or(window_bg);
 }

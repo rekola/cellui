@@ -111,6 +111,9 @@ void MenuBar::draw() {
   Plane & panel = *panel_;
   auto panelInk = [&](const Color & fg, const Color & bg) {
     panel.setFgColor(fg);
+    // Glass where the display blurs; the highlighted item stays opaque.
+    if (bg == colors_.section_bg && panel.setFrosted(bg)) return;
+    panel.clearFrosted();
     panel.setBgColor(bg);
   };
   panelInk(colors_.section_fg, colors_.section_bg);

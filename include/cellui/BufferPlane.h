@@ -77,6 +77,10 @@ class BufferPlane : public Plane {
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
+  void setSeeThrough(bool on) override { style_.see_through = on; }
+  bool frostedPopups() const override { return root().frosted_popups_; }
+  // Whether the display draws menus and popups as glass (root only).
+  void setFrostedPopups(bool on) { frosted_popups_ = on; }
   void setLift(float lift, bool joins_above, bool casts_shadow) override {
     style_.lift = lift;
     style_.lift_joined = joins_above;
@@ -296,6 +300,7 @@ class BufferPlane : public Plane {
   std::function<double(const std::string &, const TextFace &)> text_measure_;
   bool cell_borders_ = false;
   bool proportional_text_ = false;
+  bool frosted_popups_ = false;
   // The runs this plane's cells are marked with, by local index; the frame's,
   // in the order composed (root only).
   void putRun(int y, int x, int cols, const std::string & text, const TextStyle & style, const TextEmphasis * emphasis);
