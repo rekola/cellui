@@ -28,8 +28,9 @@ InfoDialog::show(Plane & parent, const string & title, const string & source, in
   plane_->resize(rows, width);
 
   auto bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color;
-  plane_->setBgColor(bg);
-  plane_->setFgColor(fg);
+  plane_->setPanelBorder();
+  // Glass where the display blurs pixels.
+  plane_->setInkOnGlass(fg, bg);
   for (int row = 0; row < rows; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width), ' '));
   plane_->setFgColor(strong);
   plane_->putstr(1, 2, utf8::truncateToWidth(title, width - 4), kBoldFace);

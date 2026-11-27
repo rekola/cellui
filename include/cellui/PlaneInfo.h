@@ -5,6 +5,7 @@
 #include <cellui/MouseCursor.h>
 #include <cellui/TextStyle.h>
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <optional>
@@ -75,6 +76,19 @@ struct ElevatedArea {
   // area): the border is not drawn over what lies there, as it would be over the cells of any other plane.
   std::vector<std::array<int, 4>> covers;
 };
+
+// Whether a backdrop at or above the area's layer lies over some of its cells: what the display draws over the
+// composed frame for the area (its border, its edges, a redraw of its cells) is then left out, being under that
+// backdrop's blur or dim. A backdrop covers only the cells of its own rectangle (a popup's glass touches the
+// planes behind it and no others), and a plane scrolling by part of a cell is a layer too, and covers nothing.
+inline bool areaCovered(const std::vector<BackdropLayer> & layers, const ElevatedArea & a) {
+  for (size_t j = std::min(a.layer, layers.size()); j < layers.size(); j++) {
+    const BackdropLayer & l = layers[j];
+    if (!l.backdrop.active()) continue;
+    if (l.row < a.row + a.rows && a.row < l.row + l.rows && l.col < a.col + a.cols && a.col < l.col + l.cols) return true;
+  }
+  return false;
+}
 
 // The part of the screen a plane asked a pointer shape for.
 struct CursorArea {

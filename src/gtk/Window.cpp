@@ -1480,11 +1480,8 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRen
     float limit = 0.5f * static_cast<float>(std::min(a.cols * cell_w, a.rows * cell_h));
     return std::clamp(static_cast<float>(a.radius * display_info.display_scale), 0.0f, limit);
   };
-  // Only a backdrop at or above an area's layer covers it (a plane scrolling
-  // by part of a cell is a layer too, and covers nothing).
-  std::vector<bool> covered(layers.size() + 1, false);
-  for (size_t j = layers.size(); j-- > 0;) covered[j] = covered[j + 1] || layers[j].backdrop.active();
-  auto shown = [&](const ElevatedArea & a) { return !covered[std::min(a.layer, layers.size())]; };
+  // Only a backdrop at or above an area's layer, over some of its cells, covers it (areaCovered()).
+  auto shown = [&](const ElevatedArea & a) { return !areaCovered(layers, a); };
   // An area's cells again: from the frame, or, when they were composed into a
   // layer below it, from the stack so far with the frame over it.
   auto redraw = [&](const ElevatedArea & a) {
@@ -1596,9 +1593,10 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRen
       }
       // A light top edge and a darker bottom one, so pieces side by side
       // or stacked read apart; a border that thins to nothing at the sides
-      // follows a rounded corner.
+      // follows a rounded corner. Neither a scrim (a backdrop over the screen)
+      // nor an area with a border of its own has one: the border is its edge.
       for (size_t k = i; k < level_end; k++) {
-        if (!shown(elevations[k]) || !elevations[k].shadow) continue;
+        if (!shown(elevations[k]) || !elevations[k].shadow || elevations[k].scrim || elevations[k].border_px > 0) continue;
         graphene_rect_t rect = rectOf(elevations[k]);
         GskRoundedRect outline;
         gsk_rounded_rect_init_from_rect(&outline, &rect, radiusOf(elevations[k]));

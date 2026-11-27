@@ -60,7 +60,7 @@ void PopupMenu::layout(Plane & screen, int screen_rows, int screen_cols) {
   }
   plane_->resize(rows_, width_);
   const StyleProvider & styles = plane_->getStyles();
-  plane_->setBorder(styles.window_fg_color, 1.0, 0.3f);
+  plane_->setPanelBorder();
   for (int i = 0; i < rows_; i++) {
     const Item & item = items_[static_cast<size_t>(i)];
     const bool on = i == selected_;
