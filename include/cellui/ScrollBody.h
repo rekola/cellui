@@ -24,7 +24,7 @@ class ScrollBody {
 
   // Places the body over `box` (a plane of the dialog, at `box_row`, `box_col` of the screen), `rows` lines high from
   // row `top` of the box, `cols` wide; the scrollbar is in column `cols` of the box. Eases the view by the time since
-  // the last call, erases the body and leaves it with `background`/`foreground` set for the dialog to draw into
+  // the last call, erases the body and leaves it with `foreground` set, on `background` or, over a dialog box that is glass, on no background of its own (dialog::ink()), for the dialog to draw into
   // with plane(): line i of drawnRows() is on row i, and is line firstLine() + i. A new body starts at the top.
   void layout(Plane & screen, Plane & box, int box_row, int box_col, int top, int rows, int cols, const Color & background,
               const Color & foreground, const Color & track, const Color & thumb);

@@ -1,5 +1,6 @@
 #include <cellui/InfoDialog.h>
 
+#include <cellui/DialogPanel.h>
 #include <cellui/Markdown.h>
 #include <cellui/Utf8.h>
 
@@ -17,20 +18,16 @@ InfoDialog::show(Plane & parent, const string & title, const string & source, in
   constexpr int kTopRows = 3, kChrome = 4;
   auto rows = std::min(static_cast<int>(lines.size()) + kChrome, std::max(kChrome + 1, max_rows));
   if (!plane_) {
-    plane_ = parent.createChild();
-    plane_->setMouseCursor(MouseCursor::DEFAULT);
-    plane_->setElevation(elevation_.value_or(plane_->getStyles().theme.elevation.overlay));
-    plane_->setCornerRadius(plane_->getStyles().theme.dialog_radius_px);
+    plane_ = dialog::create(parent, elevation_.value_or(parent.getStyles().theme.elevation.overlay));
   }
   auto & styles = plane_->getStyles();
   rows_ = rows;
   width_ = width;
   plane_->resize(rows, width);
 
-  auto bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color;
-  plane_->setPanelBorder();
-  // Glass where the display blurs pixels.
-  plane_->setInkOnGlass(fg, bg);
+  auto fg = styles.window_fg_color, strong = styles.window_accent_fg_color;
+  dialog::style(*plane_);
+  dialog::ink(*plane_, fg);
   for (int row = 0; row < rows; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width), ' '));
   plane_->setFgColor(strong);
   plane_->putstr(1, 2, utf8::truncateToWidth(title, width - 4), kBoldFace);
