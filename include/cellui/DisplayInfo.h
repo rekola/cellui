@@ -68,6 +68,10 @@ struct DisplayInfo {
   // Whether the display lays out text itself, so Plane::putText() can set it
   // in a proportional face; any other has the cells' own.
   bool proportional_text = false;
+  // Whether menus and popups are glass: the display blurs the pixels below a plane's backdrop and draws
+  // text over them (Plane::setFrosted()). The terminal's cell blur cannot keep text readable, so there
+  // they stay opaque.
+  bool frosted_popups = false;
   // The key shortcuts the application binds commands to here: the terminal's
   // are Emacs's, a window's the usual desktop ones.
   KeymapProfile keymap_profile = KeymapProfile::TERMINAL;

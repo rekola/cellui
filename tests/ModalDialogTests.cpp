@@ -180,3 +180,43 @@ TEST(popupmenu_a_click_on_an_item_chooses_it_the_pointer_highlights_and_a_click_
   PopupMenu away(g.root, g.screen, g.loop, std::vector<std::string>{"alpha", "beta"});
   CHECK(away.showModal() == ModalDialog::kClosed && g.widget_keys == 0);
 }
+
+namespace {
+
+// What the first frame of a popup menu shows: the backdrop layers it set aside and whether the
+// unselected row's cell is see-through.
+struct PopupFrame {
+  size_t layers = 0;
+  bool unselected_see_through = false, selected_see_through = false;
+};
+
+PopupFrame popupFrame(bool frosted) {
+  Fixture f;
+  f.screen.setFrostedPopups(frosted);
+  f.script = { key('x'), key(Key::Escape) };
+  PopupFrame seen;
+  bool done = false;
+  auto spy = f.loop.onFrame([&] {
+    f.screen.refresh();
+    if (done) return;
+    done = true;
+    seen.layers = f.screen.takeBackdropLayers().size();
+    seen.selected_see_through = f.buffer.at(0, 3).see_through;
+    seen.unselected_see_through = f.buffer.at(1, 3).see_through;
+  });
+  PopupMenu menu(f.root, f.screen, f.loop, std::vector<std::string>{"alpha", "beta"});
+  menu.showModal();
+  return seen;
+}
+
+}  // namespace
+
+TEST(popupmenu_is_glass_where_the_display_blurs_pixels_and_opaque_elsewhere) {
+  const PopupFrame glass = popupFrame(true);
+  CHECK(glass.layers == 1);  // the planes below it, set aside to be blurred under it
+  CHECK(glass.unselected_see_through);  // its text is drawn over the blur
+  CHECK(!glass.selected_see_through);  // the highlighted row stays opaque
+  const PopupFrame terminal = popupFrame(false);
+  CHECK(terminal.layers == 0);
+  CHECK(!terminal.unselected_see_through);
+}

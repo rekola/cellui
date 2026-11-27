@@ -62,6 +62,10 @@ class CellBuffer {
     // piece (CellBuffer::write() joins its cells), and Style::zoom_joined joins a call's first cell
     // to the previous call's, so a field of differently coloured parts is one piece too.
     bool zoom_joined = false;
+    // The cell's own background is left out where the display shows what is below through it: glass
+    // (Plane::setFrosted()), whose text is drawn over the blurred planes. Never set where the display
+    // does not blur pixels.
+    bool see_through = false;
   };
 
   struct Style {
@@ -79,6 +83,7 @@ class CellBuffer {
     uint8_t zoom = 0;
     // The text continues the piece to its left, written by an earlier call (see Cell::zoom_joined).
     bool zoom_joined = false;
+    bool see_through = false;
   };
 
   CellBuffer(int rows, int cols);
@@ -95,7 +100,7 @@ class CellBuffer {
   // plane is drawn over another.
   static bool isBlank(const Cell & c) {
     return c.text == " " && !c.fg && !c.bg && c.weight == 400 && !c.italic && !c.underline && !c.continuation &&
-           !c.bg_blend && !c.fg_contrast && !c.image && !c.text_run && !c.zoom && !c.zoom_joined && !c.backdrop.active();
+           !c.bg_blend && !c.fg_contrast && !c.image && !c.text_run && !c.zoom && !c.zoom_joined && !c.backdrop.active() && !c.see_through;
   }
 
   // Writes `text` from (row, col) in `style`, clipped to the rectangle

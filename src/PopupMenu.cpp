@@ -65,7 +65,11 @@ void PopupMenu::layout(Plane & screen, int screen_rows, int screen_cols) {
     const Item & item = items_[static_cast<size_t>(i)];
     const bool on = i == selected_;
     plane_->setFgColor(on ? styles.highlight_fg_color : item.enabled ? styles.window_fg_color : styles.theme.text_secondary);
-    plane_->setBgColor(on ? styles.highlight_bg_color : styles.picker_bg_color);
+    // Glass where the display blurs, else the opaque picker colour; the selected row is opaque either way.
+    if (on || !plane_->setFrosted(styles.picker_bg_color)) {
+      plane_->clearFrosted();
+      plane_->setBgColor(on ? styles.highlight_bg_color : styles.picker_bg_color);
+    }
     plane_->putstr(i, 0, std::string(static_cast<size_t>(width_), ' '));
     if (item.separator) {
       plane_->setFgColor(styles.theme.text_secondary);
