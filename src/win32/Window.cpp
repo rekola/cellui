@@ -652,6 +652,9 @@ void Window::Impl::drawShadows() {
   // An area's cells again: from the frame, or, when they were composed into a
   // layer below it, from the stack so far with the frame over it.
   auto redraw = [&](const ElevatedArea & a) {
+    // Text with no background of its own (over glass) cannot be drawn again over itself without being drawn twice,
+    // and the stack under it, blurred, is not drawn again here: such an area of the frame is left as it was drawn.
+    if (a.see_through && a.layer >= layers.size()) return;
     CellRange range = { a.row, a.col, a.rows, a.cols };
     float radius = radiusOf(a);
     Com<ID2D1RoundedRectangleGeometry> shape;

@@ -1501,9 +1501,9 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRen
   // An area's cells again: from the frame, or, when they were composed into a
   // layer below it, from the stack so far with the frame over it.
   auto redraw = [&](const ElevatedArea & a) {
-    // The stack under it first even for cells of the frame: text over glass has no background to cover what it
-    // is drawn over, and drawn twice it is bold.
-    if (below) gtk_snapshot_append_node(snap, below);
+    // The stack under it first even for cells of the frame when they are text over glass: with no background to
+    // cover what they are drawn over, drawn twice they are bold.
+    if (below && (a.layer < layers.size() || a.see_through)) gtk_snapshot_append_node(snap, below);
     if (top) gtk_snapshot_append_node(snap, top);
   };
   // What shows in the corners a radius cuts away: what lay under them (the
@@ -1759,35 +1759,46 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
       seed.add(display_info.default_bg);
       seed.add(display_info.default_fg);
       uint64_t chain = seed.value();
+      // Only the layers up to the last backdrop can have their stack kept.
+      size_t last_backdrop = 0;
+      bool any_backdrop = false;
+      for (size_t i = 0; i < layers.size(); i++) {
+        if (!layers[i].backdrop.active()) continue;
+        last_backdrop = i;
+        any_backdrop = true;
+      }
       for (size_t i = 0; i < layers.size(); i++) {
         const BackdropLayer & layer = layers[i];
         const Painted & layer_painted = paint(i, layer.cells, i > 0);
         const Painted * scroll_painted = layer.scroll ? &paint(layers.size() + 1 + scrolls++, layer.scroll->cells, true) : nullptr;
+        const bool keepable = any_backdrop && i <= last_backdrop;
         Print stack_print;
-        stack_print.add(chain);
-        cellsPrint(stack_print, layer_painted, layer.cells);
-        stack_print.add(static_cast<uint64_t>(layer.row) << 32 | static_cast<uint32_t>(layer.col));
-        stack_print.add(static_cast<uint64_t>(layer.rows) << 32 | static_cast<uint32_t>(layer.cols));
-        stack_print.add(static_cast<uint64_t>(layer.backdrop.blur) << 32 | std::bit_cast<uint32_t>(layer.backdrop.dim));
-        stack_print.add(layer.backdrop.tint);
-        if (scroll_painted) {
-          const ScrollContent & content = *layer.scroll;
-          cellsPrint(stack_print, *scroll_painted, content.cells);
-          stack_print.add(static_cast<uint64_t>(content.row) << 32 | static_cast<uint32_t>(content.col));
-          stack_print.add(static_cast<uint64_t>(content.rows) << 32 | static_cast<uint32_t>(content.cols));
-          stack_print.add(bits(content.shift_rows));
-          stack_print.add(bits(content.shift_cols));
-          stack_print.add(static_cast<uint64_t>(content.blend) << 32 | std::bit_cast<uint32_t>(content.blend_alpha));
-          if (content.band) {
-            const Band & band = *content.band;
-            stack_print.add(bits(band.row));
-            stack_print.add(bits(band.col));
-            stack_print.add(bits(band.rows));
-            stack_print.add(bits(band.cols));
-            stack_print.add(std::optional<Color>(band.color));
-            stack_print.add(static_cast<uint64_t>(band.blend) << 32 | std::bit_cast<uint32_t>(band.alpha));
-            stack_print.add(bits(band.border_px));
-            stack_print.add(std::optional<Color>(band.border_color));
+        if (keepable) {
+          stack_print.add(chain);
+          cellsPrint(stack_print, layer_painted, layer.cells);
+          stack_print.add(static_cast<uint64_t>(layer.row) << 32 | static_cast<uint32_t>(layer.col));
+          stack_print.add(static_cast<uint64_t>(layer.rows) << 32 | static_cast<uint32_t>(layer.cols));
+          stack_print.add(static_cast<uint64_t>(layer.backdrop.blur) << 32 | std::bit_cast<uint32_t>(layer.backdrop.dim));
+          stack_print.add(layer.backdrop.tint);
+          if (scroll_painted) {
+            const ScrollContent & content = *layer.scroll;
+            cellsPrint(stack_print, *scroll_painted, content.cells);
+            stack_print.add(static_cast<uint64_t>(content.row) << 32 | static_cast<uint32_t>(content.col));
+            stack_print.add(static_cast<uint64_t>(content.rows) << 32 | static_cast<uint32_t>(content.cols));
+            stack_print.add(bits(content.shift_rows));
+            stack_print.add(bits(content.shift_cols));
+            stack_print.add(static_cast<uint64_t>(content.blend) << 32 | std::bit_cast<uint32_t>(content.blend_alpha));
+            if (content.band) {
+              const Band & band = *content.band;
+              stack_print.add(bits(band.row));
+              stack_print.add(bits(band.col));
+              stack_print.add(bits(band.rows));
+              stack_print.add(bits(band.cols));
+              stack_print.add(std::optional<Color>(band.color));
+              stack_print.add(static_cast<uint64_t>(band.blend) << 32 | std::bit_cast<uint32_t>(band.alpha));
+              stack_print.add(bits(band.border_px));
+              stack_print.add(std::optional<Color>(band.border_color));
+            }
           }
         }
         chain = stack_print.value();

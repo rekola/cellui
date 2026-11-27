@@ -77,7 +77,10 @@ class BufferPlane : public Plane {
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
-  void setSeeThrough(bool on) override { style_.see_through = on; }
+  void setSeeThrough(bool on) override {
+    style_.see_through = on;
+    if (on) see_through_ = true;
+  }
   void setCoversBorders(bool on) override { covers_borders_ = on; }
   bool frostedPopups() const override { return root().frosted_popups_; }
   // Whether the display draws menus and popups as glass (root only).
@@ -114,6 +117,7 @@ class BufferPlane : public Plane {
     erased_images_ = std::move(images_);
     images_.clear();
     texts_.clear();
+    see_through_ = false;
   }
   void putstr(int y, int x, const std::string & s, const TextFace & face = {}) override;
   void putText(int y, int x, int cols, const std::string & text, const TextStyle & style = {}) override;
@@ -303,6 +307,7 @@ class BufferPlane : public Plane {
   bool proportional_text_ = false;
   bool frosted_popups_ = false;
   bool covers_borders_ = true;
+  bool see_through_ = false;  // see_through cells were written since the last erase()
   // The runs this plane's cells are marked with, by local index; the frame's,
   // in the order composed (root only).
   void putRun(int y, int x, int cols, const std::string & text, const TextStyle & style, const TextEmphasis * emphasis);
