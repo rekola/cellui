@@ -265,3 +265,13 @@ TEST(dial_with_steps_rests_only_on_them_by_drag_wheel_and_typing) {
   key(dial, Key::Enter);
   CHECK_NEAR(dial.value(), 0.0f, 1e-4f);  // nothing above unity
 }
+
+TEST(dial_widget_a_paste_into_the_editor_replaces_the_value_and_enter_sets_it) {
+  DialFixture f;
+  CHECK(!f.dial.paste("-6"));
+  press(f.dial, 3, 5);
+  f.dial.release();
+  CHECK(f.dial.paste("  -6,5 \nignored"));
+  key(f.dial, Key::Enter);
+  CHECK_NEAR(f.dial.value(), -6.5f, 0.001f);
+}

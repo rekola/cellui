@@ -197,6 +197,23 @@ bool Dial::key(int id, const Modifiers & mods) {
   return true;
 }
 
+bool Dial::paste(const std::string & text) {
+  if (!editing_) return false;
+  std::string typed;
+  for (char c : text) {
+    if (c == '\n' || c == '\r') break;  // one line
+    if (c >= 32 && c < 127) typed += c;
+  }
+  const size_t first = typed.find_first_not_of(' ');
+  typed = first == std::string::npos ? "" : typed.substr(first, typed.find_last_not_of(' ') - first + 1);
+  if (typed.empty()) return true;
+  if (replaceable_) edit_text_.clear();
+  replaceable_ = false;
+  edit_text_ += typed;
+  version_++;
+  return true;
+}
+
 bool Dial::wheel(int row, int col, bool up, bool shift) {
   if (editing_ || !contains(row, col)) return false;
   float base = std::max(value_, spec_.min);

@@ -124,6 +124,9 @@ class Dial {
   bool wheel(int row, int col, bool up, bool shift);
   // While the editor is open, every key.
   bool key(int key, const Modifiers & mods);
+  // Pasted text while the editor is open: what is typed, as one line without its surrounding blanks.
+  // False when it is not open.
+  bool paste(const std::string & text);
   bool isDragging() const { return down_; }
   bool isEditing() const { return editing_; }
   // Starts typing a value: the current one is shown and the first key replaces it.

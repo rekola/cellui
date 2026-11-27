@@ -115,3 +115,12 @@ TEST(spinbox_escape_cancels_an_edit_and_other_keys_end_it) {
   CHECK(!offer(f.spin, typed('x')));  // ended, and left for the app
   CHECK(!f.spin.isEditing());
 }
+
+TEST(spinbox_a_paste_types_its_digits_while_editing) {
+  Fixture f;
+  CHECK(!f.spin.paste("7"));  // not editing
+  offer(f.spin, clickAt(1, f.field_x));
+  CHECK(f.spin.isEditing());
+  CHECK(f.spin.paste(" 7\n"));
+  CHECK(!f.spin.isEditing() && f.value == 7);  // 70 > 8: no further digit applies
+}

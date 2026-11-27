@@ -51,6 +51,7 @@ class SpinBox : public Widget {
     // A drag with the button held follows the pointer on or off an arrow.
     connections_.push_back(on<MouseMove>([this](const MouseMove & e, EventContext &) { return (e.buttons & 1) && press(e.row, e.col) ? Handled::yes : Handled::no; }));
     connections_.push_back(on<MouseUp>([this](const MouseUp & e, EventContext &) { return e.button == 1 && release(e.row, e.col) ? Handled::yes : Handled::no; }));
+    connections_.push_back(on<Paste>([this](const Paste & e, EventContext &) { return paste(e.text) ? Handled::yes : Handled::no; }));
     connections_.push_back(on<Wheel>([this](const Wheel & e, EventContext &) { return e.dy != 0 && wheel(e.dy > 0) ? Handled::yes : Handled::no; }));
   }
 
@@ -161,11 +162,20 @@ class SpinBox : public Widget {
     } else if (e.key == Key::Backspace) {
       if (!edit_buffer_.empty()) edit_buffer_.pop_back();
     } else if (auto d = digit(e.key, 10); d >= 0 && !e.mods.ctrl && !e.mods.alt && !e.mods.meta) {
-      edit_buffer_ += static_cast<char>('0' + d);
-      if (parsedBuffer() * 10 > max_value_ || static_cast<int>(edit_buffer_.size()) >= fieldWidth()) commitEdit(); // no further digit could apply
+      typeDigit(d);
     } else {
       cancelEditing();
       return false;
+    }
+    return true;
+  }
+  // Pasted text while editing: its digits are typed, anything else (spaces, separators) is
+  // skipped, and the edit ends where typing would have ended it. False when not editing.
+  bool paste(const std::string & text) {
+    if (!editing_) return false;
+    for (char c : text) {
+      if (!editing_) break;
+      if (c >= '0' && c <= '9') typeDigit(c - '0');
     }
     return true;
   }
@@ -195,6 +205,10 @@ class SpinBox : public Widget {
   void cancelEditing() { editing_ = false; edit_buffer_.clear(); }
 
  private:
+  void typeDigit(int d) {
+    edit_buffer_ += static_cast<char>('0' + d);
+    if (parsedBuffer() * 10 > max_value_ || static_cast<int>(edit_buffer_.size()) >= fieldWidth()) commitEdit(); // no further digit could apply
+  }
   // Small triangular arrows (U+25C2/U+25B8), not the heavy plus/minus this
   // widget used to draw as separate bright chips - their actual column
   // width is confirmed via utf8::displayWidth() below, not assumed, which
