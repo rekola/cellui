@@ -50,9 +50,13 @@ std::unique_ptr<Backend> openOne(BackendKind kind, const ApplicationOptions & op
   switch (kind) {
     case BackendKind::WINDOW: {
 #if defined(CELLUI_HAS_GTK)
-      auto window = gtk::Window::open({}, error);
+      gtk::WindowOptions window_options;
+      window_options.title = options.title;
+      auto window = gtk::Window::open(window_options, error);
 #elif defined(CELLUI_HAS_WIN32)
-      auto window = win32::Window::open({}, error);
+      win32::WindowOptions window_options;
+      window_options.title = options.title;
+      auto window = win32::Window::open(window_options, error);
 #else
       if (error) *error = "this build has no window backend";
       return nullptr;
@@ -86,7 +90,10 @@ std::unique_ptr<Backend> openOne(BackendKind kind, const ApplicationOptions & op
 }  // namespace
 
 std::unique_ptr<Application> Application::open(int argc, char ** argv, std::string * error) {
-  ApplicationOptions options;
+  return open(argc, argv, ApplicationOptions{}, error);
+}
+
+std::unique_ptr<Application> Application::open(int argc, char ** argv, ApplicationOptions options, std::string * error) {
   std::vector<std::string> rest;
   for (int i = 1; i < argc; i++) {
     std::string_view arg = argv[i];

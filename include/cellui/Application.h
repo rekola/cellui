@@ -28,6 +28,8 @@ namespace cellui {
 // `--theme`).
 struct ApplicationOptions {
   BackendKind ui = BackendKind::AUTO;
+  // The title of a window display (a terminal has none).
+  std::string title = "cellui";
   // A Theme::byName() name; empty follows the display. Ignored with `styles`.
   std::string theme;
   // The style provider every plane draws with, for a program with colours of
@@ -91,6 +93,8 @@ class Application {
   // backend cannot start, when none of the automatic candidates can, or when
   // `--ui` is not understood.
   static std::unique_ptr<Application> open(int argc, char ** argv, std::string * error = nullptr);
+  // The same, with `base` (a title, say) as the options `argv` then adds to.
+  static std::unique_ptr<Application> open(int argc, char ** argv, ApplicationOptions base, std::string * error = nullptr);
   // The same for a program that has read its own command line.
   static std::unique_ptr<Application> open(ApplicationOptions options, std::string * error = nullptr);
   // The same over a backend the caller opened (a test's).
