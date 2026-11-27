@@ -234,7 +234,9 @@ its stderr, MIDI and Launchpad sources and a frame rate of its own.
   readable, so there they stay opaque) menus, popups and dialogs (`PopupMenu`, `MenuBar`'s section, `CommandPalette`,
   `ChoiceDialog`, `InfoDialog`, `FormModal`; a dialog's glass is over its scrim's blur) are frosted, always, with a
   thin border (`Plane::setPanelBorder()`) in place of the light/dark edge a raised area has (the window leaves that
-  edge off any area with a border, and off a scrim): `Plane::setFrosted(tint)` (`setInkOnGlass()`) gives what is written next a
+  edge off any area with a border, and off a scrim). Every dialog's box is made the same way through
+  `DialogPanel.h` (`dialog::create()`/`style()` for the plane, `dialog::ink()` for what is written on it), and a
+  scrolling body over it is a `ScrollBody`, so no dialog draws its own opaque panel: `Plane::setFrosted(tint)` (`setInkOnGlass()`) gives what is written next a
   backdrop and `Cell::see_through` (no background of its own, so the text is drawn over the blurred planes below);
   a plane laid over the glass (a scrolled list) uses `setInkOverGlass()`, and `drawScrollbar(..., glass)` draws
   without a background. `clearFrosted()` before an opaque row (the selected or pressed one). All of it says no

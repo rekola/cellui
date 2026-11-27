@@ -20,9 +20,9 @@ void ScrollBody::layout(Plane & screen, Plane & box, int box_row, int box_col, i
   last_tick_ = now;
 
   // The scrollbar rides the box's last column, beside the lines.
-  box.setBgColor(background);
+  box.setInkOnGlass(foreground, background);
   for (int i = 0; i < rows; i++) box.putstr(top + i, cols, " ");
-  drawScrollbar(box, top, cols, rows, count_, rows, axis_.shown(), background, track, thumb);
+  drawScrollbar(box, top, cols, rows, count_, rows, axis_.shown(), background, track, thumb, box.frostedPopups());
   bar_row_ = box_row + top;
   bar_col_ = box_col + cols;
   bar_rows_ = rows;
@@ -37,8 +37,7 @@ void ScrollBody::layout(Plane & screen, Plane & box, int box_row, int box_col, i
   plane_->resize(rows, cols);
   plane_->setScrollOffset(axis_.fraction(), 0);
   plane_->erase();
-  plane_->setFgColor(foreground);
-  plane_->setBgColor(background);
+  plane_->setInkOverGlass(foreground, background);
   for (int i = 0; i < drawnRows(); i++) plane_->putstr(i, 0, std::string(static_cast<size_t>(cols), ' '));
   plane_->moveToTop();
 }

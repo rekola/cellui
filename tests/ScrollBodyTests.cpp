@@ -70,3 +70,20 @@ TEST(scrollbody_keys_scroll_by_lines_and_to_the_ends) {
   CHECK(f.body.firstLine() == 0);
   CHECK(f.body.page() == 3);
 }
+
+TEST(scrollbody_lines_have_no_background_of_their_own_over_a_box_that_is_glass) {
+  for (bool frosted : {true, false}) {
+    Fixture f;
+    f.root.setFrostedPopups(frosted);
+    f.layout();
+    f.root.refresh();
+    // The body's own plane is shown over the box: its blank lines are see-through only over glass.
+    CHECK(f.body.plane().frostedPopups() == frosted);
+    f.body.plane().putstr(0, 0, "line");
+    f.root.refresh();
+    bool see_through = false;
+    for (int r = 0; r < f.buffer.rows(); r++)
+      for (int c = 0; c < f.buffer.cols(); c++) see_through |= f.buffer.at(r, c).see_through;
+    CHECK(see_through == frosted);
+  }
+}
