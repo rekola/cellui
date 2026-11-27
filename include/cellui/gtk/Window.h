@@ -8,7 +8,7 @@
 namespace cellui::gtk {
 
 struct WindowOptions {
-  std::string title = "synth";
+  std::string title = "cellui";
   // The size of the window in cells at start.
   int rows = 40, cols = 120;
   // Gives the family and size of the font that sets the cell size.

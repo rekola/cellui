@@ -8,7 +8,7 @@
 namespace cellui::win32 {
 
 struct WindowOptions {
-  std::string title = "synth";
+  std::string title = "cellui";
   // The size of the window in cells at start.
   int rows = 40, cols = 120;
   // The font that sets the cell size, and its size in points.
