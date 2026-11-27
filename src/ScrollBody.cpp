@@ -32,6 +32,8 @@ void ScrollBody::layout(Plane & screen, Plane & box, int box_row, int box_col, i
     plane_->setMouseCursor(MouseCursor::DEFAULT);
     plane_->setElevation(box.elevation());
     plane_->setCastsShadow(false);
+    // It lies over the box's own border column; the border stays.
+    plane_->setCoversBorders(false);
   }
   plane_->move(box_row + top, box_col);
   plane_->resize(rows, cols);

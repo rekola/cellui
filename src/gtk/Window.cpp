@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -292,6 +293,19 @@ struct Window::Impl {
   };
   std::map<const Image *, ImageTexture> image_textures;
   std::vector<Painted> painted;
+  // What is composed up to a layer with a backdrop (the stack, blurred and dimmed), kept as a texture once it has
+  // been the same for two frames: a dialog scrolling moves only the layer above it, so the blur is not made again
+  // each frame. `key` is a print of everything the stack is made of.
+  struct StackCache {
+    uint64_t key = 0;
+    int same = 0;
+    GdkTexture * texture = nullptr;
+    void release() {
+      if (texture) g_object_unref(texture);
+      texture = nullptr;
+    }
+  };
+  std::vector<StackCache> stack_cache;
   FrameStats stats;
 
 
@@ -358,6 +372,8 @@ struct Window::Impl {
   void appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRenderNode * below, const std::vector<GskRenderNode *> & stacks);
   void forgetTextures() {
     for (Painted & p : painted) release(p);
+    for (StackCache & c : stack_cache) c.release();
+    stack_cache.clear();
     for (auto & [key, entry] : image_textures) entry.release();
     image_textures.clear();
   }
@@ -1485,7 +1501,9 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, GskRenderNode * top, GskRen
   // An area's cells again: from the frame, or, when they were composed into a
   // layer below it, from the stack so far with the frame over it.
   auto redraw = [&](const ElevatedArea & a) {
-    if (a.layer < layers.size() && below) gtk_snapshot_append_node(snap, below);
+    // The stack under it first even for cells of the frame: text over glass has no background to cover what it
+    // is drawn over, and drawn twice it is bold.
+    if (below) gtk_snapshot_append_node(snap, below);
     if (top) gtk_snapshot_append_node(snap, top);
   };
   // What shows in the corners a radius cuts away: what lay under them (the
@@ -1694,12 +1712,97 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
       // inside the backdrop's cells.
       GskRenderNode * below = nullptr;
       std::vector<GskRenderNode *> stacks;
+      // The slots paint() will be asked for are all there before any is held, so none moves.
+      if (painted.size() < 2 * layers.size() + 2) painted.resize(2 * layers.size() + 2);
+      stack_cache.resize(layers.size());
+      // A print of what a layer's cells show, pictures and runs of text included.
+      std::vector<uint64_t> run_prints(text_runs.size());
+      for (size_t k = 0; k < text_runs.size(); k++) {
+        const TextRun & run = text_runs[k];
+        Print p;
+        p.add(run.text);
+        p.add(run.fg);
+        p.add(static_cast<uint64_t>(run.weight) << 2 | static_cast<uint64_t>(run.italic) << 1 | static_cast<uint64_t>(run.underline));
+        p.add(static_cast<uint64_t>(run.font) << 16 | static_cast<uint64_t>(run.overflow) << 8 | static_cast<uint64_t>(run.align));
+        for (const auto & [from, to] : run.emphasis) p.add(static_cast<uint64_t>(from) << 32 | static_cast<uint32_t>(to));
+        p.add(run.emphasis_fg);
+        run_prints[k] = p.value();
+      }
+      auto cellsPrint = [&](Print & out, const Painted & pr, const CellBuffer & cells) {
+        out.add(pr.shape);
+        for (const Painted::Band & b : pr.bands) {
+          out.add(b.bg_print);
+          out.add(b.text_print);
+          out.add(b.glow_print);
+        }
+        for (int r = 0; r < cells.rows(); r++) {
+          for (int c = 0; c < cells.cols(); c++) {
+            const CellBuffer::Cell & cell = cells.at(r, c);
+            if (cell.image > 0 && static_cast<size_t>(cell.image) <= images.size()) {
+              const ImagePlacement & place = images[static_cast<size_t>(cell.image - 1)];
+              out.add(static_cast<uint64_t>(r) << 32 | static_cast<uint32_t>(c));
+              out.add(place.key);
+              out.add(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(place.image.get())));
+            }
+            if (cell.text_run > 0 && static_cast<size_t>(cell.text_run) <= run_prints.size()) {
+              out.add(static_cast<uint64_t>(r) << 32 | static_cast<uint32_t>(c));
+              out.add(run_prints[static_cast<size_t>(cell.text_run - 1)]);
+            }
+          }
+        }
+      };
+      auto bits = [](double v) { return std::bit_cast<uint64_t>(v); };
+      Print seed;
+      seed.add(static_cast<uint64_t>(width) << 32 | static_cast<uint32_t>(height));
+      seed.add(static_cast<uint64_t>(cell_w) << 32 | static_cast<uint32_t>(cell_h));
+      seed.add(bits(display_info.display_scale));
+      seed.add(display_info.default_bg);
+      seed.add(display_info.default_fg);
+      uint64_t chain = seed.value();
       for (size_t i = 0; i < layers.size(); i++) {
         const BackdropLayer & layer = layers[i];
+        const Painted & layer_painted = paint(i, layer.cells, i > 0);
+        const Painted * scroll_painted = layer.scroll ? &paint(layers.size() + 1 + scrolls++, layer.scroll->cells, true) : nullptr;
+        Print stack_print;
+        stack_print.add(chain);
+        cellsPrint(stack_print, layer_painted, layer.cells);
+        stack_print.add(static_cast<uint64_t>(layer.row) << 32 | static_cast<uint32_t>(layer.col));
+        stack_print.add(static_cast<uint64_t>(layer.rows) << 32 | static_cast<uint32_t>(layer.cols));
+        stack_print.add(static_cast<uint64_t>(layer.backdrop.blur) << 32 | std::bit_cast<uint32_t>(layer.backdrop.dim));
+        stack_print.add(layer.backdrop.tint);
+        if (scroll_painted) {
+          const ScrollContent & content = *layer.scroll;
+          cellsPrint(stack_print, *scroll_painted, content.cells);
+          stack_print.add(static_cast<uint64_t>(content.row) << 32 | static_cast<uint32_t>(content.col));
+          stack_print.add(static_cast<uint64_t>(content.rows) << 32 | static_cast<uint32_t>(content.cols));
+          stack_print.add(bits(content.shift_rows));
+          stack_print.add(bits(content.shift_cols));
+          stack_print.add(static_cast<uint64_t>(content.blend) << 32 | std::bit_cast<uint32_t>(content.blend_alpha));
+          if (content.band) {
+            const Band & band = *content.band;
+            stack_print.add(bits(band.row));
+            stack_print.add(bits(band.col));
+            stack_print.add(bits(band.rows));
+            stack_print.add(bits(band.cols));
+            stack_print.add(std::optional<Color>(band.color));
+            stack_print.add(static_cast<uint64_t>(band.blend) << 32 | std::bit_cast<uint32_t>(band.alpha));
+            stack_print.add(bits(band.border_px));
+            stack_print.add(std::optional<Color>(band.border_color));
+          }
+        }
+        chain = stack_print.value();
+        StackCache & kept = stack_cache[i];
+        if (layer.backdrop.active() && kept.texture && kept.key == chain) {
+          // The same as the last frames: the stack up to here, blurred, as it was drawn.
+          stats.stack_hits++;
+          below = gsk_texture_node_new(kept.texture, &all);
+          stacks.push_back(below);
+          continue;
+        }
         GtkSnapshot * s = gtk_snapshot_new();
         if (below) gtk_snapshot_append_node(s, below);
         else gtk_snapshot_append_color(s, &background, &all);
-        appendPainted(s, paint(i, layer.cells, i > 0), &layer.cells);
+        appendPainted(s, layer_painted, &layer.cells);
         if (layer.scroll) {
           // A plane scrolled by part of a cell: its own texture, kept while
           // its cells are unchanged, moved by the fraction and cut to the
@@ -1721,7 +1824,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
             gtk_snapshot_push_opacity(s, content.blend_alpha);
             gtk_snapshot_save(s);
             gtk_snapshot_translate(s, &shift);
-            appendPainted(s, paint(layers.size() + 1 + scrolls++, content.cells, true), &content.cells, content.row, content.col);
+            appendPainted(s, *scroll_painted, &content.cells, content.row, content.col);
             gtk_snapshot_restore(s);
             gtk_snapshot_pop(s);
             gtk_snapshot_pop(s);
@@ -1731,7 +1834,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
           gtk_snapshot_push_clip(s, &shown);
           gtk_snapshot_save(s);
           gtk_snapshot_translate(s, &shift);
-          appendPainted(s, paint(layers.size() + 1 + scrolls++, content.cells, true), &content.cells, content.row, content.col);
+          appendPainted(s, *scroll_painted, &content.cells, content.row, content.col);
           gtk_snapshot_restore(s);
           if (content.band && content.band->blend == BlendMode::NORMAL) {
             const Band & band = *content.band;
@@ -1819,6 +1922,22 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
         }
         gsk_render_node_unref(composed);
         below = gtk_snapshot_free_to_node(s);
+        if (layer.backdrop.active()) {
+          // The same stack twice running is made into a texture, which later frames draw as it is.
+          if (kept.key != chain) {
+            kept.release();
+            kept.key = chain;
+            kept.same = 1;
+          } else if (!kept.texture && ++kept.same >= 2) {
+            if (GdkTexture * texture = renderTexture(below, all)) {
+              kept.texture = texture;
+              stats.stacks_kept++;
+              GskRenderNode * kept_node = gsk_texture_node_new(texture, &all);
+              gsk_render_node_unref(below);
+              below = kept_node;
+            }
+          }
+        }
         stacks.push_back(below);
       }
       gtk_snapshot_append_node(snap, below);
@@ -1829,6 +1948,8 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
       for (GskRenderNode * node : stacks) gsk_render_node_unref(node);
     }
     // Layers that are gone leave their textures.
+    for (size_t i = layers.size(); i < stack_cache.size(); i++) stack_cache[i].release();
+    stack_cache.resize(layers.size());
     size_t used = layers.size() + 1 + scrolls;
     for (size_t i = used; i < painted.size(); i++) release(painted[i]);
     painted.resize(used);

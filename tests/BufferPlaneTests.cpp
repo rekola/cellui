@@ -1597,3 +1597,28 @@ TEST(areacovered_only_where_a_backdrop_at_or_above_its_layer_overlaps_its_cells)
   layers[0].backdrop = Backdrop{};
   CHECK(!areaCovered(layers, chip));  // a layer with no backdrop (a scrolled plane) covers nothing
 }
+
+TEST(bufferplane_a_raised_plane_hides_the_border_under_it_unless_it_says_it_does_not) {
+  for (bool covers : {true, false}) {
+    StyleProvider styles;
+    CellBuffer b(10, 30);
+    BufferPlane root(b, styles);
+    auto box = root.createChild();
+    box->setElevation(styles.theme.elevation.modal);
+    box->resize(6, 20);
+    box->move(1, 2);
+    box->setPanelBorder();
+    // A body over the box's own edge column, raised like it (a dialog's scrolling lines).
+    auto body = root.createChild();
+    body->setElevation(styles.theme.elevation.modal);
+    body->resize(4, 19);
+    body->move(2, 2);
+    body->setCoversBorders(covers);
+    body->putstr(0, 1, "text");
+    root.refresh();
+    bool border_covered = false;
+    for (const ElevatedArea & a : root.takeElevations())
+      if (a.border_px > 0) border_covered = !a.covers.empty();
+    CHECK(border_covered == covers);
+  }
+}

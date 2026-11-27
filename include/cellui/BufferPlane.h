@@ -78,6 +78,7 @@ class BufferPlane : public Plane {
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
   void setSeeThrough(bool on) override { style_.see_through = on; }
+  void setCoversBorders(bool on) override { covers_borders_ = on; }
   bool frostedPopups() const override { return root().frosted_popups_; }
   // Whether the display draws menus and popups as glass (root only).
   void setFrostedPopups(bool on) { frosted_popups_ = on; }
@@ -301,6 +302,7 @@ class BufferPlane : public Plane {
   bool cell_borders_ = false;
   bool proportional_text_ = false;
   bool frosted_popups_ = false;
+  bool covers_borders_ = true;
   // The runs this plane's cells are marked with, by local index; the frame's,
   // in the order composed (root only).
   void putRun(int y, int x, int cols, const std::string & text, const TextStyle & style, const TextEmphasis * emphasis);

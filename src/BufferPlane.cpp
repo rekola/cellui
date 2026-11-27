@@ -248,7 +248,7 @@ void BufferPlane::refresh() {
     p.plane->compose(*top.target_, p.row, p.col, p.clip_row, p.clip_col, p.clip_rows, p.clip_cols, p.elevation);
     // A bordered plane painted before this one is covered where this one shows content: all of the overlap if it is
     // raised, else the cells that are not blank.
-    if (inside) {
+    if (inside && p.plane->covers_borders_) {
       for (size_t index : bordered_areas) {
         ElevatedArea & under = top.elevations_[index];
         int or0 = std::max(r0, under.row), or1 = std::min(r1, under.row + under.rows);

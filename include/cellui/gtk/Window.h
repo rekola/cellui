@@ -25,6 +25,8 @@ struct FrameStats {
   size_t paints = 0;  // frames the frame clock painted: the snapshot above and GSK's rendering of it, to the call that hands it to the GPU
   double paint_ms_total = 0, paint_ms_max = 0;
   size_t shadows = 0;  // the last frame's, under raised planes
+  size_t stack_hits = 0;  // frames' blurring layers drawn from a kept texture of what lies under and in them
+  size_t stacks_kept = 0;  // textures of such a stack made so far
   size_t glows = 0;  // the last frame's bands with cells lit past white
   size_t blooms = 0;  // pictures' light past white blurred into textures so far, once per picture version and size
   size_t glyphs_shaped = 0;  // glyphs laid out by Pango so far; a glyph in another colour is not

@@ -1173,3 +1173,47 @@ TEST(gtk_window_measures_text_in_its_proportional_face_in_cells) {
   CHECK(w->textWidth("hello world", kBoldFace) >= longer);
   CHECK(w->textWidth("iiiiiiiiii", kPlainFace) < w->textWidth("WWWWWWWWWW", kPlainFace));
 }
+
+// A layer's stack under a backdrop is kept as a texture once it has been the same for two frames, so a dialog
+// scrolling over it does not blur the screen again each frame; a change under it makes it again.
+TEST(gtk_window_keeps_the_blurred_stack_while_only_the_layer_above_changes) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.putstr(1, 2, "below the dialog");
+  auto scrim = root.createChild();
+  scrim->setBackdrop(Backdrop{ 2, 0.3f });
+  for (int r = 0; r < w->rows(); r++) scrim->putstr(r, 0, std::string(static_cast<size_t>(w->cols()), ' '));
+  auto dialog = root.createChild();
+  dialog->resize(3, 20);
+  dialog->move(4, 5);
+  dialog->setBgColor(40, 40, 60);
+  auto frame = [&](const char * text) {
+    dialog->putstr(1, 2, text);
+    root.refresh();
+    FrameInfo info;
+    info.backdrops = root.takeBackdropLayers();
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images(), &info);
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  };
+  // The dialog's text is what changes: above the backdrop, so the stack under the blur stays the same.
+  size_t hits = w->stats().stack_hits, kept = w->stats().stacks_kept;
+  frame("one");
+  frame("two");
+  frame("three");
+  frame("four");
+  CHECK(w->stats().stacks_kept == kept + 1);
+  CHECK(w->stats().stack_hits >= hits + 2);
+  // A change under the backdrop makes the stack again, and the frame after it is drawn from the new one.
+  hits = w->stats().stack_hits;
+  root.putstr(1, 2, "changed under it");
+  frame("five");
+  CHECK(w->stats().stack_hits == hits);
+  frame("six");
+  frame("seven");
+  CHECK(w->stats().stacks_kept == kept + 2);
+  CHECK(w->stats().stack_hits > hits);
+}
