@@ -296,13 +296,9 @@ struct Window::Impl {
   // What is composed up to a layer with a backdrop (the stack, blurred and dimmed), kept as a texture once it has
   // been the same for two frames: a dialog scrolling moves only the layer above it, so the blur is not made again
   // each frame. `key` is a print of everything the stack is made of.
-  // `shape` is the part of the print that is the layers' places and backdrops, `key` the cells and pictures: a change
-  // of the cells alone (live data under a dialog) leaves the texture in use for a short while (kStackStaleMs), since
-  // what lies under a blur and a dim is not read closely, and only then makes it again.
   struct StackCache {
-    uint64_t key = 0, shape = 0;
+    uint64_t key = 0;
     int same = 0;
-    std::chrono::steady_clock::time_point made;
     GdkTexture * texture = nullptr;
     void release() {
       if (texture) g_object_unref(texture);
@@ -1762,8 +1758,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
       seed.add(bits(display_info.display_scale));
       seed.add(display_info.default_bg);
       seed.add(display_info.default_fg);
-      uint64_t chain = seed.value(), shape_chain = seed.value();
-      constexpr double kStackStaleMs = 300.0;
+      uint64_t chain = seed.value();
       // Only the layers up to the last backdrop can have their stack kept.
       size_t last_backdrop = 0;
       bool any_backdrop = false;
@@ -1777,16 +1772,14 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
         const Painted & layer_painted = paint(i, layer.cells, i > 0);
         const Painted * scroll_painted = layer.scroll ? &paint(layers.size() + 1 + scrolls++, layer.scroll->cells, true) : nullptr;
         const bool keepable = any_backdrop && i <= last_backdrop;
-        Print stack_print, shape_print;
+        Print stack_print;
         if (keepable) {
           stack_print.add(chain);
-          shape_print.add(shape_chain);
           cellsPrint(stack_print, layer_painted, layer.cells);
-          shape_print.add(static_cast<uint64_t>(layer.row) << 32 | static_cast<uint32_t>(layer.col));
-          shape_print.add(static_cast<uint64_t>(layer.rows) << 32 | static_cast<uint32_t>(layer.cols));
-          shape_print.add(static_cast<uint64_t>(layer.backdrop.blur) << 32 | std::bit_cast<uint32_t>(layer.backdrop.dim));
-          shape_print.add(layer.backdrop.tint);
-          shape_print.add(static_cast<uint64_t>(layer.scroll.has_value()));
+          stack_print.add(static_cast<uint64_t>(layer.row) << 32 | static_cast<uint32_t>(layer.col));
+          stack_print.add(static_cast<uint64_t>(layer.rows) << 32 | static_cast<uint32_t>(layer.cols));
+          stack_print.add(static_cast<uint64_t>(layer.backdrop.blur) << 32 | std::bit_cast<uint32_t>(layer.backdrop.dim));
+          stack_print.add(layer.backdrop.tint);
           if (scroll_painted) {
             const ScrollContent & content = *layer.scroll;
             cellsPrint(stack_print, *scroll_painted, content.cells);
@@ -1809,16 +1802,11 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
           }
         }
         chain = stack_print.value();
-        shape_chain = shape_print.value();
         StackCache & kept = stack_cache[i];
-        const auto frame_time = std::chrono::steady_clock::now();
         // A layer over a good part of the screen (a dialog's scrim) is the costly one to blur.
         const bool big = static_cast<long>(layer.rows) * layer.cols * 4 >= static_cast<long>(frame.rows()) * frame.cols();
-        if (layer.backdrop.active() && kept.texture && kept.shape == shape_chain &&
-            (kept.key == chain || (big && std::chrono::duration<double, std::milli>(frame_time - kept.made).count() < kStackStaleMs))) {
-          // The stack up to here, blurred, as it was drawn: the same as the last frames, or changed only in its cells a
-          // moment ago. What the layers above print from is what was kept, so they stay the same too.
-          chain = kept.key;
+        if (layer.backdrop.active() && kept.texture && kept.key == chain) {
+          // The same as the last frames: the stack up to here, blurred, as it was drawn.
           stats.stack_hits++;
           below = gsk_texture_node_new(kept.texture, &all);
           stacks.push_back(below);
@@ -1948,22 +1936,18 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
         gsk_render_node_unref(composed);
         below = gtk_snapshot_free_to_node(s);
         if (layer.backdrop.active()) {
-          // The same stack twice running is made into a texture, which later frames draw as it is. A big layer is made
-          // one at once, and again when it is older than kStackStaleMs and its cells have changed, so a screen that
-          // keeps changing under a dialog costs a render every kStackStaleMs, not a blur every frame.
-          const bool changing = kept.texture && kept.shape == shape_chain;
-          if (kept.shape != shape_chain || kept.key != chain) {
+          // The same stack twice running is made into a texture, which later frames draw as it is; a big layer is made
+          // one at its first frame.
+          if (kept.key != chain) {
             kept.release();
-            kept.shape = shape_chain;
             kept.key = chain;
             kept.same = 1;
           } else if (!kept.texture) {
             kept.same++;
           }
-          if (!kept.texture && (kept.same >= 2 || big || changing)) {
+          if (!kept.texture && (kept.same >= 2 || big)) {
             if (GdkTexture * texture = renderTexture(below, all)) {
               kept.texture = texture;
-              kept.made = frame_time;
               stats.stacks_kept++;
               GskRenderNode * kept_node = gsk_texture_node_new(texture, &all);
               gsk_render_node_unref(below);
