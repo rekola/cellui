@@ -311,6 +311,27 @@ TEST(trace_in_cells_keeps_the_light_past_white_for_the_terminals_tone_map) {
   CHECK(strongest(bright) > 1.0f);  // lit past white; Color::toSrgb8() washes it toward white
 }
 
+TEST(trace_in_cells_lights_a_high_line_past_white_when_the_light_is_its_height) {
+  StyleProvider styles;
+  CellBuffer buffer(2, 10);
+  BufferPlane root(buffer, styles);
+  auto charts = cellCharts();
+  const std::vector<float> values{1, 2, 3, 4, 5};
+  TraceLook look{Color(10, 10, 10), Color(60, 180, 80), std::nullopt};  // no light series at all
+  auto strongest = [&] {
+    charts->drawTrace(root, 0, 0, 2, 10, values, look, 0, 2);
+    root.refresh();
+    float most = 0.0f;
+    for (int row = 0; row < 2; row++)
+      for (int col = 0; col < 10; col++)
+        if (const auto & fg = buffer.at(row, col).fg) most = std::max({most, fg->r(), fg->g(), fg->b()});
+    return most;
+  };
+  CHECK(strongest() <= 1.0f);  // the series is empty: every point is at 0
+  look.light_from = LightFrom::HEIGHT;
+  CHECK(strongest() > 1.0f);
+}
+
 TEST(table_click_on_a_cell_says_which_and_a_drag_across_rows_is_no_click) {
   Fixture f;
   std::vector<std::pair<int, int>> clicks;

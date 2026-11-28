@@ -123,6 +123,7 @@ class PixelCharts : public Charts {
     for (float v : values) mix(v);
     for (float v : look.light) mix(v);
     mix(look.line_width);
+    mix(look.light_from == LightFrom::HEIGHT ? 1.0f : 0.0f);
     for (const Color * c : {&look.background, &look.line}) {
       mix(c->r());
       mix(c->g());
