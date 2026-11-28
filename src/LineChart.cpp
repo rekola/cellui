@@ -36,6 +36,7 @@ void LineChart::draw() {
   if (rows <= 0 || cols <= 0 || last_values_.empty()) return;
   TraceLook look{styles.window_bg_color, styles.line_high_color, styles.line_high_color};
   look.range = last_range_;
+  look.light_from = LightFrom::HEIGHT;  // one series and nothing else to say how bright: the higher, the brighter
   // Opaque, so a picture never composites against the raw terminal background.
   charts_.drawTrace(getPlane(), 0, 0, rows, cols, last_values_, look, 0, rows, 0);
 }

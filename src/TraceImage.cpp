@@ -92,11 +92,21 @@ Picture renderPicture(std::span<const float> values, const TraceLook & look, uns
     }
     ctx.beginPath().moveTo(x_at(0), y_at(0));
     for (size_t x = 1; x < levels.size(); x++) ctx.lineTo(x_at(x), y_at(x));
-    // The brightness changes along the line, so the gradient runs across the box with a stop for each pixel column.
-    const std::vector<float> light = resampleLight(look, values.size(), levels.size());
-    auto stroke = ctx.createLinearGradient(0, 0, w, 0);
-    for (size_t x = 0; x < light.size(); x++) stroke.addColorStop(static_cast<float>(x_at(x) * scale / static_cast<double>(width)), toCanvas(lineColorAt(look, light[x], true)));
-    ctx.strokeStyle = stroke;
+    if (look.light_from == LightFrom::HEIGHT) {
+      // Brighter up the box; the light past white rises on a curve, so the gradient is more than its two ends.
+      auto stroke = ctx.createLinearGradient(0, h, 0, 0);
+      for (int i = 0; i <= 8; i++) {
+        const float t = static_cast<float>(i) / 8.0f;
+        stroke.addColorStop(t, toCanvas(lineColorAt(look, t, true)));
+      }
+      ctx.strokeStyle = stroke;
+    } else {
+      // The brightness changes along the line, so the gradient runs across the box with a stop for each pixel column.
+      const std::vector<float> light = resampleLight(look, values.size(), levels.size());
+      auto stroke = ctx.createLinearGradient(0, 0, w, 0);
+      for (size_t x = 0; x < light.size(); x++) stroke.addColorStop(static_cast<float>(x_at(x) * scale / static_cast<double>(width)), toCanvas(lineColorAt(look, light[x], true)));
+      ctx.strokeStyle = stroke;
+    }
     ctx.lineWidth = look.line_width;
     ctx.stroke();
 

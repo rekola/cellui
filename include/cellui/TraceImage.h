@@ -30,7 +30,14 @@ namespace cellui {
 // values (none at all) leaves the whole line at 0. `light` is read while the
 // trace is drawn.
 //
+// Where the brightness comes from is `light_from`: the `light` series (a table's trace or a chart of prices, the
+// default), or the line's own height (a spectrum or a level curve, which has no second series): a gradient up the box,
+// `line` blended in from the background at the bottom and lit past white from about a third of the way up, so a high
+// part of the curve glows in its own colour where the display shows light past white.
+//
 // This is the one line chart: a table's cell, a meter's curve and a chart of its own all draw through Charts::drawTrace().
+enum class LightFrom { SERIES, HEIGHT };
+
 struct TraceLook {
   Color background;
   Color line;
@@ -45,6 +52,8 @@ struct TraceLook {
   std::optional<float> cursor = std::nullopt;
   // The line's width in logical pixels (scaled by the display scale): thicker for a chart of its own than for a table's cell.
   float line_width = 1.5f;
+  // Whether the line's brightness is the `light` series or how high the line is in its box.
+  LightFrom light_from = LightFrom::SERIES;
 };
 
 namespace trace_image {

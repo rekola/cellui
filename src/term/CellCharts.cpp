@@ -256,7 +256,9 @@ void drawCellTrace(Plane & plane, int row, int col, int rows, int cols, std::spa
       // A cell has one colour: the brighter of its two dot columns. Light past white is kept in it: the display's tone map
       // (Color::toSrgb8()) washes it toward white, as it does a picture's.
       const size_t x = static_cast<size_t>(2 * c);
-      plane.setFgColor(trace_image::lineColorAt(look, std::max(light[x], light[x + 1]), true));
+      const float bright = look.light_from == LightFrom::HEIGHT ? (static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows)
+                                                                : std::max(light[x], light[x + 1]);
+      plane.setFgColor(trace_image::lineColorAt(look, bright, true));
       plane.putstr(y, col + c, utf8::encodeCodepoint(brailleCodepoint(mask)));
     }
   }
